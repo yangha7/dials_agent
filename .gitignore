@@ -1,0 +1,44 @@
+# DIALS installation (large, installed separately)
+conda_base/
+modules/
+build/
+micromamba/
+bootstrap.py
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+*.so
+
+# Environment and secrets
+.env
+*.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Data files (large HDF5 files)
+tutorial/*.h5
+tutorial/*.cbf
+tutorial/*.nxs
+
+# DIALS output files
+*.expt
+*.refl
+*.mtz
+*.html
+*.json
+!dials_agent/**/*.json
+!plans/**/*.json

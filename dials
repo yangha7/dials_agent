@@ -1,0 +1,3 @@
+# enable conda environment
+source /Users/yha/DIALS_2026/conda_base/etc/profile.d/conda.sh
+conda activate /Users/yha/DIALS_2026/conda_base
