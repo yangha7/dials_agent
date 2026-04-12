@@ -53,6 +53,6 @@ dials-agent = "dials_agent.cli:main"
 Homepage = "https://dials.github.io/"
 Repository = "https://github.com/dials/dials"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["dials_agent*"]
+[tool.setuptools]
+packages = ["dials_agent", "dials_agent.core", "dials_agent.dials"]
+package-dir = {"dials_agent" = "."}
