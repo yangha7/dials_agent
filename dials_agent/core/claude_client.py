@@ -138,13 +138,18 @@ class ClaudeClient:
     def _get_system_prompt(self) -> str:
         """Get the system prompt with current context, including discovered data files."""
         # Always discover data files to provide context for import commands
-        data_files = discover_data_files(self.working_directory)
+        # Also search the configured data_directory if set
+        data_files = discover_data_files(
+            self.working_directory,
+            data_directory=self.settings.data_directory
+        )
         
         # Always use context version to include data files info
         return get_system_prompt_with_context(
             self.working_directory,
             self.existing_files,
-            data_files
+            data_files,
+            data_directory=self.settings.data_directory
         )
     
     def update_context(

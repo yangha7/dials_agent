@@ -47,11 +47,15 @@ class Settings(BaseSettings):
     # DIALS settings
     dials_path: str = Field(
         default="",
-        description="Path to DIALS installation (empty for system PATH)"
+        description="Path to DIALS installation bin directory (empty for system PATH)"
     )
     working_directory: str = Field(
         default=".",
-        description="Default working directory for DIALS commands"
+        description="Default working directory for DIALS output files"
+    )
+    data_directory: str = Field(
+        default="",
+        description="Directory containing input data files (images, HDF5, etc.)"
     )
     command_timeout: int = Field(
         default=3600,

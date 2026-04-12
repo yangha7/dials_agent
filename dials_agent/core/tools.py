@@ -281,18 +281,20 @@ DATA_FILE_EXTENSIONS = {
 def discover_data_files(
     working_directory: str = ".",
     search_parent: bool = True,
-    max_depth: int = 2
+    max_depth: int = 2,
+    data_directory: str = ""
 ) -> list[dict[str, str]]:
     """
     Discover diffraction data files that can be imported by DIALS.
     
-    Searches the working directory and optionally parent/sibling directories
-    for common diffraction data file formats.
+    Searches the working directory, optionally parent/sibling directories,
+    and a configured data directory for common diffraction data file formats.
     
     Args:
         working_directory: The directory to start searching from
         search_parent: Whether to also search parent directory and siblings
         max_depth: Maximum depth to search within directories
+        data_directory: Additional directory to search for input data files
         
     Returns:
         List of dicts with 'path' (relative path to file) and 'type' (file type)
@@ -359,6 +361,50 @@ def discover_data_files(
                     scan_directory(sibling, working_path, current_depth=1)
         except PermissionError:
             pass
+    
+    # Scan the configured data directory if provided
+    if data_directory:
+        data_path = Path(data_directory).resolve()
+        if data_path.exists() and data_path != working_path:
+            # Track already-found files by resolved absolute path to avoid duplicates
+            existing_resolved = set()
+            for f in data_files:
+                try:
+                    # Resolve relative paths against working_path
+                    p = Path(f["path"])
+                    if not p.is_absolute():
+                        p = (working_path / p).resolve()
+                    else:
+                        p = p.resolve()
+                    existing_resolved.add(str(p))
+                except (OSError, ValueError):
+                    pass
+            
+            def scan_data_directory(directory: Path, current_depth: int = 0):
+                """Scan data directory for data files, using absolute paths."""
+                if current_depth > max_depth:
+                    return
+                try:
+                    for item in directory.iterdir():
+                        if item.is_file():
+                            suffix = item.suffix.lower()
+                            if suffix in DATA_FILE_EXTENSIONS:
+                                resolved = str(item.resolve())
+                                if resolved not in existing_resolved:
+                                    # Use absolute path for data directory files
+                                    data_files.append({
+                                        "path": str(item),
+                                        "type": suffix[1:].upper(),
+                                        "name": item.name,
+                                        "size_mb": round(item.stat().st_size / (1024 * 1024), 1)
+                                    })
+                                    existing_resolved.add(resolved)
+                        elif item.is_dir() and not item.name.startswith('.'):
+                            scan_data_directory(item, current_depth + 1)
+                except PermissionError:
+                    pass
+            
+            scan_data_directory(data_path)
     
     # Sort by path for consistent ordering
     data_files.sort(key=lambda x: x["path"])

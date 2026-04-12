@@ -264,7 +264,8 @@ def get_system_prompt() -> str:
 def get_system_prompt_with_context(
     working_directory: str,
     existing_files: list[str],
-    data_files: list[dict[str, str]] | None = None
+    data_files: list[dict[str, str]] | None = None,
+    data_directory: str = ""
 ) -> str:
     """
     Get the system prompt with additional context about the current state.
@@ -273,6 +274,7 @@ def get_system_prompt_with_context(
         working_directory: The current working directory
         existing_files: List of DIALS-related files in the directory
         data_files: List of discovered diffraction data files (from discover_data_files())
+        data_directory: Configured data directory path (for display in context)
         
     Returns:
         System prompt with context appended
@@ -285,11 +287,16 @@ def get_system_prompt_with_context(
     else:
         data_files_section = "Available diffraction data files:\n- None found. Ask the user to specify the path to their data file."
     
+    # Data directory info
+    data_dir_section = ""
+    if data_directory:
+        data_dir_section = f"\nData directory (input files): {data_directory}"
+    
     context = f"""
 
 ## Current Context
 
-Working directory: {working_directory}
+Working directory: {working_directory}{data_dir_section}
 
 {data_files_section}
 

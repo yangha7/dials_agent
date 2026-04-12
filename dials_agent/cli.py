@@ -525,12 +525,12 @@ def main():
     )
     parser.add_argument(
         "-d", "--directory",
-        default=".",
-        help="Working directory for DIALS processing"
+        default=None,
+        help="Working directory for DIALS output (overrides WORKING_DIRECTORY in .env)"
     )
     parser.add_argument(
         "-e", "--env-file",
-        default=".env",
+        default=None,
         help="Path to .env file with configuration"
     )
     parser.add_argument(
@@ -554,21 +554,42 @@ def main():
     log_level = "DEBUG" if args.verbose else "INFO"
     setup_logging(log_level, args.log_file)
     
-    # Load configuration
-    if Path(args.env_file).exists():
-        configure_from_env_file(args.env_file)
+    # Find and load .env file
+    # Priority: CLI arg > ./dials_agent/.env > ./.env > package directory .env
+    env_file = args.env_file
+    if env_file is None:
+        # Search for .env in common locations
+        candidates = [
+            Path(".env"),
+            Path("dials_agent/.env"),
+            Path(__file__).parent / ".env",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                env_file = str(candidate)
+                break
+    
+    if env_file and Path(env_file).exists():
+        configure_from_env_file(env_file)
     
     settings = get_settings()
     
     # Check API key
     if not settings.validate_api_key():
-        console.print("[red]Error: ANTHROPIC_API_KEY not configured.[/red]")
+        if settings.api_provider == "openai":
+            console.print("[red]Error: OPENAI_API_KEY not configured.[/red]")
+        else:
+            console.print("[red]Error: ANTHROPIC_API_KEY not configured.[/red]")
         console.print("Set the environment variable or add it to .env file.")
+        console.print(f"[dim]Searched for .env in: {env_file or 'default locations'}[/dim]")
         sys.exit(1)
+    
+    # Determine working directory: CLI arg > .env setting > current directory
+    working_dir = args.directory or settings.working_directory or "."
     
     # Check DIALS only mode
     if args.check_dials:
-        executor = create_executor(args.directory)
+        executor = create_executor(working_dir)
         available, version = executor.check_dials_available()
         if available:
             console.print(f"[green]DIALS available: {version}[/green]")
@@ -577,10 +598,18 @@ def main():
             console.print(f"[red]DIALS not available: {version}[/red]")
             sys.exit(1)
     
+    # Show configuration summary
+    console.print(f"[dim]Working directory: {Path(working_dir).absolute()}[/dim]")
+    if settings.data_directory:
+        console.print(f"[dim]Data directory: {settings.data_directory}[/dim]")
+    if settings.dials_path:
+        console.print(f"[dim]DIALS path: {settings.dials_path}[/dim]")
+    console.print(f"[dim]API provider: {settings.api_provider} ({settings.model})[/dim]")
+    
     # Create and run agent
     try:
         agent = DIALSAgent(
-            working_directory=args.directory,
+            working_directory=working_dir,
             settings=settings
         )
         agent.run_interactive()
