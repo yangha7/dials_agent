@@ -148,6 +148,90 @@ class DIALSAgent:
                 "current_stage": self.workflow.get_stage_name()
             }
         
+        elif tool_call.name == "read_file":
+            filename = tool_call.input.get("filename", "")
+            tail_lines = tool_call.input.get("tail_lines")
+            max_chars = tool_call.input.get("max_chars", 50000)
+            
+            filepath = self.working_directory / filename
+            if not filepath.exists():
+                return {
+                    "error": f"File not found: {filename}",
+                    "available_files": [
+                        f.name for f in self.working_directory.iterdir()
+                        if f.is_file() and (f.suffix in {'.log', '.html', '.txt', '.json', '.expt'})
+                    ]
+                }
+            
+            try:
+                content = filepath.read_text(errors='replace')
+                
+                if tail_lines:
+                    lines = content.splitlines()
+                    content = "\n".join(lines[-tail_lines:])
+                
+                if len(content) > max_chars:
+                    content = f"[... truncated {len(content) - max_chars} chars from beginning ...]\n" + content[-max_chars:]
+                
+                console.print(f"[dim]📄 Reading {filename} ({len(content)} chars)[/dim]")
+                return {
+                    "filename": filename,
+                    "content": content,
+                    "size_bytes": filepath.stat().st_size
+                }
+            except Exception as e:
+                return {"error": f"Error reading {filename}: {str(e)}"}
+        
+        elif tool_call.name == "open_file":
+            import subprocess as sp
+            
+            filename = tool_call.input.get("filename", "")
+            filepath = self.working_directory / filename
+            
+            if not filepath.exists():
+                return {"error": f"File not found: {filename}"}
+            
+            suffix = filepath.suffix.lower()
+            
+            if suffix == ".html":
+                # Open HTML files in a web browser (background, non-blocking)
+                try:
+                    # Try firefox first (common on Linux servers), then xdg-open
+                    for browser_cmd in ["firefox", "xdg-open", "open"]:
+                        try:
+                            sp.Popen(
+                                [browser_cmd, str(filepath)],
+                                stdout=sp.DEVNULL,
+                                stderr=sp.DEVNULL,
+                                start_new_session=True
+                            )
+                            console.print(f"[green]🌐 Opened {filename} in browser[/green]")
+                            return {
+                                "status": "opened",
+                                "filename": filename,
+                                "viewer": browser_cmd
+                            }
+                        except FileNotFoundError:
+                            continue
+                    
+                    return {"error": f"No web browser found to open {filename}. Try: firefox {filepath}"}
+                except Exception as e:
+                    return {"error": f"Error opening {filename}: {str(e)}"}
+            
+            elif suffix in {".expt", ".refl"}:
+                # Suggest appropriate DIALS viewer
+                return {
+                    "status": "suggestion",
+                    "message": f"Use dials.image_viewer or dials.reciprocal_lattice_viewer to view {filename}",
+                    "suggested_commands": [
+                        f"dials.image_viewer {filename}",
+                        f"dials.reciprocal_lattice_viewer {filename}"
+                    ]
+                }
+            
+            else:
+                return {"error": f"Unsupported file type: {suffix}. Use read_file for text files."}
+        
         else:
             return {"error": f"Unknown tool: {tool_call.name}"}
     

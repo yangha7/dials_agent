@@ -127,6 +127,42 @@ TOOLS = [
             },
             "required": []
         }
+    },
+    {
+        "name": "read_file",
+        "description": "Read the contents of a file in the working directory. Use this to read log files (e.g., dials.find_spots.log, dials.index.log), output files, or any text file the user asks about. This allows you to directly analyze log output without asking the user to paste it.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "filename": {
+                    "type": "string",
+                    "description": "The filename to read (relative to working directory), e.g., 'dials.index.log', 'dials.scale.log'"
+                },
+                "tail_lines": {
+                    "type": "integer",
+                    "description": "If set, only return the last N lines of the file (useful for large log files). Default: return entire file up to max size."
+                },
+                "max_chars": {
+                    "type": "integer",
+                    "description": "Maximum number of characters to return (default: 50000). Large files will be truncated from the beginning."
+                }
+            },
+            "required": ["filename"]
+        }
+    },
+    {
+        "name": "open_file",
+        "description": "Open a file in the appropriate viewer. For HTML files (e.g., dials.scale.html, dials.report.html), opens in a web browser. For .expt/.refl files, suggests the appropriate DIALS viewer. Use this when the user wants to view HTML reports or other output files.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "filename": {
+                    "type": "string",
+                    "description": "The filename to open (relative to working directory)"
+                }
+            },
+            "required": ["filename"]
+        }
     }
 ]
 
