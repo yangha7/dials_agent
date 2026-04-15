@@ -660,11 +660,10 @@ def main():
     
     # Check API key
     if not settings.validate_api_key():
-        if settings.api_provider == "openai":
-            console.print("[red]Error: OPENAI_API_KEY not configured.[/red]")
-        else:
-            console.print("[red]Error: ANTHROPIC_API_KEY not configured.[/red]")
-        console.print("Set the environment variable or add it to .env file.")
+        provider_name = settings.get_provider_display_name()
+        console.print(f"[red]Error: No API key configured for {provider_name}.[/red]")
+        console.print("Set the appropriate API key in your .env file.")
+        console.print("See .env.example for configuration options.")
         console.print(f"[dim]Searched for .env in: {env_file or 'default locations'}[/dim]")
         sys.exit(1)
     
@@ -688,7 +687,7 @@ def main():
         console.print(f"[dim]Data directory: {settings.data_directory}[/dim]")
     if settings.dials_path:
         console.print(f"[dim]DIALS path: {settings.dials_path}[/dim]")
-    console.print(f"[dim]API provider: {settings.api_provider} ({settings.model})[/dim]")
+    console.print(f"[dim]LLM provider: {settings.get_provider_display_name()} ({settings.get_resolved_model()})[/dim]")
     
     # Create and run agent
     try:

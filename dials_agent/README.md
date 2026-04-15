@@ -14,6 +14,9 @@ The DIALS AI Agent allows users with less command-line experience to process cry
 - **Output Parsing**: Key metrics extracted and summarized in human-readable format
 - **Workflow Tracking**: Automatic tracking of processing progress
 - **Error Handling**: Troubleshooting suggestions for common problems
+- **File Access**: Agent can directly read log files and open HTML reports
+- **Visualization**: Integrated support for `dials.image_viewer` and `dials.reciprocal_lattice_viewer`
+- **Multi-Provider LLM Support**: Works with CBORG, OpenAI, Google Gemini, and Anthropic Claude
 
 ## Installation
 
@@ -28,39 +31,86 @@ pip install -e .
 
 This installs the package in "editable" mode, making the `dials_agent` module available in your Python environment.
 
-4. Set up your API key (choose one option):
+## Configuration
 
-### Option A: Native Anthropic API
+### Quick Start
 
-```bash
-export ANTHROPIC_API_KEY="your-api-key-here"
-```
-
-Or create a `.env` file:
-
-```
-ANTHROPIC_API_KEY=your-api-key-here
-```
-
-### Option B: CBORG (Claude at Berkeley) or other OpenAI-compatible API
-
-If you have access to CBORG or another OpenAI-compatible endpoint:
+1. Copy the example configuration file:
 
 ```bash
-export API_PROVIDER="openai"
-export OPENAI_API_KEY="your-cborg-api-key"
-export OPENAI_BASE_URL="https://api.cborg.lbl.gov"
-export MODEL="anthropic/claude-sonnet"
+cp .env.example .env
 ```
 
-Or create a `.env` file:
+2. Edit `.env` and set your API key (uncomment **one** of the options):
 
+```bash
+# For CBORG (LBL users):
+CBORG_API_KEY=your-cborg-api-key-here
+
+# For OpenAI:
+# OPENAI_API_KEY=your-openai-api-key-here
+
+# For Google Gemini:
+# GEMINI_API_KEY=your-gemini-api-key-here
+
+# For Anthropic Claude (direct):
+# ANTHROPIC_API_KEY=your-anthropic-api-key-here
 ```
-API_PROVIDER=openai
-OPENAI_API_KEY=your-cborg-api-key
-OPENAI_BASE_URL=https://api.cborg.lbl.gov
-MODEL=anthropic/claude-sonnet
+
+The agent **auto-detects** the provider from whichever API key is set. No need to specify `LLM_PROVIDER` unless you want to override the auto-detection.
+
+### LLM Provider Options
+
+| Provider | API Key Variable | Default Model | Notes |
+|----------|-----------------|---------------|-------|
+| **CBORG** | `CBORG_API_KEY` | `anthropic/claude-sonnet` | Recommended for LBL users |
+| **OpenAI** | `OPENAI_API_KEY` | `gpt-4o` | Direct OpenAI API |
+| **Google Gemini** | `GEMINI_API_KEY` | `gemini-2.5-pro` | Google's Gemini models |
+| **Anthropic** | `ANTHROPIC_API_KEY` | `claude-sonnet-4-20250514` | Direct Anthropic API |
+
+### Directory Configuration
+
+Configure these in your `.env` file to customize where the agent looks for data and writes output:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DIALS_PATH` | Path to DIALS installation `bin/` directory | System PATH |
+| `DATA_DIRECTORY` | Directory containing raw input data (images, HDF5, CBF) | (none) |
+| `WORKING_DIRECTORY` | Directory where DIALS output files are written | Current directory |
+
+Example:
+
+```bash
+DIALS_PATH=/path/to/dials/conda_base/bin/
+DATA_DIRECTORY=/path/to/raw/data/
+WORKING_DIRECTORY=/path/to/output/
 ```
+
+If DIALS is already on your PATH (e.g., after running `source dials_env.sh`), you can leave `DIALS_PATH` empty.
+
+### All Configuration Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CBORG_API_KEY` | CBORG API key (LBL users) | - |
+| `OPENAI_API_KEY` | OpenAI API key | - |
+| `GEMINI_API_KEY` | Google Gemini API key | - |
+| `ANTHROPIC_API_KEY` | Anthropic API key | - |
+| `LLM_PROVIDER` | Force a specific provider (`cborg`/`openai`/`gemini`/`anthropic`) | Auto-detected |
+| `MODEL` | Override the default model | Per-provider default |
+| `LLM_BASE_URL` | Override the API base URL | Per-provider default |
+| `MAX_TOKENS` | Maximum response tokens | 4096 |
+| `DIALS_PATH` | Path to DIALS `bin/` directory | System PATH |
+| `DATA_DIRECTORY` | Raw data directory | (none) |
+| `WORKING_DIRECTORY` | Output directory | `.` |
+| `COMMAND_TIMEOUT` | Command timeout in seconds | 3600 |
+| `LOG_LEVEL` | Logging level | INFO |
+
+### Backward Compatibility
+
+If you have an existing `.env` file using the old `API_PROVIDER` and `OPENAI_BASE_URL` variables, they will continue to work. The agent automatically maps:
+- `API_PROVIDER=openai` with a CBORG base URL → `cborg` provider
+- `OPENAI_BASE_URL` → `LLM_BASE_URL`
 
 ## Usage
 
@@ -75,7 +125,7 @@ python -m dials_agent.cli
 Or with a specific working directory:
 
 ```bash
-python -m dials_agent.cli -d /path/to/data
+python -m dials_agent.cli -d /path/to/output
 ```
 
 ### CLI Commands
@@ -115,22 +165,6 @@ Agent: Indexing failed because no solution was found. This could be due to:
        I suggest trying: dials.index imported.expt strong.refl indexing.method=fft1d
 ```
 
-## Configuration
-
-Configuration can be set via environment variables or a `.env` file:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `API_PROVIDER` | API provider: `anthropic` or `openai` | anthropic |
-| `ANTHROPIC_API_KEY` | Anthropic API key (for native API) | - |
-| `OPENAI_API_KEY` | API key for OpenAI-compatible endpoints (CBORG) | - |
-| `OPENAI_BASE_URL` | Base URL for OpenAI-compatible API | https://api.cborg.lbl.gov |
-| `MODEL` | Model to use | claude-sonnet-4-20250514 |
-| `MAX_TOKENS` | Maximum response tokens | 4096 |
-| `DIALS_PATH` | Path to DIALS installation | (system PATH) |
-| `WORKING_DIRECTORY` | Default working directory | . |
-| `COMMAND_TIMEOUT` | Command timeout in seconds | 3600 |
-
 ## Project Structure
 
 ```
@@ -138,10 +172,11 @@ dials_agent/
 ├── __init__.py           # Package initialization
 ├── cli.py                # CLI interface
 ├── config.py             # Configuration settings
+├── .env.example          # Example configuration file
 ├── requirements.txt      # Dependencies
 ├── core/
 │   ├── __init__.py
-│   ├── claude_client.py  # Anthropic API wrapper
+│   ├── claude_client.py  # LLM API wrapper (multi-provider)
 │   ├── prompts.py        # System prompts
 │   └── tools.py          # Tool definitions
 └── dials/
@@ -167,60 +202,28 @@ The standard DIALS processing workflow:
 
 ## Deploying to Another Computer
 
-To run the DIALS agent on a different computer where DIALS is already installed:
-
-### Files to Copy
-
-You only need to copy the `dials_agent/` directory:
-
-```
-dials_agent/
-├── __init__.py
-├── cli.py
-├── config.py
-├── pyproject.toml
-├── requirements.txt
-├── run_agent.py
-├── core/
-│   ├── __init__.py
-│   ├── claude_client.py
-│   ├── prompts.py
-│   └── tools.py
-└── dials/
-    ├── __init__.py
-    ├── commands.py
-    ├── executor.py
-    ├── parser.py
-    └── workflow.py
-```
-
 ### Quick Deployment Steps
 
-1. **Copy the dials_agent directory** to the target computer:
+1. **Clone the repository**:
    ```bash
-   scp -r dials_agent/ user@remote:/path/to/destination/
+   git clone https://github.com/yangha7/dials_agent.git
+   cd dials_agent/dials_agent
    ```
 
-2. **On the target computer**, ensure DIALS is activated:
+2. **Activate DIALS** on the target computer:
    ```bash
    source /path/to/dials/dials_env.sh
    ```
 
 3. **Install the agent**:
    ```bash
-   cd /path/to/destination/dials_agent
    pip install -e .
    ```
 
-4. **Set up API key** (create `.env` file in the dials_agent directory):
+4. **Configure** (copy and edit the example):
    ```bash
-   # For CBORG (recommended at LBNL):
-   cat > .env << EOF
-   API_PROVIDER=openai
-   OPENAI_API_KEY=your-cborg-api-key
-   OPENAI_BASE_URL=https://api.cborg.lbl.gov
-   MODEL=anthropic/claude-sonnet
-   EOF
+   cp .env.example .env
+   # Edit .env with your API key and directory paths
    ```
 
 5. **Run the agent**:
@@ -228,22 +231,19 @@ dials_agent/
    python -m dials_agent.cli
    ```
 
-### Alternative: Single-File Deployment
-
-For even simpler deployment, you can create a tarball:
+### Alternative: Copy via SCP
 
 ```bash
 # On source computer
-tar -czvf dials_agent.tar.gz dials_agent/
-
-# Copy to target
-scp dials_agent.tar.gz user@remote:/path/to/destination/
+scp -r dials_agent/ user@remote:/path/to/destination/
 
 # On target computer
-cd /path/to/destination
-tar -xzvf dials_agent.tar.gz
-cd dials_agent
+cd /path/to/destination/dials_agent
+source /path/to/dials/dials_env.sh
 pip install -e .
+cp .env.example .env
+# Edit .env with your settings
+python -m dials_agent.cli
 ```
 
 ### Requirements
@@ -252,7 +252,7 @@ The target computer needs:
 - Python 3.10+
 - DIALS installed and in PATH (or set `DIALS_PATH` in `.env`)
 - Internet access for API calls
-- A valid API key (Anthropic or CBORG)
+- A valid API key (CBORG, OpenAI, Gemini, or Anthropic)
 
 ## Development
 
@@ -277,3 +277,4 @@ This project is part of the DIALS software suite.
 
 - DIALS development team
 - Anthropic for the Claude API
+- CBORG (Claude at Berkeley) for LBL API access

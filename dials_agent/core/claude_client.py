@@ -1,8 +1,14 @@
 """
 Claude API client for the DIALS AI Agent.
 
-This module provides a wrapper around the Anthropic API and OpenAI-compatible
-APIs (like CBORG) for interacting with Claude, including tool/function calling support.
+This module provides a wrapper around multiple LLM APIs for interacting with
+language models, including tool/function calling support.
+
+Supported providers:
+  - CBORG (Claude at Berkeley) — OpenAI-compatible
+  - OpenAI — native OpenAI API
+  - Google Gemini — OpenAI-compatible
+  - Anthropic Claude — native Anthropic API
 """
 
 import json
@@ -47,7 +53,7 @@ class Message:
 
 @dataclass
 class ToolCall:
-    """Represents a tool call from Claude."""
+    """Represents a tool call from the LLM."""
     id: str
     name: str
     input: dict[str, Any]
@@ -64,10 +70,11 @@ class AgentResponse:
 
 class ClaudeClient:
     """
-    Client for interacting with Claude API.
+    Client for interacting with LLM APIs.
     
-    Supports both native Anthropic API and OpenAI-compatible APIs (like CBORG).
-    Handles conversation management, tool calling, and error handling.
+    Supports both native Anthropic API and OpenAI-compatible APIs
+    (CBORG, OpenAI, Gemini). Handles conversation management, tool
+    calling, and error handling.
     """
     
     def __init__(
@@ -77,7 +84,7 @@ class ClaudeClient:
         existing_files: Optional[list[str]] = None
     ):
         """
-        Initialize the Claude client.
+        Initialize the LLM client.
         
         Args:
             settings: Application settings (uses global settings if not provided)
@@ -87,38 +94,49 @@ class ClaudeClient:
         self.settings = settings or get_settings()
         self.working_directory = working_directory
         self.existing_files = existing_files or []
-        self.api_provider = self.settings.api_provider
+        
+        # Resolve provider using auto-detection
+        self.provider = self.settings.get_resolved_provider()
+        self.api_type = self.settings.get_api_type()
+        self.model = self.settings.get_resolved_model()
         
         if not self.settings.validate_api_key():
-            if self.api_provider == "openai":
-                raise ValueError(
-                    "OpenAI-compatible API key not configured. "
-                    "Set OPENAI_API_KEY environment variable or in .env file."
-                )
-            else:
-                raise ValueError(
-                    "Anthropic API key not configured. "
-                    "Set ANTHROPIC_API_KEY environment variable or in .env file."
-                )
+            provider_name = self.settings.get_provider_display_name()
+            raise ValueError(
+                f"No API key configured for {provider_name}. "
+                f"Set the appropriate API key in your .env file. "
+                f"See .env.example for configuration options."
+            )
         
         # Initialize the appropriate client
-        if self.api_provider == "openai":
+        if self.api_type == "openai":
             if not OPENAI_AVAILABLE:
                 raise ImportError("openai package not installed. Run: pip install openai")
+            
+            api_key = self.settings.get_resolved_api_key()
+            base_url = self.settings.get_resolved_base_url()
+            
             self.client = OpenAI(
-                api_key=self.settings.openai_api_key,
-                base_url=self.settings.openai_base_url
+                api_key=api_key,
+                base_url=base_url
             )
-            logger.info(f"Using OpenAI-compatible API at {self.settings.openai_base_url}")
+            logger.info(
+                f"Using {self.settings.get_provider_display_name()} "
+                f"(OpenAI-compatible) at {base_url} with model {self.model}"
+            )
         else:
+            # Native Anthropic API
             if not ANTHROPIC_AVAILABLE:
                 raise ImportError("anthropic package not installed. Run: pip install anthropic")
-            self.client = Anthropic(api_key=self.settings.anthropic_api_key)
-            logger.info("Using native Anthropic API")
+            self.client = Anthropic(api_key=self.settings.get_resolved_api_key())
+            logger.info(f"Using native Anthropic API with model {self.model}")
         
         self.conversation_history: list[dict] = []
         self.tools = get_tools()
         self.openai_tools = self._convert_tools_to_openai_format()
+        
+        # Keep backward compatibility
+        self.api_provider = self.api_type
         
     def _convert_tools_to_openai_format(self) -> list[dict]:
         """Convert Anthropic tool format to OpenAI function format."""
@@ -179,7 +197,7 @@ class ClaudeClient:
         tool_handler: Optional[Callable[[ToolCall], dict]] = None
     ) -> AgentResponse:
         """
-        Send a message to Claude and get a response.
+        Send a message to the LLM and get a response.
         
         Args:
             user_message: The user's message
@@ -220,8 +238,8 @@ class ClaudeClient:
             raise
     
     def _call_api(self) -> Any:
-        """Make the API call to Claude (supports both Anthropic and OpenAI-compatible APIs)."""
-        if self.api_provider == "openai":
+        """Make the API call (supports both Anthropic and OpenAI-compatible APIs)."""
+        if self.api_type == "openai":
             return self._call_openai_api()
         else:
             return self._call_anthropic_api()
@@ -229,7 +247,7 @@ class ClaudeClient:
     def _call_anthropic_api(self) -> Any:
         """Make API call using native Anthropic API."""
         return self.client.messages.create(
-            model=self.settings.model,
+            model=self.model,
             max_tokens=self.settings.max_tokens,
             system=self._get_system_prompt(),
             tools=self.tools,
@@ -343,7 +361,7 @@ class ClaudeClient:
             i += 1
         
         return self.client.chat.completions.create(
-            model=self.settings.model,
+            model=self.model,
             max_tokens=self.settings.max_tokens,
             tools=self.openai_tools if self.openai_tools else None,
             messages=messages
@@ -359,7 +377,7 @@ class ClaudeClient:
         Returns:
             Processed AgentResponse
         """
-        if self.api_provider == "openai":
+        if self.api_type == "openai":
             return self._process_openai_response(response)
         else:
             return self._process_anthropic_response(response)
@@ -465,7 +483,7 @@ class ClaudeClient:
             "content": tool_results
         })
         
-        # Get Claude's response after tool execution
+        # Get LLM's response after tool execution
         response = self._call_api()
         return self._process_response(response)
     
@@ -504,7 +522,7 @@ def create_client(
     existing_files: Optional[list[str]] = None
 ) -> ClaudeClient:
     """
-    Create a new Claude client instance.
+    Create a new LLM client instance.
     
     Args:
         working_directory: Current working directory
