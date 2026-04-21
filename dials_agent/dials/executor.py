@@ -157,36 +157,56 @@ class CommandExecutor:
         try:
             # Launch in background - don't wait for it to complete
             # Use start_new_session=True on Unix to detach from terminal
+            # Capture stderr to detect startup errors
             process = subprocess.Popen(
                 cmd_parts,
                 cwd=self.working_directory,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
                 start_new_session=True  # Detach from parent process
             )
             
-            # Give it a moment to start and check if it failed immediately
-            time.sleep(0.5)
+            # Give it more time to start and check if it failed immediately
+            # Some GUI apps (especially reciprocal_lattice_viewer with OpenGL)
+            # take longer to initialize
+            time.sleep(2.0)
             
             # Check if process is still running (poll returns None if running)
-            if process.poll() is not None and process.returncode != 0:
+            poll_result = process.poll()
+            if poll_result is not None and poll_result != 0:
+                stderr_output = ""
+                try:
+                    stderr_output = process.stderr.read().decode('utf-8', errors='replace')[:500]
+                except Exception:
+                    pass
+                
+                error_detail = f"GUI failed to start (exit code {poll_result})"
+                if stderr_output:
+                    error_detail += f": {stderr_output}"
+                
                 return CommandResult(
                     command=command_str,
-                    return_code=process.returncode,
+                    return_code=poll_result,
                     stdout="",
-                    stderr="GUI failed to start",
-                    duration=0.5,
+                    stderr=error_detail,
+                    duration=2.0,
                     success=False,
                     working_directory=self.working_directory,
-                    error_message="GUI application failed to start"
+                    error_message=error_detail
                 )
+            
+            # Detach stderr now that we know it started OK
+            try:
+                process.stderr.close()
+            except Exception:
+                pass
             
             return CommandResult(
                 command=command_str,
                 return_code=0,
                 stdout=f"GUI launched successfully (PID: {process.pid}). Close the window when done.",
                 stderr="",
-                duration=0.5,
+                duration=2.0,
                 success=True,
                 working_directory=self.working_directory
             )

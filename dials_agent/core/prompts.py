@@ -427,6 +427,9 @@ When interpreting output:
 2. Compare to typical values
 3. Suggest next steps based on results
 4. Flag any warnings or errors
+5. **ALWAYS show key statistics after scaling** - present the merging statistics table (Rmerge, CC1/2, completeness, multiplicity, I/sigma, resolution) from dials.scale.log
+6. **ALWAYS show indexing results** - present unit cell, space group, indexed percentage, and RMSD values
+7. **ALWAYS show symmetry results** - present the determined space group and Laue group
 
 When troubleshooting:
 1. Ask clarifying questions about the data

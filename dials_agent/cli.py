@@ -487,11 +487,37 @@ class DIALSAgent:
                         
                         # Send result back to Claude for analysis
                         if result.stdout or result.stderr:
-                            output_summary = result.stdout[:2000] if result.stdout else result.stderr[:2000]
+                            # Use more output for scaling/symmetry commands that have important statistics
+                            cmd_name = self.pending_command["command"].split()[0] if self.pending_command["command"] else ""
+                            if cmd_name in ("dials.scale", "dials.symmetry", "dials.cosym", "dials.merge", "dials.index"):
+                                max_output = 8000  # More output for commands with important statistics
+                            else:
+                                max_output = 3000
+                            
+                            output_text = result.stdout if result.stdout else result.stderr
+                            # For long output, include both the beginning and end (statistics are often at the end)
+                            if len(output_text) > max_output:
+                                head = output_text[:max_output // 3]
+                                tail = output_text[-(max_output * 2 // 3):]
+                                output_summary = f"{head}\n\n[... output truncated ...]\n\n{tail}"
+                            else:
+                                output_summary = output_text
+                            
+                            # Also instruct Claude to read the log file for full details
+                            log_hint = ""
+                            if cmd_name == "dials.scale":
+                                log_hint = "\n\nIMPORTANT: Please read dials.scale.log to get the full merging statistics table and present them to the user. Also mention the dials.scale.html report."
+                            elif cmd_name == "dials.symmetry":
+                                log_hint = "\n\nIMPORTANT: Please read dials.symmetry.log to get the full symmetry analysis results and present them to the user."
+                            elif cmd_name == "dials.index":
+                                log_hint = "\n\nIMPORTANT: Please read dials.index.log to get the full indexing results including unit cell, space group, and indexed percentage."
+                            elif cmd_name == "dials.integrate":
+                                log_hint = "\n\nIMPORTANT: Please read dials.integrate.log to get the integration statistics."
+                            
                             with console.status("[bold green]Analyzing results..."):
                                 analysis = self.chat(
-                                    f"The command completed with return code {result.return_code}. "
-                                    f"Here's the output:\n\n{output_summary}"
+                                    f"The command '{cmd_name}' completed with return code {result.return_code}. "
+                                    f"Here's the output:\n\n{output_summary}{log_hint}"
                                 )
                             if analysis:
                                 console.print(f"\n[bold green]Agent[/bold green]")
