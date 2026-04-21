@@ -508,6 +508,81 @@ Proactively open the HTML report: Use the `open_file` tool to open `dials.scale.
 ### General Report
 At any stage, `dials.report <step>.expt <step>.refl` generates an HTML report. Offer this when the user wants detailed diagnostics.
 
+## Available Tutorials
+
+The agent has three built-in tutorials with data available on the system. When a user asks to "run a tutorial", "process the insulin data", "process the protease data", or similar, guide them through the appropriate tutorial step by step.
+
+### Tutorial 1: Simple Insulin (Single Crystal)
+- **Dataset**: Insulin, single crystal, simple workflow
+- **Data location**: `../tutorial/ins10_1.nxs` (or `ins10_1_master.h5`)
+- **Remote data**: `/net/dials/raid1/yangha/Tutorial/CCP4_APS_2024/ins10_1.nxs`
+- **Tutorial file**: `tutorial/WORKFLOW.md`
+- **Workflow**:
+  1. `dials.import <data_path>` (or with `image_range=1,1200` for quick test)
+  2. `dials.image_viewer imported.expt`
+  3. `dials.find_spots imported.expt`
+  4. `dials.index imported.expt strong.refl`
+  5. `dials.refine indexed.expt indexed.refl`
+  6. `dials.integrate refined.expt refined.refl`
+  7. `dials.symmetry integrated.expt integrated.refl`
+  8. `dials.scale symmetrized.expt symmetrized.refl`
+  9. `dials.export scaled.expt scaled.refl`
+- **Key learning**: Basic single-crystal workflow, understanding each step
+- **Trigger phrases**: "insulin", "simple tutorial", "basic workflow", "WORKFLOW tutorial"
+
+### Tutorial 2: Cows, Pigs, and People (Multi-Crystal Insulin)
+- **Dataset**: Insulin from three species (cow, pig, human) - multiple crystals
+- **Data location**: Same insulin data as Tutorial 1
+- **Tutorial file**: `tutorial/COWS_PIGS_PEOPLE.md`
+- **Workflow** (key differences from simple):
+  1. Import and find spots as usual
+  2. `dials.index imported.expt strong.refl` — index first crystal
+  3. If low indexed %, try `dials.index imported.expt strong.refl max_lattices=3`
+  4. `dials.refine indexed.expt indexed.refl`
+  5. `dials.integrate refined.expt refined.refl`
+  6. `dials.cosym integrated.expt integrated.refl` — **NOT dials.symmetry** (multiple crystals!)
+  7. `dials.scale symmetrized.expt symmetrized.refl`
+  8. `dials.export scaled.expt scaled.refl` or `dials.merge scaled.expt scaled.refl`
+- **Key learning**: Multi-crystal processing, using dials.cosym, indexing ambiguity
+- **Trigger phrases**: "cows pigs people", "multi-crystal", "multiple crystals", "COWS_PIGS_PEOPLE"
+
+### Tutorial 3: Multi-Lattice Proteinase K
+- **Dataset**: Proteinase K with two crystal lattices in the beam
+- **Data location**: `../tutorial/ProtK_2_1.nxs` (or `ProtK_2_1_master.h5`)
+- **Remote data**: `/net/dials/raid1/yangha/DIALS_Dev2025/tutorial/ProtK_2_1_master.h5`
+- **Tutorial file**: `tutorial/MULTI_LATTICE.md`
+- **Workflow**:
+  1. `dials.import <data_path> image_range=1,600` (use subset for speed)
+  2. `dials.image_viewer imported.expt` — look for overlapping spot lines
+  3. `dials.find_spots imported.expt`
+  4. `dials.index imported.expt strong.refl` — first attempt, expect ~62% indexed
+  5. `dials.reciprocal_lattice_viewer indexed.expt indexed.refl` — confirm two lattices
+  6. `dials.index imported.expt strong.refl max_lattices=2` — re-index with 2 lattices, expect ~97% indexed
+  7. `dials.refine indexed.expt indexed.refl`
+  8. `dials.integrate refined.expt refined.refl`
+  9. `dials.cosym integrated.expt integrated.refl` — **NOT dials.symmetry** (two crystals!)
+  10. `dials.scale symmetrized.expt symmetrized.refl`
+  11. `dials.merge scaled.expt scaled.refl`
+- **Key learning**: Detecting multiple lattices, max_lattices parameter, overlap handling
+- **Expected results**: P4/mmm symmetry (P43212), ~85% completeness, Rmerge ~0.135
+- **Trigger phrases**: "proteinase K", "protK", "protease", "multi-lattice", "MULTI_LATTICE", "two lattices"
+
+### Tutorial Selection Logic
+When the user asks to process data or run a tutorial:
+1. If they mention "proteinase K", "protK", "protease", "multi-lattice", or "two lattices" → Tutorial 3
+2. If they mention "cows", "pigs", "people", "multi-crystal", or "multiple crystals" → Tutorial 2
+3. If they mention "insulin", "simple", or "basic" → Tutorial 1
+4. If they just say "run a tutorial" or "help me learn DIALS" → Offer all three options
+5. If they have their own data → Use the general workflow (not a specific tutorial)
+
+When guiding through a tutorial:
+- Explain each step before running it
+- After each step, review the output and explain what happened
+- Highlight key metrics and what to look for
+- Point out when results differ from expected (e.g., low indexed %)
+- Offer visualization at appropriate points
+- Use the tutorial .md file as reference for expected output
+
 ## Important Notes
 
 - For multiple crystals from different samples, use `joint=false` during indexing
