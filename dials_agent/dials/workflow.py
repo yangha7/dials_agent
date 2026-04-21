@@ -20,12 +20,12 @@ logger = logging.getLogger(__name__)
 
 
 # Tutorial-based workflow suggestions with context
-# Based on DIALS tutorial: https://github.com/graeme-winter/dials_tutorials
+# Based on DIALS tutorial: https://dials.github.io/documentation/tutorials/processing_in_detail_betalactamase.html
 WORKFLOW_SUGGESTIONS = {
     "import": {
         "next_command": "dials.image_viewer imported.expt",
         "explanation": "Now that the images are imported, the next step is to visualize the data using the image viewer. This allows you to inspect the diffraction images, check for any issues, and get familiar with your data before proceeding.",
-        "tip": "Use the image viewer to check image quality, look for ice rings, and verify the beam center",
+        "tip": "Use the image viewer to check image quality, look for ice rings, and verify the beam center. Adjust the brightness slider until spots are clearly visible.",
         "optional_commands": ["dials.show imported.expt", "dials.find_spots imported.expt"]
     },
     "find_spots": {
@@ -33,7 +33,7 @@ WORKFLOW_SUGGESTIONS = {
         "next_command_multi": "dials.index imported.expt strong.refl joint=false",
         "explanation": "Spots have been found. Next, we need to index them to determine the unit cell and assign Miller indices.",
         "explanation_multi": "For multiple crystals, use joint=false to index each sweep independently.",
-        "tip": "If indexing fails, try: indexing.method=fft1d or provide a known unit cell",
+        "tip": "If indexing fails, try: indexing.method=fft1d or provide a known unit cell. You can also try dials.search_beam_position first if the beam center seems wrong.",
         "optional_commands": [
             "dials.search_beam_position imported.expt strong.refl",
             "dials.reciprocal_lattice_viewer imported.expt strong.refl"
@@ -41,38 +41,80 @@ WORKFLOW_SUGGESTIONS = {
     },
     "index": {
         "next_command": "dials.refine indexed.expt indexed.refl",
-        "explanation": "Indexing is complete. Now we refine the crystal and detector models to improve accuracy.",
-        "tip": "You can optionally run dials.refine_bravais_settings to determine the Bravais lattice",
+        "explanation": (
+            "Indexing is complete. Now we refine the crystal and detector models to improve accuracy. "
+            "You can optionally run dials.refine_bravais_settings first to determine the correct "
+            "Bravais lattice — this is recommended if you don't already know the space group."
+        ),
+        "tip": (
+            "If you run refine_bravais_settings, choose the highest symmetry solution with good metric fit "
+            "and low RMSD. Then use dials.reindex if the change_of_basis_op is not a,b,c. "
+            "Example: dials.reindex indexed.refl change_of_basis_op=a+b,-a+b,c"
+        ),
         "optional_commands": [
             "dials.refine_bravais_settings indexed.expt indexed.refl",
             "dials.reciprocal_lattice_viewer indexed.expt indexed.refl"
         ]
     },
+    "refine_bravais_settings": {
+        "next_command": "dials.reindex indexed.refl change_of_basis_op=<op_from_table>",
+        "next_command_identity": "dials.refine bravais_setting_<N>.expt indexed.refl",
+        "explanation": (
+            "Bravais settings have been determined. Choose the best solution from the table "
+            "(usually the highest symmetry with good metric fit and low RMSD, marked with *). "
+            "If the change_of_basis_op is not a,b,c (identity), you need to reindex the reflections first."
+        ),
+        "tip": (
+            "Use dials.reindex indexed.refl change_of_basis_op=<op> with the operator from the table. "
+            "Then refine with: dials.refine bravais_setting_<N>.expt reindexed.refl"
+        ),
+    },
+    "reindex": {
+        "next_command": "dials.refine bravais_setting_<N>.expt reindexed.refl",
+        "explanation": "Reflections have been reindexed. Now refine using the chosen Bravais setting experiment file and the reindexed reflections.",
+        "tip": "Use the bravais_setting_N.expt file corresponding to your chosen solution from the Bravais settings table.",
+    },
     "refine": {
         "next_command": "dials.integrate refined.expt refined.refl",
-        "explanation": "Models are refined. Now we integrate to measure the spot intensities.",
+        "explanation": (
+            "Models are refined. The refinement includes both static and scan-varying passes by default. "
+            "Now we integrate to measure the spot intensities."
+        ),
         "tip": "Integration may take several minutes depending on data size. You can set a resolution limit with prediction.d_min=1.8",
         "optional_commands": ["dials.report refined.expt refined.refl"]
     },
     "integrate": {
         "next_command": "dials.symmetry integrated.expt integrated.refl",
         "next_command_multi": "dials.cosym integrated.expt integrated.refl",
-        "explanation": "Integration complete. Now we determine the crystal symmetry.",
+        "explanation": (
+            "Integration complete. Now we determine the full crystal symmetry from the integrated intensities. "
+            "This assesses both the Laue group symmetry and systematic absences to determine the space group."
+        ),
         "explanation_multi": "For multiple crystals, use dials.cosym to resolve indexing ambiguity.",
-        "tip": "This step determines the space group from the integrated intensities",
+        "tip": "This step determines the space group from the integrated intensities. It may change the space group from what was used during indexing.",
         "optional_commands": ["dials.image_viewer integrated.expt integrated.refl"]
     },
     "symmetry": {
         "next_command": "dials.scale symmetrized.expt symmetrized.refl",
-        "explanation": "Symmetry determined. Now we scale the data to apply corrections.",
-        "tip": "For anomalous data, add anomalous=True. For high absorption, try absorption_level=medium or high"
+        "explanation": (
+            "Symmetry determined. Now we scale the data to correct for experimental effects "
+            "(sample illumination/absorption, radiation damage) that cause symmetry-equivalent "
+            "reflections to have unequal measured intensities."
+        ),
+        "tip": "For anomalous data, add anomalous=True. For high absorption, try physical.absorption_level=medium or high"
     },
     "scale": {
         "next_command": "dials.export scaled.expt scaled.refl",
         "next_command_merge": "dials.merge scaled.expt scaled.refl",
-        "explanation": "Scaling complete! Export the data for downstream analysis, or merge for a scaled+merged MTZ.",
+        "explanation": (
+            "Scaling complete! The HTML report (dials.scale.html) contains detailed merging statistics. "
+            "Export the data for downstream analysis, or merge for a scaled+merged MTZ."
+        ),
         "tip": "Use dials.export for unmerged data, dials.merge for merged data. Most downstream software needs merged data.",
-        "optional_commands": ["dials.report scaled.expt scaled.refl"]
+        "optional_commands": [
+            "dials.report scaled.expt scaled.refl",
+            "dials.estimate_resolution scaled.expt scaled.refl"
+        ]
     },
     "export": {
         "next_command": None,
