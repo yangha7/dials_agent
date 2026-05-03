@@ -799,6 +799,18 @@ class DIALSAgent:
                     self._change_directory(new_dir)
                     continue
                 
+                # Detect autonomous processing requests and switch to auto mode
+                auto_keywords = [
+                    "automatically", "autonomous", "on your own", "without interruption",
+                    "run through", "process everything", "all steps", "complete workflow",
+                    "start to finish", "end to end", "no confirmation", "unattended",
+                    "run all", "do everything", "full pipeline", "whole workflow",
+                ]
+                if any(kw in lower_input for kw in auto_keywords):
+                    console.print("[bold blue]Detected autonomous processing request — entering auto mode...[/bold blue]")
+                    self.run_auto(initial_message=user_input, skip_dials_check=True)
+                    continue
+                
                 # Direct DIALS command execution — if input starts with "dials."
                 if user_input.strip().startswith("dials."):
                     command = user_input.strip()
