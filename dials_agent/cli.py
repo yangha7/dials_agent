@@ -688,6 +688,10 @@ class DIALSAgent:
                     console.print("[green]Single-crystal mode enabled.[/green]")
                     continue
                 
+                elif lower_input in ['reset', 'clean', 'start over']:
+                    self._reset_working_directory()
+                    continue
+                
                 elif lower_input.startswith('cd '):
                     new_dir = user_input[3:].strip()
                     self._change_directory(new_dir)
@@ -811,6 +815,7 @@ class DIALSAgent:
 - **history** - Show command history
 - **timing** - Show timing summary for all executed commands
 - **auto** - Run through the entire workflow automatically (no confirmations)
+- **reset** / **clean** / **start over** - Remove DIALS output files and start fresh
 - **clear** - Clear conversation history
 - **multi** - Enable multi-crystal mode (uses joint=false, dials.cosym)
 - **single** - Enable single-crystal mode (default)
@@ -901,6 +906,98 @@ For multi-crystal datasets like the tutorial:
         )
         
         console.print(f"[green]Changed to: {new_path}[/green]")
+        self.display_workflow_status()
+    
+    def _reset_working_directory(self):
+        """Remove DIALS output files from the working directory and start fresh."""
+        # Define file patterns that are DIALS output (safe to remove)
+        dials_output_extensions = {".expt", ".refl", ".mtz", ".html", ".log", ".json"}
+        dials_output_prefixes = {"bravais_setting_", "dials.", "reindexed", "indexed",
+                                 "refined", "integrated", "symmetrized", "scaled",
+                                 "imported", "strong"}
+        # Also match the workflow state file
+        extra_files = {".dials_workflow.json"}
+        
+        # Collect files to remove
+        files_to_remove = []
+        for f in self.working_directory.iterdir():
+            if not f.is_file():
+                continue
+            name = f.name
+            suffix = f.suffix.lower()
+            
+            # Match by extension
+            if suffix in dials_output_extensions:
+                files_to_remove.append(f)
+            # Match by known prefix
+            elif any(name.startswith(prefix) for prefix in dials_output_prefixes):
+                files_to_remove.append(f)
+            # Match extra files
+            elif name in extra_files:
+                files_to_remove.append(f)
+        
+        if not files_to_remove:
+            console.print("[yellow]No DIALS output files found in the working directory.[/yellow]")
+            return
+        
+        # Show what will be removed
+        console.print(f"\n[bold yellow]⚠  The following {len(files_to_remove)} file(s) will be removed from:[/bold yellow]")
+        console.print(f"   [dim]{self.working_directory}[/dim]\n")
+        
+        table = Table(border_style="yellow")
+        table.add_column("File", style="cyan")
+        table.add_column("Size", style="dim", justify="right")
+        
+        total_size = 0
+        for f in sorted(files_to_remove, key=lambda x: x.name):
+            size = f.stat().st_size
+            total_size += size
+            if size >= 1024 * 1024:
+                size_str = f"{size / (1024 * 1024):.1f} MB"
+            elif size >= 1024:
+                size_str = f"{size / 1024:.1f} KB"
+            else:
+                size_str = f"{size} B"
+            table.add_row(f.name, size_str)
+        
+        if total_size >= 1024 * 1024:
+            total_str = f"{total_size / (1024 * 1024):.1f} MB"
+        elif total_size >= 1024:
+            total_str = f"{total_size / 1024:.1f} KB"
+        else:
+            total_str = f"{total_size} B"
+        
+        table.add_section()
+        table.add_row(f"[bold]{len(files_to_remove)} files[/bold]", f"[bold]{total_str}[/bold]")
+        
+        console.print(table)
+        
+        if not Confirm.ask("\n[bold red]Delete these files and start over?[/bold red]", default=False):
+            console.print("[yellow]Reset cancelled.[/yellow]")
+            return
+        
+        # Remove files
+        removed = 0
+        for f in files_to_remove:
+            try:
+                f.unlink()
+                removed += 1
+            except Exception as e:
+                console.print(f"[red]Failed to remove {f.name}: {e}[/red]")
+        
+        console.print(f"[green]✓ Removed {removed} file(s).[/green]")
+        
+        # Reset workflow state
+        self.workflow = create_workflow_manager(str(self.working_directory))
+        self.command_timings.clear()
+        
+        # Clear conversation history so Claude starts fresh
+        self.claude.clear_history()
+        self.claude.update_context(
+            existing_files=self.workflow.get_available_files()
+        )
+        
+        console.print("[green]✓ Workflow state and conversation history reset.[/green]")
         self.display_workflow_status()
 
 
