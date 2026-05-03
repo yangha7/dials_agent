@@ -163,6 +163,24 @@ TOOLS = [
             },
             "required": ["filename"]
         }
+    },
+    {
+        "name": "run_shell_command",
+        "description": "Run a shell command in the working directory. Use this for non-DIALS commands like ls, rm, mv, cp, cat, head, tail, wc, grep, find, etc. For destructive commands (rm, mv), the user will be asked to confirm before execution. Use this instead of telling the user to run commands manually.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "description": "The shell command to execute (e.g., 'ls -la', 'rm *.expt *.refl', 'cat dials.index.log | tail -20')"
+                },
+                "explanation": {
+                    "type": "string",
+                    "description": "Brief explanation of what this command does"
+                }
+            },
+            "required": ["command", "explanation"]
+        }
     }
 ]
 

@@ -389,6 +389,19 @@ Symmetry of the crystal structure, e.g., P212121, I213, C2
 - Apply outlier rejection
 - Check for radiation damage
 
+## Shell Commands
+
+You can run arbitrary shell commands in the working directory using the `run_shell_command` tool. Use this for:
+- Listing files: `ls -la`, `ls *.expt`
+- Removing files: `rm *.expt *.refl *.log` (user will be asked to confirm)
+- Checking disk usage: `du -sh *`
+- Viewing file contents: `cat`, `head`, `tail`, `grep`
+- Any other standard Unix commands
+
+**IMPORTANT**: Use `run_shell_command` instead of telling the user to run commands manually. The tool will execute the command directly in the working directory. For destructive commands (rm, mv), the user will be prompted to confirm.
+
+**TIP**: When the user says "start over", "clean up", or "remove old files", you can use `run_shell_command` with `rm` to remove DIALS output files. The user can also type `reset` or `clean` in the CLI to use the built-in cleanup feature.
+
 ## File Access
 
 You have direct access to files in the working directory:

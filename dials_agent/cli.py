@@ -239,6 +239,63 @@ class DIALSAgent:
             else:
                 return {"error": f"Unsupported file type: {suffix}. Use read_file for text files."}
         
+        elif tool_call.name == "run_shell_command":
+            import subprocess as sp
+            
+            command = tool_call.input.get("command", "")
+            explanation = tool_call.input.get("explanation", "")
+            
+            if not command:
+                return {"error": "No command provided"}
+            
+            # Check for destructive commands that need confirmation
+            destructive_keywords = ["rm ", "rm\t", "rmdir", "mv ", "mv\t", "> ", ">> "]
+            is_destructive = any(kw in command for kw in destructive_keywords) or command.startswith("rm ")
+            
+            if is_destructive:
+                console.print(f"\n[bold yellow]⚠  Shell command (destructive):[/bold yellow] {command}")
+                if explanation:
+                    console.print(f"[dim]{explanation}[/dim]")
+                if not Confirm.ask("[bold red]Allow this command?[/bold red]", default=False):
+                    return {"status": "cancelled", "message": "User declined to run destructive command"}
+            else:
+                console.print(f"\n[dim]$ {command}[/dim]")
+            
+            try:
+                result = sp.run(
+                    command,
+                    shell=True,
+                    cwd=str(self.working_directory),
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+                
+                output = result.stdout
+                if result.stderr:
+                    output += f"\n[stderr]: {result.stderr}"
+                
+                # Truncate very long output
+                if len(output) > 10000:
+                    output = output[:5000] + "\n\n[... output truncated ...]\n\n" + output[-5000:]
+                
+                # Refresh workflow state after shell commands (files may have changed)
+                self.workflow.refresh()
+                self.claude.update_context(
+                    existing_files=self.workflow.get_available_files()
+                )
+                
+                return {
+                    "status": "success" if result.returncode == 0 else "error",
+                    "return_code": result.returncode,
+                    "output": output,
+                    "command": command
+                }
+            except sp.TimeoutExpired:
+                return {"error": f"Command timed out after 60 seconds: {command}"}
+            except Exception as e:
+                return {"error": f"Failed to run command: {str(e)}"}
+        
         else:
             return {"error": f"Unknown tool: {tool_call.name}"}
     
