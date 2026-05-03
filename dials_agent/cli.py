@@ -467,8 +467,8 @@ class DIALSAgent:
         
         console.print(Panel(content, title=f"[bold]{title}[/bold]", border_style=style))
         
-        # Show next step suggestion if command was successful
-        if result.success:
+        # Show next step suggestion if command was successful (skip in auto mode)
+        if result.success and not self.auto_mode:
             self.display_next_step_suggestion()
     
     def display_next_step_suggestion(self):
@@ -598,6 +598,7 @@ class DIALSAgent:
         auto_start_time = time.time()
         max_iterations = 30  # Safety limit to prevent infinite loops
         iteration = 0
+        self.auto_mode = True
         
         # Start with the auto instruction
         current_message = auto_instruction
@@ -661,10 +662,10 @@ class DIALSAgent:
                     
                     # Ask Claude to analyze and continue
                     current_message = (
-                        f"The command '{cmd_name}' completed successfully with return code {result.return_code}. "
-                        f"Here's the output:\n\n{output_summary}\n\n"
-                        f"Please analyze the results briefly and then suggest the next command in the workflow. "
-                        f"Continue processing — do not ask for confirmation."
+                        f"AUTO MODE: The command '{cmd_name}' completed successfully (return code {result.return_code}). "
+                        f"Output:\n\n{output_summary}\n\n"
+                        f"Briefly analyze, then IMMEDIATELY use suggest_dials_command to suggest the next step. "
+                        f"Skip GUI commands. Do not ask for confirmation or present options."
                     )
                 else:
                     # No pending command — check if workflow is done
@@ -673,10 +674,11 @@ class DIALSAgent:
                         console.print("\n[bold green]🎉 Workflow complete![/bold green]")
                         break
                     
-                    # Ask Claude to continue
+                    # Ask Claude to continue — be very explicit
                     current_message = (
-                        "Please suggest the next command in the DIALS workflow. "
-                        "Continue processing — do not ask for confirmation."
+                        "AUTO MODE: You must use the suggest_dials_command tool NOW to suggest the next DIALS command. "
+                        "Do not present options or ask questions. Skip GUI commands (image_viewer, reciprocal_lattice_viewer). "
+                        "Just suggest the next processing command."
                     )
             
             if iteration >= max_iterations:
@@ -687,6 +689,9 @@ class DIALSAgent:
         except Exception as e:
             console.print(f"\n[red]Error in auto mode: {e}[/red]")
             logger.exception("Error in auto mode")
+        
+        # Exit auto mode
+        self.auto_mode = False
         
         # Show final timing summary
         auto_duration = time.time() - auto_start_time
