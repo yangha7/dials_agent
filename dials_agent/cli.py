@@ -9,6 +9,7 @@ import argparse
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -40,7 +41,8 @@ class DIALSAgent:
     def __init__(
         self,
         working_directory: str = ".",
-        settings: Optional[Settings] = None
+        settings: Optional[Settings] = None,
+        auto_mode: bool = False
     ):
         """
         Initialize the DIALS Agent.
@@ -48,9 +50,11 @@ class DIALSAgent:
         Args:
             working_directory: Directory for DIALS processing
             settings: Application settings
+            auto_mode: If True, run through workflow without user confirmation
         """
         self.working_directory = Path(working_directory).absolute()
         self.settings = settings or get_settings()
+        self.auto_mode = auto_mode
         
         # Initialize components
         self.workflow = create_workflow_manager(str(self.working_directory))
@@ -65,6 +69,9 @@ class DIALSAgent:
         
         # Pending command for approval
         self.pending_command: Optional[dict] = None
+        
+        # Timing tracker for all executed commands
+        self.command_timings: list[dict] = []
     
     def _handle_tool_call(self, tool_call: ToolCall) -> dict:
         """
@@ -250,6 +257,18 @@ class DIALSAgent:
         with console.status("[bold green]Running command..."):
             result = self.executor.execute(command)
         
+        # Record timing
+        cmd_name = command.split()[0] if command else command
+        self.command_timings.append({
+            "command": command,
+            "command_name": cmd_name,
+            "duration": result.duration,
+            "success": result.success,
+        })
+        
+        # Display timing prominently
+        self._display_timing(cmd_name, result.duration)
+        
         # Parse the output
         parsed = self.parser.parse(result)
         
@@ -262,6 +281,56 @@ class DIALSAgent:
         )
         
         return result
+    
+    def _display_timing(self, cmd_name: str, duration: float):
+        """Display timing information for a command."""
+        if duration >= 60:
+            minutes = int(duration // 60)
+            seconds = duration % 60
+            time_str = f"{minutes}m {seconds:.1f}s"
+        else:
+            time_str = f"{duration:.1f}s"
+        console.print(f"[bold magenta]⏱  {cmd_name} completed in {time_str}[/bold magenta]")
+    
+    def display_timing_summary(self):
+        """Display a summary table of all command timings."""
+        if not self.command_timings:
+            console.print("[yellow]No commands executed yet.[/yellow]")
+            return
+        
+        table = Table(title="⏱  Command Timing Summary", border_style="magenta")
+        table.add_column("#", style="dim", justify="right")
+        table.add_column("Command", style="cyan")
+        table.add_column("Status", justify="center")
+        table.add_column("Duration", style="magenta", justify="right")
+        
+        total_duration = 0.0
+        for i, entry in enumerate(self.command_timings, 1):
+            status = "[green]✓[/green]" if entry["success"] else "[red]✗[/red]"
+            duration = entry["duration"]
+            total_duration += duration
+            
+            if duration >= 60:
+                minutes = int(duration // 60)
+                seconds = duration % 60
+                time_str = f"{minutes}m {seconds:.1f}s"
+            else:
+                time_str = f"{duration:.1f}s"
+            
+            table.add_row(str(i), entry["command"][:60], status, time_str)
+        
+        # Add total row
+        if total_duration >= 60:
+            total_minutes = int(total_duration // 60)
+            total_seconds = total_duration % 60
+            total_str = f"{total_minutes}m {total_seconds:.1f}s"
+        else:
+            total_str = f"{total_duration:.1f}s"
+        
+        table.add_section()
+        table.add_row("", "[bold]Total[/bold]", "", f"[bold]{total_str}[/bold]")
+        
+        console.print(table)
     
     def display_command_suggestion(self, suggestion: dict):
         """Display a command suggestion to the user."""
@@ -299,7 +368,17 @@ class DIALSAgent:
         
         content = Text()
         content.append(f"{parsed.summary}\n\n", style=style)
-        content.append(f"Duration: {result.duration:.1f}s\n")
+        
+        # Prominent timing display
+        content.append("⏱  Duration: ", style="bold")
+        duration = result.duration
+        if duration >= 60:
+            minutes = int(duration // 60)
+            seconds = duration % 60
+            content.append(f"{minutes}m {seconds:.1f}s", style="bold magenta")
+        else:
+            content.append(f"{duration:.1f}s", style="bold magenta")
+        content.append("\n")
         
         if result.output_files:
             content.append("Created files: ", style="bold")
@@ -395,6 +474,140 @@ class DIALSAgent:
         
         return response.message
     
+    def run_auto(self, initial_message: str = "Process my data through the complete workflow with default settings"):
+        """
+        Run the agent in auto mode — process the entire workflow without user interruption.
+        
+        The agent will ask Claude for each step, automatically approve and execute
+        commands, feed results back, and continue until the workflow is complete
+        or an error occurs.
+        
+        Args:
+            initial_message: The initial instruction to send to Claude
+        """
+        console.print(Panel.fit(
+            "[bold blue]DIALS AI Agent — Auto Mode[/bold blue]\n"
+            "Running through the complete workflow without interruption.\n"
+            "Press Ctrl+C to abort.",
+            border_style="blue"
+        ))
+        
+        # Check DIALS availability
+        available, version = self.executor.check_dials_available()
+        if available:
+            console.print(f"[green]✓ DIALS available: {version}[/green]")
+        else:
+            console.print(f"[red]✗ DIALS not found: {version}[/red]")
+            console.print("[red]Cannot run in auto mode without DIALS installed.[/red]")
+            return
+        
+        # Show initial status
+        self.display_workflow_status()
+        console.print()
+        
+        auto_start_time = time.time()
+        max_iterations = 30  # Safety limit to prevent infinite loops
+        iteration = 0
+        
+        # Start with the initial message
+        current_message = initial_message
+        
+        try:
+            while iteration < max_iterations:
+                iteration += 1
+                console.print(f"\n[dim]── Auto step {iteration} ──[/dim]")
+                
+                # Send message to Claude
+                with console.status("[bold green]Thinking..."):
+                    response = self.chat(current_message)
+                
+                # Display response
+                if response:
+                    console.print(f"\n[bold green]Agent[/bold green]")
+                    console.print(Markdown(response))
+                
+                # Handle pending command — auto-approve
+                if self.pending_command:
+                    self.display_command_suggestion(self.pending_command)
+                    console.print("[bold yellow]Auto-approving command...[/bold yellow]")
+                    
+                    result = self.execute_command(self.pending_command["command"])
+                    self.display_result(result)
+                    
+                    if not result.success:
+                        console.print("[red]Command failed. Asking agent for troubleshooting...[/red]")
+                        current_message = (
+                            f"The command '{self.pending_command['command']}' failed with return code {result.return_code}. "
+                            f"Error output:\n{result.stderr[:2000] if result.stderr else result.stdout[:2000]}\n\n"
+                            f"Please troubleshoot and suggest a fix, or skip this step if appropriate."
+                        )
+                        self.pending_command = None
+                        continue
+                    
+                    # Send result back to Claude for analysis and next step
+                    cmd_name = self.pending_command["command"].split()[0] if self.pending_command["command"] else ""
+                    if cmd_name in ("dials.scale", "dials.symmetry", "dials.cosym", "dials.merge", "dials.index"):
+                        max_output = 8000
+                    else:
+                        max_output = 3000
+                    
+                    output_text = result.stdout if result.stdout else result.stderr
+                    if len(output_text) > max_output:
+                        head = output_text[:max_output // 3]
+                        tail = output_text[-(max_output * 2 // 3):]
+                        output_summary = f"{head}\n\n[... output truncated ...]\n\n{tail}"
+                    else:
+                        output_summary = output_text
+                    
+                    self.pending_command = None
+                    
+                    # Check if workflow is complete
+                    self.workflow.refresh()
+                    if self.workflow.is_complete():
+                        console.print("\n[bold green]🎉 Workflow complete![/bold green]")
+                        break
+                    
+                    # Ask Claude to analyze and continue
+                    current_message = (
+                        f"The command '{cmd_name}' completed successfully with return code {result.return_code}. "
+                        f"Here's the output:\n\n{output_summary}\n\n"
+                        f"Please analyze the results briefly and then suggest the next command in the workflow. "
+                        f"Continue processing — do not ask for confirmation."
+                    )
+                else:
+                    # No pending command — check if workflow is done
+                    self.workflow.refresh()
+                    if self.workflow.is_complete():
+                        console.print("\n[bold green]🎉 Workflow complete![/bold green]")
+                        break
+                    
+                    # Ask Claude to continue
+                    current_message = (
+                        "Please suggest the next command in the DIALS workflow. "
+                        "Continue processing — do not ask for confirmation."
+                    )
+            
+            if iteration >= max_iterations:
+                console.print(f"\n[yellow]Reached maximum iterations ({max_iterations}). Stopping auto mode.[/yellow]")
+        
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Auto mode interrupted by user.[/yellow]")
+        except Exception as e:
+            console.print(f"\n[red]Error in auto mode: {e}[/red]")
+            logger.exception("Error in auto mode")
+        
+        # Show final timing summary
+        auto_duration = time.time() - auto_start_time
+        console.print()
+        self.display_timing_summary()
+        
+        if auto_duration >= 60:
+            total_minutes = int(auto_duration // 60)
+            total_seconds = auto_duration % 60
+            console.print(f"\n[bold]Total wall-clock time: {total_minutes}m {total_seconds:.1f}s[/bold]")
+        else:
+            console.print(f"\n[bold]Total wall-clock time: {auto_duration:.1f}s[/bold]")
+    
     def run_interactive(self):
         """Run the interactive CLI loop."""
         console.print(Panel.fit(
@@ -428,6 +641,9 @@ class DIALSAgent:
                 lower_input = user_input.lower().strip()
                 
                 if lower_input in ['quit', 'exit', 'q']:
+                    # Show timing summary on exit if any commands were run
+                    if self.command_timings:
+                        self.display_timing_summary()
                     console.print("[yellow]Goodbye![/yellow]")
                     break
                 
@@ -445,6 +661,15 @@ class DIALSAgent:
                 
                 elif lower_input == 'history':
                     self._show_history()
+                    continue
+                
+                elif lower_input == 'timing':
+                    self.display_timing_summary()
+                    continue
+                
+                elif lower_input == 'auto':
+                    console.print("[bold blue]Entering auto mode...[/bold blue]")
+                    self.run_auto()
                     continue
                 
                 elif lower_input == 'clear':
@@ -542,6 +767,8 @@ class DIALSAgent:
 - **status** - Show current workflow status
 - **next** - Show suggested next step
 - **history** - Show command history
+- **timing** - Show timing summary for all executed commands
+- **auto** - Run through the entire workflow automatically (no confirmations)
 - **clear** - Clear conversation history
 - **multi** - Enable multi-crystal mode (uses joint=false, dials.cosym)
 - **single** - Enable single-crystal mode (default)
@@ -585,11 +812,33 @@ For multi-crystal datasets like the tutorial:
         table.add_column("#", style="dim")
         table.add_column("Command", style="cyan")
         table.add_column("Status", style="white")
-        table.add_column("Duration", style="white")
+        table.add_column("Duration", style="magenta")
         
+        total_duration = 0.0
         for i, cmd in enumerate(history[-10:], 1):  # Last 10 commands
             status = "[green]✓[/green]" if cmd.success else "[red]✗[/red]"
-            table.add_row(str(i), cmd.command[:50], status, f"{cmd.duration:.1f}s")
+            duration = cmd.duration
+            total_duration += duration
+            
+            if duration >= 60:
+                minutes = int(duration // 60)
+                seconds = duration % 60
+                time_str = f"{minutes}m {seconds:.1f}s"
+            else:
+                time_str = f"{duration:.1f}s"
+            
+            table.add_row(str(i), cmd.command[:50], status, time_str)
+        
+        # Add total row
+        if total_duration >= 60:
+            total_minutes = int(total_duration // 60)
+            total_seconds = total_duration % 60
+            total_str = f"{total_minutes}m {total_seconds:.1f}s"
+        else:
+            total_str = f"{total_duration:.1f}s"
+        
+        table.add_section()
+        table.add_row("", "[bold]Total[/bold]", "", f"[bold]{total_str}[/bold]")
         
         console.print(table)
     
@@ -657,6 +906,16 @@ def main():
         action="store_true",
         help="Check DIALS availability and exit"
     )
+    parser.add_argument(
+        "--auto",
+        action="store_true",
+        help="Run through the entire workflow automatically without user confirmation"
+    )
+    parser.add_argument(
+        "--auto-message",
+        default=None,
+        help="Initial message for auto mode (default: 'Process my data through the complete workflow')"
+    )
     
     args = parser.parse_args()
     
@@ -719,9 +978,14 @@ def main():
     try:
         agent = DIALSAgent(
             working_directory=working_dir,
-            settings=settings
+            settings=settings,
+            auto_mode=args.auto
         )
-        agent.run_interactive()
+        if args.auto:
+            initial_msg = args.auto_message or "Process my data through the complete workflow with default settings"
+            agent.run_auto(initial_message=initial_msg)
+        else:
+            agent.run_interactive()
     except ValueError as e:
         console.print(f"[red]Configuration error: {e}[/red]")
         sys.exit(1)
