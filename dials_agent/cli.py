@@ -693,6 +693,48 @@ class DIALSAgent:
                     self._change_directory(new_dir)
                     continue
                 
+                # Direct DIALS command execution — if input starts with "dials."
+                if user_input.strip().startswith("dials."):
+                    command = user_input.strip()
+                    result = self.execute_command(command)
+                    self.display_result(result)
+                    
+                    # Send result to Claude for analysis
+                    if result.stdout or result.stderr:
+                        cmd_name = command.split()[0] if command else ""
+                        if cmd_name in ("dials.scale", "dials.symmetry", "dials.cosym", "dials.merge", "dials.index"):
+                            max_output = 8000
+                        else:
+                            max_output = 3000
+                        
+                        output_text = result.stdout if result.stdout else result.stderr
+                        if len(output_text) > max_output:
+                            head = output_text[:max_output // 3]
+                            tail = output_text[-(max_output * 2 // 3):]
+                            output_summary = f"{head}\n\n[... output truncated ...]\n\n{tail}"
+                        else:
+                            output_summary = output_text
+                        
+                        log_hint = ""
+                        if cmd_name == "dials.scale":
+                            log_hint = "\n\nIMPORTANT: Please read dials.scale.log to get the full merging statistics table and present them to the user. Also mention the dials.scale.html report."
+                        elif cmd_name == "dials.symmetry":
+                            log_hint = "\n\nIMPORTANT: Please read dials.symmetry.log to get the full symmetry analysis results and present them to the user."
+                        elif cmd_name == "dials.index":
+                            log_hint = "\n\nIMPORTANT: Please read dials.index.log to get the full indexing results including unit cell, space group, and indexed percentage."
+                        elif cmd_name == "dials.integrate":
+                            log_hint = "\n\nIMPORTANT: Please read dials.integrate.log to get the integration statistics."
+                        
+                        with console.status("[bold green]Analyzing results..."):
+                            analysis = self.chat(
+                                f"I directly ran the command '{command}' which completed with return code {result.return_code}. "
+                                f"Here's the output:\n\n{output_summary}{log_hint}"
+                            )
+                        if analysis:
+                            console.print(f"\n[bold green]Agent[/bold green]")
+                            console.print(Markdown(analysis))
+                    continue
+                
                 # Send to Claude
                 with console.status("[bold green]Thinking..."):
                     response = self.chat(user_input)
