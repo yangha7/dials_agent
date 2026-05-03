@@ -72,6 +72,9 @@ class DIALSAgent:
         
         # Timing tracker for all executed commands
         self.command_timings: list[dict] = []
+        
+        # Active status spinner (set during "Thinking..." to allow tool handlers to pause it)
+        self._active_status = None
     
     def _handle_tool_call(self, tool_call: ToolCall) -> dict:
         """
@@ -253,11 +256,22 @@ class DIALSAgent:
             is_destructive = any(kw in command for kw in destructive_keywords) or command.startswith("rm ")
             
             if is_destructive:
+                # Stop the spinner so the confirmation prompt is clearly visible
+                if self._active_status:
+                    self._active_status.stop()
+                
                 console.print(f"\n[bold yellow]⚠  Shell command (destructive):[/bold yellow] {command}")
                 if explanation:
                     console.print(f"[dim]{explanation}[/dim]")
                 if not Confirm.ask("[bold red]Allow this command?[/bold red]", default=False):
+                    # Restart spinner
+                    if self._active_status:
+                        self._active_status.start()
                     return {"status": "cancelled", "message": "User declined to run destructive command"}
+                
+                # Restart spinner after confirmation
+                if self._active_status:
+                    self._active_status.start()
             else:
                 console.print(f"\n[dim]$ {command}[/dim]")
             
@@ -575,8 +589,10 @@ class DIALSAgent:
                 console.print(f"\n[dim]── Auto step {iteration} ──[/dim]")
                 
                 # Send message to Claude
-                with console.status("[bold green]Thinking..."):
+                with console.status("[bold green]Thinking...") as status:
+                    self._active_status = status
                     response = self.chat(current_message)
+                    self._active_status = None
                 
                 # Display response
                 if response:
@@ -786,19 +802,23 @@ class DIALSAgent:
                         elif cmd_name == "dials.integrate":
                             log_hint = "\n\nIMPORTANT: Please read dials.integrate.log to get the integration statistics."
                         
-                        with console.status("[bold green]Analyzing results..."):
+                        with console.status("[bold green]Analyzing results...") as status:
+                            self._active_status = status
                             analysis = self.chat(
                                 f"I directly ran the command '{command}' which completed with return code {result.return_code}. "
                                 f"Here's the output:\n\n{output_summary}{log_hint}"
                             )
+                            self._active_status = None
                         if analysis:
                             console.print(f"\n[bold green]Agent[/bold green]")
                             console.print(Markdown(analysis))
                     continue
                 
                 # Send to Claude
-                with console.status("[bold green]Thinking..."):
+                with console.status("[bold green]Thinking...") as status:
+                    self._active_status = status
                     response = self.chat(user_input)
+                    self._active_status = None
                 
                 # Display response
                 if response:
@@ -842,11 +862,13 @@ class DIALSAgent:
                             elif cmd_name == "dials.integrate":
                                 log_hint = "\n\nIMPORTANT: Please read dials.integrate.log to get the integration statistics."
                             
-                            with console.status("[bold green]Analyzing results..."):
+                            with console.status("[bold green]Analyzing results...") as status:
+                                self._active_status = status
                                 analysis = self.chat(
                                     f"The command '{cmd_name}' completed with return code {result.return_code}. "
                                     f"Here's the output:\n\n{output_summary}{log_hint}"
                                 )
+                                self._active_status = None
                             if analysis:
                                 console.print(f"\n[bold green]Agent[/bold green]")
                                 console.print(Markdown(analysis))
