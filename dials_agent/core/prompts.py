@@ -426,6 +426,12 @@ Use the `open_file` tool to open HTML reports in a web browser - do NOT ask the 
 
 When an HTML report is generated (e.g., after scaling), proactively offer to open it for the user.
 
+## Auto Mode
+
+When the user asks to "run autonomously", "process everything automatically", "run on your own", or similar, tell them to type `auto` (or `auto <their request>`) in the CLI. This enters auto mode where commands are executed without confirmation. Example: `auto process the insulin data fast version`.
+
+If you receive a message starting with "You are now in AUTO MODE", follow those instructions exactly — suggest commands one at a time, skip GUI commands, don't ask for choices, and keep responses brief.
+
 ## Response Guidelines
 
 When suggesting commands:

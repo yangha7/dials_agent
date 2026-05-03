@@ -545,7 +545,7 @@ class DIALSAgent:
         
         return response.message
     
-    def run_auto(self, initial_message: str = "Process my data through the complete workflow with default settings"):
+    def run_auto(self, initial_message: str = None, skip_dials_check: bool = False):
         """
         Run the agent in auto mode — process the entire workflow without user interruption.
         
@@ -555,7 +555,25 @@ class DIALSAgent:
         
         Args:
             initial_message: The initial instruction to send to Claude
+            skip_dials_check: Skip DIALS availability check (already done in interactive mode)
         """
+        # Build the auto-mode instruction
+        auto_instruction = (
+            "You are now in AUTO MODE. Execute the complete DIALS workflow automatically. "
+            "Rules for auto mode:\n"
+            "1. Suggest one DIALS command at a time using suggest_dials_command\n"
+            "2. Do NOT suggest GUI commands (dials.image_viewer, dials.reciprocal_lattice_viewer) — skip them\n"
+            "3. Do NOT ask the user for confirmation or choices — just proceed with sensible defaults\n"
+            "4. After each command completes, briefly analyze the output and immediately suggest the next step\n"
+            "5. Continue until the workflow is complete (through export/merge)\n"
+            "6. Keep explanations brief in auto mode\n\n"
+        )
+        
+        if initial_message:
+            auto_instruction += f"User's request: {initial_message}"
+        else:
+            auto_instruction += "Process the data through the complete workflow with default settings."
+        
         console.print(Panel.fit(
             "[bold blue]DIALS AI Agent — Auto Mode[/bold blue]\n"
             "Running through the complete workflow without interruption.\n"
@@ -563,25 +581,26 @@ class DIALSAgent:
             border_style="blue"
         ))
         
-        # Check DIALS availability
-        available, version = self.executor.check_dials_available()
-        if available:
-            console.print(f"[green]✓ DIALS available: {version}[/green]")
-        else:
-            console.print(f"[red]✗ DIALS not found: {version}[/red]")
-            console.print("[red]Cannot run in auto mode without DIALS installed.[/red]")
-            return
-        
-        # Show initial status
-        self.display_workflow_status()
-        console.print()
+        if not skip_dials_check:
+            # Check DIALS availability
+            available, version = self.executor.check_dials_available()
+            if available:
+                console.print(f"[green]✓ DIALS available: {version}[/green]")
+            else:
+                console.print(f"[red]✗ DIALS not found: {version}[/red]")
+                console.print("[red]Cannot run in auto mode without DIALS installed.[/red]")
+                return
+            
+            # Show initial status
+            self.display_workflow_status()
+            console.print()
         
         auto_start_time = time.time()
         max_iterations = 30  # Safety limit to prevent infinite loops
         iteration = 0
         
-        # Start with the initial message
-        current_message = initial_message
+        # Start with the auto instruction
+        current_message = auto_instruction
         
         try:
             while iteration < max_iterations:
@@ -740,9 +759,14 @@ class DIALSAgent:
                     self.display_timing_summary()
                     continue
                 
-                elif lower_input == 'auto':
+                elif lower_input == 'auto' or lower_input.startswith('auto '):
+                    # 'auto' alone or 'auto <message>' to pass a custom instruction
+                    if lower_input.startswith('auto '):
+                        auto_msg = user_input[5:].strip()
+                    else:
+                        auto_msg = None
                     console.print("[bold blue]Entering auto mode...[/bold blue]")
-                    self.run_auto()
+                    self.run_auto(initial_message=auto_msg, skip_dials_check=True)
                     continue
                 
                 elif lower_input == 'clear':
@@ -894,6 +918,7 @@ class DIALSAgent:
 - **history** - Show command history
 - **timing** - Show timing summary for all executed commands
 - **auto** - Run through the entire workflow automatically (no confirmations)
+- **auto <message>** - Auto mode with custom instruction (e.g., `auto process insulin data fast version`)
 - **reset** / **clean** / **start over** - Remove DIALS output files and start fresh
 - **clear** - Clear conversation history
 - **multi** - Enable multi-crystal mode (uses joint=false, dials.cosym)
