@@ -254,6 +254,61 @@ The target computer needs:
 - Internet access for API calls
 - A valid API key (CBORG, OpenAI, Gemini, or Anthropic)
 
+### Docker Container Deployment
+
+For containerized deployment (DIALS must be installed on the host):
+
+1. **Build the container**:
+   ```bash
+   cd dials_agent
+   docker build -t dials-agent .
+   ```
+
+2. **Configure** (create `.env` with your API key):
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API key
+   ```
+
+3. **Run interactively**:
+   ```bash
+   docker run -it --rm \
+     -v /path/to/dials/conda_base/bin:/opt/dials/bin:ro \
+     -v /path/to/data:/data:ro \
+     -v $(pwd)/output:/output \
+     --env-file .env \
+     dials-agent -d /output
+   ```
+
+4. **Run in auto mode**:
+   ```bash
+   docker run -it --rm \
+     -v /path/to/dials/conda_base/bin:/opt/dials/bin:ro \
+     -v /path/to/data:/data:ro \
+     -v $(pwd)/output:/output \
+     --env-file .env \
+     dials-agent -d /output --auto
+   ```
+
+5. **Using docker-compose** (edit `docker-compose.yml` volume paths first):
+   ```bash
+   docker compose run --rm dials-agent
+   ```
+
+#### Volume Mounts
+
+| Mount | Purpose | Mode |
+|-------|---------|------|
+| `/opt/dials/bin` | DIALS binaries from host | Read-only |
+| `/data` | Raw diffraction data | Read-only |
+| `/output` | DIALS processing output | Read-write |
+
+#### Container Requirements
+
+- Docker 20.10+ or Podman
+- DIALS installed on the host system
+- Internet access for LLM API calls
+
 ## Development
 
 ### Running Tests

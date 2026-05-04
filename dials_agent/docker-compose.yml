@@ -1,0 +1,29 @@
+# DIALS AI Agent — Docker Compose
+#
+# Usage:
+#   1. Copy .env.example to .env and configure your API key
+#   2. Edit the volume paths below to match your system
+#   3. Run: docker compose up
+#
+# For auto mode:
+#   docker compose run --rm dials-agent -d /output --auto
+
+services:
+  dials-agent:
+    build: .
+    container_name: dials-agent
+    stdin_open: true    # -i (interactive)
+    tty: true           # -t (terminal)
+    env_file:
+      - .env
+    volumes:
+      # Mount the DIALS installation bin directory
+      # Change this to your DIALS installation path
+      - /path/to/dials/conda_base/bin:/opt/dials/bin:ro
+
+      # Mount your data directory (read-only)
+      - /path/to/data:/data:ro
+
+      # Mount the output directory (read-write)
+      - ./output:/output
+    working_dir: /output
