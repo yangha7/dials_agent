@@ -183,6 +183,20 @@ TOOLS = [
         }
     },
     {
+        "name": "change_data_directory",
+        "description": "Change the raw data directory where input files (images, HDF5, CBF, NXS) are located. Use this when the user says their data is in a different location, or wants to process a different dataset. The agent will re-scan the new directory for data files.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "The directory path containing raw diffraction data files."
+                }
+            },
+            "required": ["path"]
+        }
+    },
+    {
         "name": "run_shell_command",
         "description": "Run a shell command in the working directory. Use this for non-DIALS commands like ls, rm, mv, cp, cat, head, tail, wc, grep, find, etc. For destructive commands (rm, mv), the user will be asked to confirm before execution. Use this instead of telling the user to run commands manually.",
         "input_schema": {

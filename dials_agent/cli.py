@@ -289,6 +289,48 @@ class DIALSAgent:
                 "existing_files": self.workflow.get_available_files()
             }
         
+        elif tool_call.name == "change_data_directory":
+            dir_path = tool_call.input.get("path", "")
+            
+            if not dir_path:
+                return {"error": "No path provided"}
+            
+            data_path = Path(dir_path).resolve()
+            
+            if not data_path.exists():
+                return {"error": f"Data directory does not exist: {data_path}"}
+            
+            if not data_path.is_dir():
+                return {"error": f"Not a directory: {data_path}"}
+            
+            # Update the settings
+            self.settings.data_directory = str(data_path)
+            
+            # Re-discover data files and update Claude's context
+            from .core.tools import discover_data_files
+            data_files = discover_data_files(str(self.working_directory), data_directory=str(data_path))
+            
+            self.claude.update_context(
+                existing_files=self.workflow.get_available_files()
+            )
+            
+            console.print(f"[green]📂 Data directory changed to: {data_path}[/green]")
+            
+            # List discovered data files
+            file_summary = []
+            for f in data_files[:10]:
+                file_summary.append(f)
+            if len(data_files) > 10:
+                file_summary.append(f"... and {len(data_files) - 10} more")
+            
+            return {
+                "status": "success",
+                "data_directory": str(data_path),
+                "data_files_found": len(data_files),
+                "sample_files": file_summary,
+                "message": f"Data directory changed to {data_path}. Found {len(data_files)} data file(s)."
+            }
+        
         elif tool_call.name == "run_shell_command":
             import subprocess as sp
             

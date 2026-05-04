@@ -446,7 +446,31 @@ The user can also use these CLI commands directly:
 - `cd` — Return to the base (starting) directory
 - `pwd` / `workspace` — Show current and base directory
 
+You can also use `change_data_directory` to switch the raw data directory when the user says their data is in a different location.
+
 You can also use `run_shell_command` to rename directories (`mv old_name new_name`).
+
+## Parallel Computing Options
+
+When suggesting `dials.find_spots` or `dials.integrate`, **always ask the user how many CPU cores they want to use** and explain the trade-offs:
+
+### dials.find_spots parallelism
+- Parameter: `spotfinder.mp.nproc=N`
+- Default: Auto (uses all available cores)
+- **Advantages of more cores**: Faster spot finding — each core processes a chunk of images independently. Near-linear speedup up to ~8-16 cores.
+- **Disadvantages of more cores**: Higher memory usage (each process loads images independently). On shared systems, using all cores may impact other users.
+- **Recommendation**: For a dedicated workstation, use all cores. For a shared cluster, use half the available cores (e.g., `nproc=8` on a 16-core node).
+
+### dials.integrate parallelism
+- Parameter: `integration.mp.nproc=N`
+- Default: Auto (uses all available cores)
+- **Advantages of more cores**: Faster integration — each core processes a block of rotation angles independently.
+- **Disadvantages of more cores**: Integration is memory-intensive. Each process needs memory for shoeboxes. With too many cores, you may run out of memory and the program will crash or slow down due to swapping.
+- **Recommendation**: Start with `nproc=4` or `nproc=8`. If memory is not an issue, increase. Use `integration.block.max_memory_usage=0.80` to control memory.
+
+### Example suggestions
+- "I'll use 8 cores for spot finding. Would you like to use a different number? More cores = faster but uses more memory."
+- For auto mode, default to `nproc=Auto` (let DIALS decide based on available cores).
 
 ## Auto Mode
 
