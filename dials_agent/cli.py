@@ -53,8 +53,12 @@ class DIALSAgent:
             auto_mode: If True, run through workflow without user confirmation
         """
         self.working_directory = Path(working_directory).absolute()
+        self.base_directory = self.working_directory  # Remember the starting directory
         self.settings = settings or get_settings()
         self.auto_mode = auto_mode
+        
+        # Track all directories where work was done
+        self.used_directories: list[Path] = []
         
         # Initialize components
         self.workflow = create_workflow_manager(str(self.working_directory))
@@ -741,6 +745,8 @@ class DIALSAgent:
                     # Show timing summary on exit if any commands were run
                     if self.command_timings:
                         self.display_timing_summary()
+                    # Show where data was saved
+                    self._display_exit_info()
                     console.print("[yellow]Goodbye![/yellow]")
                     break
                 
@@ -794,9 +800,24 @@ class DIALSAgent:
                     self._reset_working_directory()
                     continue
                 
+                elif lower_input == 'cd':
+                    # cd with no args → go back to base directory
+                    self._change_directory(str(self.base_directory))
+                    continue
+                
                 elif lower_input.startswith('cd '):
                     new_dir = user_input[3:].strip()
                     self._change_directory(new_dir)
+                    continue
+                
+                elif lower_input.startswith('mkdir '):
+                    dir_name = user_input[6:].strip()
+                    self._make_directory(dir_name)
+                    continue
+                
+                elif lower_input in ['pwd', 'workspace']:
+                    console.print(f"[cyan]Current directory:[/cyan] {self.working_directory}")
+                    console.print(f"[dim]Base directory:    {self.base_directory}[/dim]")
                     continue
                 
                 # Detect autonomous processing requests and switch to auto mode
@@ -940,8 +961,11 @@ class DIALSAgent:
 - **clear** - Clear conversation history
 - **multi** - Enable multi-crystal mode (uses joint=false, dials.cosym)
 - **single** - Enable single-crystal mode (default)
-- **cd <path>** - Change working directory
-- **quit** / **exit** - Exit the agent
+- **mkdir <name>** - Create a subdirectory and switch to it
+- **cd <path>** - Change working directory (relative or absolute)
+- **cd** - Return to the base (starting) directory
+- **pwd** / **workspace** - Show current and base directory
+- **quit** / **exit** - Exit the agent (shows where data was saved)
 
 ## Natural Language Examples
 
@@ -1011,12 +1035,31 @@ For multi-crystal datasets like the tutorial:
         console.print(table)
     
     def _change_directory(self, new_dir: str):
-        """Change the working directory."""
-        new_path = Path(new_dir).expanduser().absolute()
+        """Change the working directory.
+        
+        Supports:
+        - Absolute paths: cd /path/to/dir
+        - Relative to current directory: cd subdir
+        - Relative to base directory: cd ~/subdir (~ = base directory)
+        - Back to base: cd (no args)
+        """
+        if new_dir.startswith("~"):
+            # ~ refers to the base directory, not home
+            new_path = self.base_directory / new_dir[1:].lstrip("/")
+        elif not Path(new_dir).is_absolute():
+            # Relative path — resolve relative to current working directory
+            new_path = (self.working_directory / new_dir).resolve()
+        else:
+            new_path = Path(new_dir).expanduser().absolute()
         
         if not new_path.exists():
-            console.print(f"[red]Directory does not exist: {new_path}[/red]")
-            return
+            # Offer to create it
+            console.print(f"[yellow]Directory does not exist: {new_path}[/yellow]")
+            if Confirm.ask("Create it?", default=True):
+                new_path.mkdir(parents=True, exist_ok=True)
+                console.print(f"[green]Created: {new_path}[/green]")
+            else:
+                return
         
         self.working_directory = new_path
         self.workflow = create_workflow_manager(str(new_path))
@@ -1026,8 +1069,71 @@ For multi-crystal datasets like the tutorial:
             existing_files=self.workflow.get_available_files()
         )
         
+        # Track this directory
+        if new_path not in self.used_directories:
+            self.used_directories.append(new_path)
+        
         console.print(f"[green]Changed to: {new_path}[/green]")
         self.display_workflow_status()
+    
+    def _make_directory(self, dir_name: str):
+        """Create a subdirectory under the current working directory and switch to it."""
+        if Path(dir_name).is_absolute():
+            new_path = Path(dir_name)
+        else:
+            new_path = self.working_directory / dir_name
+        
+        new_path = new_path.resolve()
+        
+        if new_path.exists():
+            console.print(f"[yellow]Directory already exists: {new_path}[/yellow]")
+            if Confirm.ask("Switch to it?", default=True):
+                self._change_directory(str(new_path))
+            return
+        
+        new_path.mkdir(parents=True, exist_ok=True)
+        console.print(f"[green]Created: {new_path}[/green]")
+        
+        # Automatically switch to the new directory
+        self._change_directory(str(new_path))
+    
+    def _display_exit_info(self):
+        """Display information about where data was saved on exit."""
+        # Collect all directories that have DIALS output files
+        dirs_with_data = []
+        
+        # Always check current working directory
+        all_dirs = set(self.used_directories)
+        all_dirs.add(self.working_directory)
+        all_dirs.add(self.base_directory)
+        
+        dials_extensions = {".expt", ".refl", ".mtz", ".html", ".log"}
+        
+        for d in sorted(all_dirs):
+            if not d.exists():
+                continue
+            dials_files = [f.name for f in d.iterdir() if f.is_file() and f.suffix in dials_extensions]
+            if dials_files:
+                dirs_with_data.append((d, dials_files))
+        
+        if dirs_with_data:
+            console.print("\n[bold]📁 Your processed data is saved in:[/bold]")
+            for d, files in dirs_with_data:
+                n_expt = sum(1 for f in files if f.endswith(".expt"))
+                n_refl = sum(1 for f in files if f.endswith(".refl"))
+                n_mtz = sum(1 for f in files if f.endswith(".mtz"))
+                n_log = sum(1 for f in files if f.endswith(".log"))
+                
+                summary_parts = []
+                if n_expt: summary_parts.append(f"{n_expt} .expt")
+                if n_refl: summary_parts.append(f"{n_refl} .refl")
+                if n_mtz: summary_parts.append(f"{n_mtz} .mtz")
+                if n_log: summary_parts.append(f"{n_log} .log")
+                
+                summary = ", ".join(summary_parts)
+                console.print(f"  [cyan]{d}[/cyan]")
+                console.print(f"    [dim]{summary}[/dim]")
+            console.print()
     
     def _reset_working_directory(self):
         """Remove DIALS output files from the working directory and start fresh."""
