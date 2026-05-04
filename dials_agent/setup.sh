@@ -28,7 +28,7 @@ if [ -n "$CONDA_PREFIX" ]; then
         echo "Using conda Python $version: $PYTHON_CMD"
         echo ""
         echo "Installing dials-agent into conda environment..."
-        pip install -e "$SCRIPT_DIR"
+        pip3 install -e "$SCRIPT_DIR"
         
         # Setup .env if not exists
         if [ ! -f "$SCRIPT_DIR/.env" ] && [ -f "$SCRIPT_DIR/.env.example" ]; then
@@ -131,8 +131,8 @@ echo "  Option B: Install python3-venv (requires sudo)"
 echo "    sudo apt install python3-venv"
 echo "    ./setup.sh"
 echo ""
-echo "  Option C: Use pip with --break-system-packages (not recommended)"
-echo "    pip install --break-system-packages -e ."
+echo "  Option C: Use pip3 with --break-system-packages (not recommended)"
+echo "    pip3 install --break-system-packages -e ."
 echo ""
 echo "  Option D: Use Docker"
 echo "    docker build -t dials-agent ."
