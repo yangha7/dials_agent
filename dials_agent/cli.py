@@ -246,6 +246,49 @@ class DIALSAgent:
             else:
                 return {"error": f"Unsupported file type: {suffix}. Use read_file for text files."}
         
+        elif tool_call.name == "change_working_directory":
+            dir_path = tool_call.input.get("path", "")
+            create = tool_call.input.get("create", True)
+            
+            if not dir_path:
+                return {"error": "No path provided"}
+            
+            # Resolve the path
+            if not Path(dir_path).is_absolute():
+                new_path = (self.working_directory / dir_path).resolve()
+            else:
+                new_path = Path(dir_path).resolve()
+            
+            # Create if needed
+            if not new_path.exists():
+                if create:
+                    new_path.mkdir(parents=True, exist_ok=True)
+                    console.print(f"[green]📁 Created directory: {new_path}[/green]")
+                else:
+                    return {"error": f"Directory does not exist: {new_path}"}
+            
+            # Switch to the new directory
+            self.working_directory = new_path
+            self.workflow = create_workflow_manager(str(new_path))
+            self.executor = create_executor(str(new_path))
+            self.claude.update_context(
+                working_directory=str(new_path),
+                existing_files=self.workflow.get_available_files()
+            )
+            
+            # Track this directory
+            if new_path not in self.used_directories:
+                self.used_directories.append(new_path)
+            
+            console.print(f"[green]📁 Working directory changed to: {new_path}[/green]")
+            
+            return {
+                "status": "success",
+                "working_directory": str(new_path),
+                "message": f"Working directory changed to {new_path}. All DIALS output will now be saved here.",
+                "existing_files": self.workflow.get_available_files()
+            }
+        
         elif tool_call.name == "run_shell_command":
             import subprocess as sp
             

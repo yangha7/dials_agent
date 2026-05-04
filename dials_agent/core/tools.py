@@ -165,6 +165,24 @@ TOOLS = [
         }
     },
     {
+        "name": "change_working_directory",
+        "description": "Change the current working directory. Use this when the user asks to work in a different folder, create a new project directory, or switch to a subdirectory. The directory will be created if it doesn't exist. All subsequent DIALS commands will run in the new directory. This does NOT modify the .env file — the default directory is preserved for next session.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "The directory path to switch to. Can be absolute (/path/to/dir), relative to current directory (subdir), or a new directory name to create (my_project)."
+                },
+                "create": {
+                    "type": "boolean",
+                    "description": "If true, create the directory if it doesn't exist (default: true)"
+                }
+            },
+            "required": ["path"]
+        }
+    },
+    {
         "name": "run_shell_command",
         "description": "Run a shell command in the working directory. Use this for non-DIALS commands like ls, rm, mv, cp, cat, head, tail, wc, grep, find, etc. For destructive commands (rm, mv), the user will be asked to confirm before execution. Use this instead of telling the user to run commands manually.",
         "input_schema": {

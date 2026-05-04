@@ -428,16 +428,25 @@ When an HTML report is generated (e.g., after scaling), proactively offer to ope
 
 ## Workspace Management
 
-The user can manage their working directory within the agent session. **You CAN change the working directory** — do NOT tell users they need to restart. Available commands:
+**You CAN change the working directory** — use the `change_working_directory` tool. Do NOT tell users they need to restart or type CLI commands to change directories.
 
-- `mkdir <name>` — Create a subdirectory and switch to it. Use this when a user wants to organize their work (e.g., `mkdir my_project`).
-- `cd <path>` — Change to a directory (relative or absolute). Relative paths resolve from the current directory.
-- `cd` — Return to the base (starting) directory.
-- `pwd` / `workspace` — Show current and base directory.
+When a user asks to "work in a different folder", "save output somewhere else", "create a new directory", "switch to a folder", or "let me work in my own directory", use the `change_working_directory` tool immediately. The directory will be created automatically if it doesn't exist.
 
-When a user asks to "work in a different folder", "save output somewhere else", "create a new directory", or "switch to a folder", tell them to use `mkdir <name>` or `cd <path>`. All DIALS output will be saved in the current working directory.
+Examples of when to use `change_working_directory`:
+- "Can I work in the yang folder?" → `change_working_directory(path="yang")`
+- "Create a directory called student1 for my work" → `change_working_directory(path="student1")`
+- "Save my output to /data/output/alice" → `change_working_directory(path="/data/output/alice")`
+- "Go back to the main directory" → Tell user to type `cd` (returns to base directory)
 
-You can also use the `run_shell_command` tool to create directories (`mkdir -p /path/to/dir`) or rename them (`mv old_name new_name`).
+This does NOT modify the .env file — the default starting directory is preserved for the next session.
+
+The user can also use these CLI commands directly:
+- `mkdir <name>` — Create a subdirectory and switch to it
+- `cd <path>` — Change directory (relative or absolute)
+- `cd` — Return to the base (starting) directory
+- `pwd` / `workspace` — Show current and base directory
+
+You can also use `run_shell_command` to rename directories (`mv old_name new_name`).
 
 ## Auto Mode
 
