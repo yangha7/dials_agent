@@ -20,16 +20,45 @@ The DIALS AI Agent allows users with less command-line experience to process cry
 
 ## Installation
 
-1. Ensure you have Python 3.10+ installed
-2. Install DIALS (https://dials.github.io/installation.html)
-3. Install the agent package:
+### Quick Setup (Recommended)
 
 ```bash
 cd dials_agent
+chmod +x setup.sh
+./setup.sh
+```
+
+This creates a virtual environment, installs all dependencies, and sets up the configuration file. Then:
+
+```bash
+source venv/bin/activate
+python -m dials_agent.cli
+```
+
+### Manual Installation
+
+1. Ensure you have Python 3.10+ installed
+2. Install DIALS (https://dials.github.io/installation.html)
+3. Create a virtual environment and install:
+
+```bash
+cd dials_agent
+python3 -m venv venv
+source venv/bin/activate
 pip install -e .
 ```
 
-This installs the package in "editable" mode, making the `dials_agent` module available in your Python environment.
+> **Note**: On modern Debian/Ubuntu systems (12+/23.04+), you cannot `pip install` into the system Python due to [PEP 668](https://peps.python.org/pep-0668/). Always use a virtual environment or install into a conda environment.
+
+### Installing into a DIALS Conda Environment
+
+If DIALS is installed via conda, you can install the agent directly into the DIALS environment:
+
+```bash
+source /path/to/dials/dials_env.sh   # or: conda activate dials
+cd dials_agent
+pip install -e .
+```
 
 ## Configuration
 
