@@ -193,10 +193,20 @@ TUTORIALS = {
                                        "different structures. This demonstrates why species separation matters.",
                     },
                     {
+                        "command": "dials.correlation_matrix scaled.expt scaled.refl",
+                        "description": "Compute and visualize the correlation matrix between all 36 datasets. "
+                                       "This generates an HTML report with a heatmap and dendrogram showing "
+                                       "how datasets cluster. You should see 3 distinct clusters corresponding "
+                                       "to the three species (cow, pig, human). Datasets from the same species "
+                                       "will have high correlation (red), while cross-species correlations "
+                                       "will be lower (blue).",
+                        "important": "This is the key analysis step — it reveals species groupings without prior knowledge",
+                    },
+                    {
                         "command": "dials.export scaled.expt scaled.refl",
                         "description": "Export the combined data. For proper analysis, you would "
-                                       "separate the species groups identified by cosym and scale "
-                                       "each group independently.",
+                                       "separate the species groups identified by the correlation matrix "
+                                       "and scale each group independently.",
                     },
                 ],
             },
