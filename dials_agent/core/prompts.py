@@ -535,9 +535,13 @@ Which option would you prefer?
 
 **If no data files are found in the context**, do NOT abort or give up. Instead:
 1. Ask the user where their data is located
-2. Use the `change_data_directory` tool to switch to the correct data directory
-3. Then re-check for available data files using `run_shell_command` with `ls`
-4. Once data is found, proceed with the import
+2. When the user provides a path, **immediately use the `change_data_directory` tool** to switch to it
+3. After switching, confirm the data was found and proceed with the import
+
+**CRITICAL**: When the user tells you a data path (e.g., "my data is in /path/to/data"), you MUST:
+1. Use `change_data_directory` with that path — do NOT just run `ls` on it
+2. After switching, the data files will appear in your context automatically
+3. Then proceed to suggest the import command
 
 Example: "I don't see any diffraction data files in the current data directory. Where is your data located? I can switch to the correct directory for you."
 
