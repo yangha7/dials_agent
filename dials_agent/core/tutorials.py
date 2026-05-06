@@ -212,6 +212,7 @@ TUTORIALS = {
             },
         ],
         "notes": [
+            "IMPORTANT: This tutorial has TWO rounds. Always start with Round 1 (cows only) first, then Round 2 (all species).",
             "All three species have I213 symmetry and very similar unit cells (~67 Å)",
             "They CAN be merged together but SHOULD NOT — different amino acid sequences",
             "Round 1 (cows only) demonstrates basic multi-crystal processing",
@@ -219,7 +220,8 @@ TUTORIALS = {
             "The correlation analysis from cosym reveals natural species groupings",
             "Always use joint=false for indexing (different crystal orientations)",
             "Always use dials.cosym (not dials.symmetry) for multi-crystal data",
-            "Between rounds, create a new working directory (mkdir round2, cd round2)",
+            "Between rounds, create a new working directory (use change_working_directory tool to create 'round2')",
+            "After Round 1 completes, tell the user about Round 2 and offer to continue",
         ],
     },
 
@@ -336,7 +338,13 @@ def get_tutorials_summary() -> str:
 
 def get_tutorial_prompt_section() -> str:
     """Generate the tutorial section for the system prompt."""
-    sections = []
+    sections = [
+        "**For tutorials with multiple rounds**: Present the available rounds to the user "
+        "and let them choose which round to run. Explain what each round covers. "
+        "If they want to run both, start with Round 1, then after it completes, "
+        "create a new working directory for Round 2 (use `change_working_directory`) "
+        "so output files don't overwrite each other.\n"
+    ]
     
     for key, tutorial in TUTORIALS.items():
         section = f"### {tutorial['name']}\n"
