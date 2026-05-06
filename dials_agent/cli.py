@@ -8,6 +8,7 @@ to interact with the DIALS AI agent using natural language.
 import argparse
 import logging
 import os
+import readline
 import sys
 import time
 from pathlib import Path
@@ -817,8 +818,11 @@ class DIALSAgent:
         
         while True:
             try:
-                # Get user input
-                user_input = Prompt.ask("\n[bold cyan]You[/bold cyan]")
+                # Get user input (with readline history support for up/down arrows)
+                try:
+                    user_input = input("\n\033[1;36mYou\033[0m: ")
+                except EOFError:
+                    break
                 
                 if not user_input.strip():
                     continue
@@ -826,7 +830,7 @@ class DIALSAgent:
                 # Handle special commands
                 lower_input = user_input.lower().strip()
                 
-                if lower_input in ['quit', 'exit', 'q']:
+                if lower_input in ['quit', 'exit', 'q', 'bye', 'goodbye']:
                     # Show timing summary on exit if any commands were run
                     if self.command_timings:
                         self.display_timing_summary()
