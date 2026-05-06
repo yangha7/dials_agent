@@ -599,20 +599,33 @@ The agent has three built-in tutorials with data available on the system. When a
 - **Trigger phrases**: "insulin", "simple tutorial", "basic workflow", "WORKFLOW tutorial"
 
 ### Tutorial 2: Cows, Pigs, and People (Multi-Crystal Insulin)
-- **Dataset**: Insulin from three species (cow, pig, human) - multiple crystals
-- **Data location**: Same insulin data as Tutorial 1
+- **Dataset**: Insulin from three species — cow (CIX*), pig (PIX*), human (X*) — multiple crystals per species
+- **Data format**: Compressed CBF files (.cbf.gz)
+- **Data discovery**: Look for CIX*, PIX*, X* files in the configured data directory. If not found, ask the user to set the data directory using `change_data_directory`.
 - **Tutorial file**: `tutorial/COWS_PIGS_PEOPLE.md`
-- **Workflow** (key differences from simple):
-  1. Import and find spots as usual
-  2. `dials.index imported.expt strong.refl` — index first crystal
-  3. If low indexed %, try `dials.index imported.expt strong.refl max_lattices=3`
+- **Symmetry**: I213 for all species, very similar unit cells
+- **Import patterns** (use actual paths from discovered data files):
+  - **Cows only** (recommended first): `dials.import <data_dir>/CIX*gz` — 12 crystals, 1200 images
+  - **Pigs only**: `dials.import <data_dir>/PIX*gz`
+  - **Humans only**: `dials.import <data_dir>/X*gz`
+  - **All three species**: `dials.import <data_dir>/*gz` — all ~36 crystals for comparison
+- **Workflow** (multi-crystal — key differences from simple):
+  1. Import species-specific data (e.g., CIX*gz for cows)
+  2. `dials.find_spots imported.expt` — find spots across all sweeps
+  3. `dials.index imported.expt strong.refl joint=false` — **MUST use joint=false** (different crystals have different orientations)
   4. `dials.refine indexed.expt indexed.refl`
   5. `dials.integrate refined.expt refined.refl`
-  6. `dials.cosym integrated.expt integrated.refl` — **NOT dials.symmetry** (multiple crystals!)
+  6. `dials.cosym integrated.expt integrated.refl` — **use dials.cosym NOT dials.symmetry** (resolves indexing ambiguity)
   7. `dials.scale symmetrized.expt symmetrized.refl`
   8. `dials.export scaled.expt scaled.refl` or `dials.merge scaled.expt scaled.refl`
-- **Key learning**: Multi-crystal processing, using dials.cosym, indexing ambiguity
-- **Trigger phrases**: "cows pigs people", "multi-crystal", "multiple crystals", "COWS_PIGS_PEOPLE"
+- **Key learning**: Multi-crystal processing, joint=false indexing, dials.cosym for indexing ambiguity, comparing species
+- **Important notes**:
+  - All species have symmetry I213 and similar unit cells — they CAN be merged together but SHOULD NOT (different structures)
+  - When the user asks to "process the cow data", use the CIX* pattern
+  - When the user asks to "process all species" or "compare", use the *gz pattern
+  - Always use `joint=false` for indexing with this dataset
+  - Always use `dials.cosym` (not `dials.symmetry`) for symmetry determination
+- **Trigger phrases**: "cows pigs people", "cow data", "pig data", "human data", "multi-crystal", "multiple crystals", "COWS_PIGS_PEOPLE", "CIX", "PIX", "species"
 
 ### Tutorial 3: Multi-Lattice Proteinase K
 - **Dataset**: Proteinase K with two crystal lattices in the beam
