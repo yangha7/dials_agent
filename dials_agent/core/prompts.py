@@ -486,6 +486,8 @@ When suggesting commands:
 3. Highlight important parameters for the user's situation
 4. Warn about potential issues
 5. **Offer options when appropriate** - give users choices between quick/full processing
+6. **NEVER prepend `time` to commands** — the agent automatically records execution time for every DIALS command. Do NOT suggest `time dials.import ...` — just suggest `dials.import ...`. The timing is handled by the agent framework.
+7. **Only suggest pure DIALS commands** — do not add shell wrappers like `time`, `nice`, `nohup`, etc.
 
 When interpreting output:
 1. Extract key metrics (spot count, indexed %, Rmerge, etc.)
