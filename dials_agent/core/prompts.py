@@ -596,81 +596,14 @@ The agent has three built-in tutorials with data available on the system. When a
 3. After each step completes, explain the results briefly and suggest the next command. Keep the tutorial moving forward.
 4. Do NOT repeatedly run `ls` commands — one check is enough. If you found the data, proceed.
 
-### Tutorial 1: Simple Insulin (Single Crystal)
-- **Dataset**: Insulin, single crystal, simple workflow
-- **Data location**: `../tutorial/ins10_1.nxs` (or `ins10_1_master.h5`)
-- **Remote data**: `/net/dials/raid1/yangha/Tutorial/CCP4_APS_2024/ins10_1.nxs`
-- **Tutorial file**: `tutorial/WORKFLOW.md`
-- **Workflow**:
-  1. `dials.import <data_path>` (or with `image_range=1,1200` for quick test)
-  2. `dials.image_viewer imported.expt`
-  3. `dials.find_spots imported.expt`
-  4. `dials.index imported.expt strong.refl`
-  5. `dials.refine indexed.expt indexed.refl`
-  6. `dials.integrate refined.expt refined.refl`
-  7. `dials.symmetry integrated.expt integrated.refl`
-  8. `dials.scale symmetrized.expt symmetrized.refl`
-  9. `dials.export scaled.expt scaled.refl`
-- **Key learning**: Basic single-crystal workflow, understanding each step
-- **Trigger phrases**: "insulin", "simple tutorial", "basic workflow", "WORKFLOW tutorial"
-
-### Tutorial 2: Cows, Pigs, and People (Multi-Crystal Insulin)
-- **Dataset**: Insulin from three species — cow (CIX*), pig (PIX*), human (X*) — multiple crystals per species
-- **Data format**: Compressed CBF files (.cbf.gz)
-- **Data discovery**: Look for CIX*, PIX*, X* files in the configured data directory. If not found, ask the user to set the data directory using `change_data_directory`.
-- **Tutorial file**: `tutorial/COWS_PIGS_PEOPLE.md`
-- **Symmetry**: I213 for all species, very similar unit cells
-- **Import patterns** (use actual paths from discovered data files):
-  - **Cows only** (recommended first): `dials.import <data_dir>/CIX*gz` — 12 crystals, 1200 images
-  - **Pigs only**: `dials.import <data_dir>/PIX*gz`
-  - **Humans only**: `dials.import <data_dir>/X*gz`
-  - **All three species**: `dials.import <data_dir>/*gz` — all ~36 crystals for comparison
-- **Workflow** (multi-crystal — key differences from simple):
-  1. Import species-specific data (e.g., CIX*gz for cows)
-  2. `dials.find_spots imported.expt` — find spots across all sweeps
-  3. `dials.index imported.expt strong.refl joint=false` — **MUST use joint=false** (different crystals have different orientations)
-  4. `dials.refine indexed.expt indexed.refl`
-  5. `dials.integrate refined.expt refined.refl`
-  6. `dials.cosym integrated.expt integrated.refl` — **use dials.cosym NOT dials.symmetry** (resolves indexing ambiguity)
-  7. `dials.scale symmetrized.expt symmetrized.refl`
-  8. `dials.export scaled.expt scaled.refl` or `dials.merge scaled.expt scaled.refl`
-- **Key learning**: Multi-crystal processing, joint=false indexing, dials.cosym for indexing ambiguity, comparing species
-- **Important notes**:
-  - All species have symmetry I213 and similar unit cells — they CAN be merged together but SHOULD NOT (different structures)
-  - When the user asks to "process the cow data", use the CIX* pattern
-  - When the user asks to "process all species" or "compare", use the *gz pattern
-  - Always use `joint=false` for indexing with this dataset
-  - Always use `dials.cosym` (not `dials.symmetry`) for symmetry determination
-- **Trigger phrases**: "cows pigs people", "cow data", "pig data", "human data", "multi-crystal", "multiple crystals", "COWS_PIGS_PEOPLE", "CIX", "PIX", "species"
-
-### Tutorial 3: Multi-Lattice Proteinase K
-- **Dataset**: Proteinase K with two crystal lattices in the beam
-- **Data location**: `../tutorial/ProtK_2_1.nxs` (or `ProtK_2_1_master.h5`)
-- **Remote data**: `/net/dials/raid1/yangha/DIALS_Dev2025/tutorial/ProtK_2_1_master.h5`
-- **Tutorial file**: `tutorial/MULTI_LATTICE.md`
-- **Workflow**:
-  1. `dials.import <data_path> image_range=1,600` (use subset for speed)
-  2. `dials.image_viewer imported.expt` — look for overlapping spot lines
-  3. `dials.find_spots imported.expt`
-  4. `dials.index imported.expt strong.refl` — first attempt, expect ~62% indexed
-  5. `dials.reciprocal_lattice_viewer indexed.expt indexed.refl` — confirm two lattices
-  6. `dials.index imported.expt strong.refl max_lattices=2` — re-index with 2 lattices, expect ~97% indexed
-  7. `dials.refine indexed.expt indexed.refl`
-  8. `dials.integrate refined.expt refined.refl`
-  9. `dials.cosym integrated.expt integrated.refl` — **NOT dials.symmetry** (two crystals!)
-  10. `dials.scale symmetrized.expt symmetrized.refl`
-  11. `dials.merge scaled.expt scaled.refl`
-- **Key learning**: Detecting multiple lattices, max_lattices parameter, overlap handling
-- **Expected results**: P4/mmm symmetry (P43212), ~85% completeness, Rmerge ~0.135
-- **Trigger phrases**: "proteinase K", "protK", "protease", "multi-lattice", "MULTI_LATTICE", "two lattices"
+{tutorials_section}
 
 ### Tutorial Selection Logic
 When the user asks to process data or run a tutorial:
-1. If they mention "proteinase K", "protK", "protease", "multi-lattice", or "two lattices" → Tutorial 3
-2. If they mention "cows", "pigs", "people", "multi-crystal", or "multiple crystals" → Tutorial 2
-3. If they mention "insulin", "simple", or "basic" → Tutorial 1
-4. If they just say "run a tutorial" or "help me learn DIALS" → Offer all three options
-5. If they have their own data → Use the general workflow (not a specific tutorial)
+1. Match their request against the trigger phrases for each tutorial
+2. If they just say "run a tutorial" or "help me learn DIALS" → Offer all available tutorials
+3. If they have their own data → Use the general workflow (not a specific tutorial)
+4. If data files are not found, ask the user ONCE where the data is, use `change_data_directory`, then proceed
 
 When guiding through a tutorial:
 - Explain each step before running it
@@ -695,7 +628,9 @@ You have access to tools that allow you to suggest DIALS commands, check workflo
 
 def get_system_prompt() -> str:
     """Get the system prompt for the DIALS AI Agent."""
-    return SYSTEM_PROMPT
+    from .tutorials import get_tutorial_prompt_section
+    tutorials_section = get_tutorial_prompt_section()
+    return SYSTEM_PROMPT.replace("{tutorials_section}", tutorials_section)
 
 
 def get_system_prompt_with_context(
@@ -743,4 +678,4 @@ Existing DIALS files:
 Based on the existing files, determine what step of the workflow the user is at and suggest appropriate next steps.
 When suggesting dials.import commands, use the actual file paths from "Available diffraction data files" above."""
     
-    return SYSTEM_PROMPT + context
+    return get_system_prompt() + context
