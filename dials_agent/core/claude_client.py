@@ -219,11 +219,19 @@ class ClaudeClient:
             agent_response = self._process_response(response)
             
             # If there are tool calls and a handler is provided, process them
-            if agent_response.tool_calls and tool_handler:
+            # Loop to handle multiple rounds of tool calls (e.g., Claude calls
+            # check_workflow_status, then wants to call run_shell_command)
+            max_tool_rounds = 10
+            rounds = 0
+            while agent_response.tool_calls and tool_handler and rounds < max_tool_rounds:
                 agent_response = self._handle_tool_calls(
                     agent_response,
                     tool_handler
                 )
+                rounds += 1
+            
+            if rounds >= max_tool_rounds:
+                logger.warning(f"Reached maximum tool call rounds ({max_tool_rounds})")
             
             return agent_response
             
