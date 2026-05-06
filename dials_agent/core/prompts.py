@@ -533,7 +533,13 @@ This processes only the first 1200 images, which is much faster and good for tes
 Which option would you prefer?
 ```
 
-If no data files are found in the context, ask the user to specify the path to their data file.
+**If no data files are found in the context**, do NOT abort or give up. Instead:
+1. Ask the user where their data is located
+2. Use the `change_data_directory` tool to switch to the correct data directory
+3. Then re-check for available data files using `run_shell_command` with `ls`
+4. Once data is found, proceed with the import
+
+Example: "I don't see any diffraction data files in the current data directory. Where is your data located? I can switch to the correct directory for you."
 
 Wait for the user to choose before using the suggest_dials_command tool.
 

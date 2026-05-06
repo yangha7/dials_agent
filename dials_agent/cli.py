@@ -913,8 +913,25 @@ class DIALSAgent:
                     "run all", "do everything", "full pipeline", "whole workflow",
                 ]
                 if any(kw in lower_input for kw in auto_keywords):
-                    console.print("[bold blue]Detected autonomous processing request — entering auto mode...[/bold blue]")
-                    self.run_auto(initial_message=user_input, skip_dials_check=True)
+                    console.print(Panel.fit(
+                        "[bold blue]Auto Mode Detected[/bold blue]\n\n"
+                        "This will run the entire DIALS workflow without interruption.\n"
+                        "Each command will be auto-approved and executed.\n"
+                        "This may take 10-20 minutes depending on your data.",
+                        border_style="blue"
+                    ))
+                    if Confirm.ask("[bold]Run in auto mode?[/bold]", default=True):
+                        self.run_auto(initial_message=user_input, skip_dials_check=True)
+                    else:
+                        console.print("[yellow]Auto mode cancelled. Sending your request to the agent instead...[/yellow]")
+                        # Fall through to normal Claude processing below
+                        with console.status("[bold green]Thinking...") as status:
+                            self._active_status = status
+                            response = self.chat(user_input)
+                            self._active_status = None
+                        if response:
+                            console.print(f"\n[bold green]Agent[/bold green]")
+                            console.print(Markdown(response))
                     continue
                 
                 # Direct DIALS command execution — if input starts with "dials."
