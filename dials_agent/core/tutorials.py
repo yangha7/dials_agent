@@ -385,8 +385,15 @@ def get_tutorial_prompt_section() -> str:
                 if "expect" in step:
                     section += f"     📊 Expected: {step['expect']}\n"
                 if "options" in step:
-                    section += f"     📋 Default: {step['options']['default']}\n"
-                    section += f"     📋 Alternative: {step['options']['alternative']}\n"
+                    opts = step["options"]
+                    if "default" in opts:
+                        section += f"     📋 Default: {opts['default']}\n"
+                    if "alternative" in opts:
+                        section += f"     📋 Alternative: {opts['alternative']}\n"
+                    # Handle other option formats (e.g., quick/full)
+                    for k, v in opts.items():
+                        if k not in ("default", "alternative"):
+                            section += f"     📋 {k}: {v}\n"
         
         if tutorial.get("notes"):
             section += "\n**Important notes:**\n"
