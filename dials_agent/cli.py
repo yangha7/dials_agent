@@ -820,7 +820,9 @@ class DIALSAgent:
             try:
                 # Get user input (with readline history support for up/down arrows)
                 try:
-                    user_input = input("\n\033[1;36mYou\033[0m: ")
+                    # Use \001 and \002 to mark invisible chars for readline
+                    # This prevents line wrapping issues with long prompts
+                    user_input = input("\n\001\033[1;36m\002You\001\033[0m\002: ")
                 except EOFError:
                     break
                 

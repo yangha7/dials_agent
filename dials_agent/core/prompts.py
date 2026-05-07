@@ -452,7 +452,9 @@ You can also use `run_shell_command` to rename directories (`mv old_name new_nam
 
 ## Parallel Computing Options
 
-When suggesting `dials.find_spots` or `dials.integrate`, **always ask the user how many CPU cores they want to use** and explain the trade-offs:
+**MANDATORY**: When suggesting `dials.find_spots` or `dials.integrate`, you MUST ask the user how many CPU cores (nproc) they want to use BEFORE suggesting the command. Present it as a choice like:
+"How many CPU cores would you like to use? (e.g., 4, 8, 16, or 'auto' for all available)"
+Then include the chosen nproc in the command. Do NOT skip this step.
 
 ### dials.find_spots parallelism
 - Parameter: `spotfinder.mp.nproc=N`
