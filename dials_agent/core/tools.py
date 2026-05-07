@@ -197,6 +197,15 @@ TOOLS = [
         }
     },
     {
+        "name": "get_timing_report",
+        "description": "Get the timing report showing how long each DIALS command took. The agent automatically records start time, end time, and duration for every command. Use this when the user asks about timing, performance, or how long steps took. The data is also saved to dials_agent_timing.log in the working directory.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+    {
         "name": "run_shell_command",
         "description": "Run a shell command in the working directory. Use this for non-DIALS commands like ls, rm, mv, cp, cat, head, tail, wc, grep, find, etc. For destructive commands (rm, mv), the user will be asked to confirm before execution. Use this instead of telling the user to run commands manually.",
         "input_schema": {

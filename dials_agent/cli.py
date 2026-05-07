@@ -11,6 +11,7 @@ import os
 import readline
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -332,6 +333,21 @@ class DIALSAgent:
                 "message": f"Data directory changed to {data_path}. Found {len(data_files)} data file(s)."
             }
         
+        elif tool_call.name == "get_timing_report":
+            report = self._get_timing_report()
+            total_duration = sum(e["duration"] for e in self.command_timings)
+            if total_duration >= 60:
+                total_str = f"{int(total_duration // 60)}m {total_duration % 60:.1f}s"
+            else:
+                total_str = f"{total_duration:.1f}s"
+            
+            return {
+                "timing_report": report,
+                "total_commands": len(self.command_timings),
+                "total_duration": total_str,
+                "timing_file": str(self.working_directory / "dials_agent_timing.log"),
+            }
+        
         elif tool_call.name == "run_shell_command":
             import subprocess as sp
             
@@ -420,12 +436,20 @@ class DIALSAgent:
         
         # Record timing
         cmd_name = command.split()[0] if command else command
-        self.command_timings.append({
+        now = datetime.now()
+        start_time = now.timestamp() - result.duration
+        timing_entry = {
             "command": command,
             "command_name": cmd_name,
             "duration": result.duration,
             "success": result.success,
-        })
+            "start_time": datetime.fromtimestamp(start_time).strftime("%Y-%m-%d %H:%M:%S"),
+            "end_time": now.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        self.command_timings.append(timing_entry)
+        
+        # Save timing to file
+        self._save_timing_to_file(timing_entry)
         
         # Display timing prominently
         self._display_timing(cmd_name, result.duration)
@@ -442,6 +466,56 @@ class DIALSAgent:
         )
         
         return result
+    
+    def _save_timing_to_file(self, entry: dict):
+        """Append a timing entry to the timing log file in the working directory."""
+        timing_file = self.working_directory / "dials_agent_timing.log"
+        
+        # Format duration
+        duration = entry["duration"]
+        if duration >= 60:
+            minutes = int(duration // 60)
+            seconds = duration % 60
+            duration_str = f"{minutes}m {seconds:.1f}s"
+        else:
+            duration_str = f"{duration:.1f}s"
+        
+        status = "OK" if entry["success"] else "FAILED"
+        
+        line = (
+            f"{entry['start_time']}  →  {entry['end_time']}  "
+            f"[{duration_str:>10}]  {status:6}  {entry['command']}\n"
+        )
+        
+        with open(timing_file, "a") as f:
+            f.write(line)
+    
+    def _get_timing_report(self) -> str:
+        """Get the timing report from the log file or in-memory data."""
+        # Try to read from file first (persists across restarts)
+        timing_file = self.working_directory / "dials_agent_timing.log"
+        if timing_file.exists():
+            return timing_file.read_text()
+        
+        # Fall back to in-memory data
+        if not self.command_timings:
+            return "No commands have been executed yet."
+        
+        lines = []
+        for entry in self.command_timings:
+            duration = entry["duration"]
+            if duration >= 60:
+                minutes = int(duration // 60)
+                seconds = duration % 60
+                duration_str = f"{minutes}m {seconds:.1f}s"
+            else:
+                duration_str = f"{duration:.1f}s"
+            status = "OK" if entry["success"] else "FAILED"
+            lines.append(
+                f"{entry.get('start_time', 'N/A')}  →  {entry.get('end_time', 'N/A')}  "
+                f"[{duration_str:>10}]  {status:6}  {entry['command']}"
+            )
+        return "\n".join(lines)
     
     def _display_timing(self, cmd_name: str, duration: float):
         """Display timing information for a command."""

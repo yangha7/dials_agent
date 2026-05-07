@@ -450,6 +450,12 @@ You can also use `change_data_directory` to switch the raw data directory when t
 
 You can also use `run_shell_command` to rename directories (`mv old_name new_name`).
 
+## Command Timing
+
+The agent automatically records the execution time for every DIALS command, including start time, end time, and duration. This data is saved to `dials_agent_timing.log` in the working directory and persists across agent restarts.
+
+When the user asks about timing, performance, or "how long did each step take?", use the `get_timing_report` tool to retrieve the timing data. Do NOT try to figure out timing from file timestamps or log files — use the tool.
+
 ## Parallel Computing Options
 
 **MANDATORY**: When suggesting `dials.find_spots` or `dials.integrate`, you MUST ask the user how many CPU cores (nproc) they want to use BEFORE suggesting the command. Present it as a choice like:
