@@ -133,6 +133,17 @@ TUTORIALS = {
                         "important": "Use dials.cosym NOT dials.symmetry for multi-crystal data",
                     },
                     {
+                        "command": "dials.correlation_matrix symmetrized.expt symmetrized.refl",
+                        "description": "Compute the correlation matrix between the 12 cow datasets. "
+                                       "Since all are from the same species, they should all cluster "
+                                       "together with high correlation. This serves as a baseline "
+                                       "comparison for Round 2.",
+                        "options": {
+                            "default": "symmetrized.expt symmetrized.refl (before scaling)",
+                            "alternative": "scaled.expt scaled.refl (after scaling, may show cleaner correlations)",
+                        },
+                    },
+                    {
                         "command": "dials.scale symmetrized.expt symmetrized.refl",
                         "description": "Scale and merge the 12 partial datasets into one complete "
                                        "bovine insulin dataset. Check merging statistics.",
@@ -193,7 +204,7 @@ TUTORIALS = {
                                        "different structures. This demonstrates why species separation matters.",
                     },
                     {
-                        "command": "dials.correlation_matrix scaled.expt scaled.refl",
+                        "command": "dials.correlation_matrix symmetrized.expt symmetrized.refl",
                         "description": "Compute and visualize the correlation matrix between all 36 datasets. "
                                        "This generates an HTML report with a heatmap and dendrogram showing "
                                        "how datasets cluster. You should see 3 distinct clusters corresponding "
@@ -201,6 +212,10 @@ TUTORIALS = {
                                        "will have high correlation (red), while cross-species correlations "
                                        "will be lower (blue).",
                         "important": "This is the key analysis step — it reveals species groupings without prior knowledge",
+                        "options": {
+                            "default": "symmetrized.expt symmetrized.refl (before scaling)",
+                            "alternative": "scaled.expt scaled.refl (after scaling, may show cleaner correlations)",
+                        },
                     },
                     {
                         "command": "dials.export scaled.expt scaled.refl",
@@ -369,6 +384,9 @@ def get_tutorial_prompt_section() -> str:
                     section += f"     ⚠️ {step['important']}\n"
                 if "expect" in step:
                     section += f"     📊 Expected: {step['expect']}\n"
+                if "options" in step:
+                    section += f"     📋 Default: {step['options']['default']}\n"
+                    section += f"     📋 Alternative: {step['options']['alternative']}\n"
         
         if tutorial.get("notes"):
             section += "\n**Important notes:**\n"
