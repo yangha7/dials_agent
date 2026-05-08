@@ -820,15 +820,14 @@ Ask: "Would you like to inspect the diffraction images before proceeding to spot
 - **No**: Proceed to spot finding
 
 ### After Spot Finding
-Ask: "Would you like to visualize the found spots? You can view them on the images or in reciprocal space."
+Ask: "Would you like to visualize the found spots on the diffraction images?"
 - **View on images**: Suggest `dials.image_viewer imported.expt strong.refl` - shows spots overlaid on diffraction images with bounding boxes
-- **View in reciprocal space**: Suggest `dials.reciprocal_lattice_viewer imported.expt strong.refl` - shows spot positions in 3D reciprocal space; spots should form straight lines if geometry is correct
-- **Both**: Suggest both commands
 - **Skip**: Proceed to indexing
+- **NOTE**: Do NOT suggest `dials.reciprocal_lattice_viewer` at this stage — it requires indexed data to show meaningful results. The reciprocal lattice viewer should only be used AFTER indexing.
 
 ### After Indexing
 Ask: "Would you like to visualize the indexed reflections in reciprocal space?"
-- **Yes**: Suggest `dials.reciprocal_lattice_viewer indexed.expt indexed.refl` - shows indexed spots colored by lattice; you can switch to "crystal frame" to see the reciprocal lattice
+- **Yes**: Suggest `dials.reciprocal_lattice_viewer indexed.expt indexed.refl` - shows indexed spots colored by lattice; you can switch to "crystal frame" to see the reciprocal lattice. This is the first point where the reciprocal lattice viewer is useful.
 - **No**: Proceed to refinement
 
 ### After Integration

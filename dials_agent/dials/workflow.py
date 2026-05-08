@@ -36,7 +36,6 @@ WORKFLOW_SUGGESTIONS = {
         "tip": "If indexing fails, try: indexing.method=fft1d or provide a known unit cell. You can also try dials.search_beam_position first if the beam center seems wrong.",
         "optional_commands": [
             "dials.search_beam_position imported.expt strong.refl",
-            "dials.reciprocal_lattice_viewer imported.expt strong.refl"
         ]
     },
     "index": {
