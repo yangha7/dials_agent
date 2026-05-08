@@ -350,44 +350,283 @@ Symmetry of the crystal structure, e.g., P212121, I213, C2
 - **Purpose**: Plot scan-varying crystal model parameters vs image number
 - **Usage**: `dials.plot_scan_varying_model refined.expt`
 
+## Additional Utility Commands
+
+### dials.merge
+- **Purpose**: Merge scaled data into a single MTZ file with R-free flags and French-Wilson treatment
+- **Usage**: `dials.merge scaled.expt scaled.refl`
+- **Output**: merged.mtz, dials.merge.html
+- **Key params**:
+  - `d_min=1.8` - High resolution cutoff
+  - `d_max=50` - Low resolution cutoff
+  - `anomalous=True` - Output anomalous intensities
+  - `truncate=True` - Apply French & Wilson correction for amplitudes
+  - `best_unit_cell=67.5,67.5,67.5,90,90,90` - Override unit cell
+  - `n_residues=200` - Number of residues for Wilson scaling
+  - `partiality_threshold=0.4` - Minimum partiality
+  - `assess_space_group=True` - Check space group from axial reflections
+  - `r_free_flags.generate=True` - Generate R-free flags
+  - `r_free_flags.fraction=0.05` - Fraction of reflections in test set
+  - `output.mtz=merged.mtz` - Output filename
+  - `output.additional_stats=False` - Calculate R-split statistic
+  - `exclude_images=0:150:200` - Exclude image range (exp:start:end)
+
+### dials.estimate_resolution
+- **Purpose**: Estimate resolution limits by fitting curves to merging statistics
+- **Usage**: `dials.estimate_resolution scaled.expt scaled.refl` or `dials.estimate_resolution scaled_unmerged.mtz`
+- **Metrics**: cc_half (default), isigma, misigma, completeness, rmerge, cc_ref
+- **Key params**: `resolution.cc_half=0.3`, `resolution.isigma=0.25`, `resolution.misigma=1.0`, `resolution.completeness=0.5`, `resolution.rmerge=0.5`, `resolution.reference=ref.mtz`
+
+### dials.search_beam_position
+- **Purpose**: Search for optimal beam centre position using grid search
+- **Usage**: `dials.search_beam_position imported.expt strong.refl`
+- **Key params**: `method=default`, `default.mm_search_scope=4.0`, `default.max_reflections=10000`, `default.wide_search_binning=2`
+
+### dials.generate_mask
+- **Purpose**: Generate pixel mask for excluding bad detector regions, ice rings, or resolution ranges
+- **Usage**: `dials.generate_mask imported.expt`
+- **Key params**:
+  - `border=5` - Mask border pixels
+  - `d_min=2.0` - Mask below this resolution
+  - `d_max=20.0` - Mask above this resolution
+  - `resolution_range=3.4,3.5` - Mask specific resolution range (multiple allowed)
+  - `untrusted.rectangle=50,100,50,100` - Mask rectangle (x0,x1,y0,y1)
+  - `untrusted.circle=200,200,100` - Mask circle (xc,yc,r)
+  - `untrusted.polygon=x1,y1,x2,y2,...` - Mask polygon
+  - `ice_rings.filter=True` - Mask ice ring regions
+  - `ice_rings.d_min=1.0` - Min resolution for ice ring masking
+  - `output.mask=pixels.mask` - Output mask filename
+  - `output.experiments=masked.expt` - Output experiment with mask applied
+
+### dials.filter_reflections
+- **Purpose**: Filter reflections by flags, resolution, partiality, and other criteria
+- **Usage**: `dials.filter_reflections refined.refl flag_expression=used_in_refinement`
+- **Key params**:
+  - `flag_expression='integrated & ~reference_spot'` - Boolean flag expression
+  - `d_min=2.5` - High resolution limit
+  - `d_max=20` - Low resolution limit
+  - `partiality.min=0.5` - Minimum partiality
+  - `select_good_intensities=True` - Select only good intensities
+  - `ice_rings.filter=True` - Filter ice ring reflections
+  - `dead_time.value=0` - Detector dead time correction
+
+### dials.compute_delta_cchalf
+- **Purpose**: Compute ΔCC½ for each dataset/image group to identify outliers
+- **Usage**: `dials.compute_delta_cchalf scaled.expt scaled.refl`
+- **Key params**: `mode=dataset` (or image_group), `stdcutoff=4.0`, `group_size=10`
+
+### dials.damage_analysis
+- **Purpose**: Analyze radiation damage using dose-dependent statistics (Rd plot, relative B-factor)
+- **Usage**: `dials.damage_analysis scaled.expt scaled.refl`
+- **Key params**: `dose=None` (auto from image number), `d_min=None`, `d_max=None`, `output.html=dials.damage_analysis.html`
+
+### dials.correlation_matrix
+- **Purpose**: Compute correlation matrix between datasets for clustering
+- **Usage**: `dials.correlation_matrix scaled.expt scaled.refl`
+- **Key params**: `d_min=None`, `d_max=None`, `output.html=dials.correlation_matrix.html`, `output.json=dials.correlation_matrix.json`
+
+### dials.refine_error_model
+- **Purpose**: Refine the error model for scaled data to improve sigma estimates
+- **Usage**: `dials.refine_error_model scaled.expt scaled.refl`
+- **Key params**: `error_model=basic`, `basic.a=None`, `basic.b=None`, `output.html=dials.refine_error_model.html`
+
+### dials.modify_experiments
+- **Purpose**: Modify experiment models (beam, detector, goniometer, crystal parameters)
+- **Usage**: `dials.modify_experiments refined.expt`
+- **Key params**: `geometry.beam.wavelength=0.9795`, `geometry.detector.distance=200`, `geometry.detector.slow_fast_beam_centre=105,111`
+
+### dials.slice_sequence
+- **Purpose**: Extract a subset of images from a scan
+- **Usage**: `dials.slice_sequence imported.expt strong.refl image_range=1,500`
+- **Key params**: `image_range=1,500`, `block_size=100`
+
+### dials.cluster_unit_cell
+- **Purpose**: Cluster unit cells from multiple experiments to identify groups
+- **Usage**: `dials.cluster_unit_cell *.expt`
+- **Key params**: `threshold=5000`, `plot.show=False`, `plot.name=cluster_unit_cell.png`
+
+### dials.background
+- **Purpose**: Analyze background levels across images
+- **Usage**: `dials.background imported.expt`
+- **Key params**: `n_bins=100`, `images=1,10,100`
+
+### dials.detect_blanks
+- **Purpose**: Identify blank or damaged images in a scan
+- **Usage**: `dials.detect_blanks imported.expt strong.refl`
+- **Key params**: `phi_step=2`, `counts_fractional_loss=0.1`, `misigma_fractional_loss=0.1`
+
+### dials.spot_counts_per_image
+- **Purpose**: Print spot counts per image for quality assessment
+- **Usage**: `dials.spot_counts_per_image strong.refl`
+
+### dials.find_hot_pixels
+- **Purpose**: Find hot pixels in detector images
+- **Usage**: `dials.find_hot_pixels imported.expt`
+- **Key params**: `output.mask=hot_pixels.mask`
+
+### dials.predict
+- **Purpose**: Predict reflection positions from experiment model
+- **Usage**: `dials.predict refined.expt`
+- **Key params**: `d_min=1.5`, `d_max=50`, `output.reflections=predicted.refl`
+
+### dials.two_theta_refine
+- **Purpose**: Refine unit cell using 2θ angles (more accurate than standard refinement)
+- **Usage**: `dials.two_theta_refine integrated.expt integrated.refl`
+- **Key params**: `output.experiments=tt_refined.expt`, `output.p4p=refined_cell.p4p`
+
+### dials.align_crystal
+- **Purpose**: Calculate goniometer settings to align crystal axes with beam/rotation axis
+- **Usage**: `dials.align_crystal refined.expt`
+- **Key params**: `align.crystal.vector=0,0,1`, `align.frame=laboratory`
+
+### dials.anvil_correction
+- **Purpose**: Apply diamond anvil cell absorption correction
+- **Usage**: `dials.anvil_correction integrated.expt integrated.refl`
+- **Key params**: `anvil.thickness=1.5925`, `anvil.density=3.51`
+
+### dials.sequence_to_stills
+- **Purpose**: Convert rotation data to still shots (for stills processing pipeline)
+- **Usage**: `dials.sequence_to_stills refined.expt refined.refl`
+
+## Serial Crystallography (SSX) Commands
+
+### dials.stills_process
+- **Purpose**: Full SSX/stills processing pipeline (import → spot finding → indexing → integration in one step)
+- **Usage**: `dials.stills_process /path/to/images/*.cbf`
+- **Key params**: Many — use `lookup_phil_params` tool for full list (2500+ lines of parameters)
+- **When to use**: Serial crystallography, XFEL data, still shots
+
+### dials.ssx_index
+- **Purpose**: Index serial crystallography still shots
+- **Usage**: `dials.ssx_index imported.expt strong.refl`
+- **Key params**: `indexing.method=fft3d`, `indexing.known_symmetry.unit_cell=...`, `indexing.known_symmetry.space_group=...`, `nproc=8`
+
+### dials.ssx_integrate
+- **Purpose**: Integrate serial crystallography still shots
+- **Usage**: `dials.ssx_integrate indexed.expt indexed.refl`
+- **Key params**: `algorithm=ellipsoid` (or stills), `nproc=8`, `ellipsoid.rlp_mosaicity.model=simple6`
+
+## PHIL Parameter Lookup
+
+You have access to the **complete PHIL parameter documentation** for all 82 DIALS commands. When a user asks about available parameters, advanced options, or you need to find a specific parameter for troubleshooting:
+
+1. Use the `lookup_phil_params` tool with the command name to get the full parameter listing
+2. Use the `search_term` parameter to search for specific keywords within the output
+3. The documentation includes help text, types, defaults, and expert levels
+
+Example: To find all absorption-related parameters in dials.scale:
+```
+lookup_phil_params(command="dials.scale", search_term="absorption")
+```
+
+**IMPORTANT**: When users ask "what parameters does dials.X have?" or "what options are available for dials.X?", use the `lookup_phil_params` tool to give them accurate, complete information rather than relying on your memory alone.
+
+## Problem Diagnosis
+
+You have access to a `diagnose_problem` tool that maps common crystallography problems to specific parameter-level solutions. Use this when:
+- A command fails or produces poor results
+- The user reports issues like "too few spots", "indexing failed", "high Rmerge"
+- You need to suggest specific parameter adjustments
+
+The tool covers problems in all workflow stages: spot finding, indexing, refinement, integration, scaling, and special cases (ice rings, electron diffraction, high-pressure DAC).
+
 ## Quality Indicators
 
 ### Spot Finding
 - Good: 5,000-50,000 spots total
 - Spots should be evenly distributed across images
+- Very few spots (< 1000): lower sigma_strong, check data quality
+- Too many spots (> 100,000): raise sigma_strong, check for powder rings
 
 ### Indexing
 - Good: >80% spots indexed
-- RMS deviation: <0.5 pixels
+- RMS deviation: <0.3 pixels is excellent, <0.5 is acceptable
+- If < 50% indexed: check for multiple lattices, ice rings, or wrong beam centre
+
+### Refinement
+- RMSD should decrease during refinement
+- Scan-varying refinement should show smooth parameter changes
+- Large jumps in scan-varying parameters suggest problems
+
+### Integration
+- Profile fitting should succeed for >90% of reflections
+- Check for systematic patterns in integration failures
 
 ### Scaling
 - Rmerge: <10% overall is good, <5% is excellent
-- CC1/2: >0.5 in outer shell is common cutoff
-- Completeness: >95% is good
-- Multiplicity: >3 is good
+- CC1/2: >0.5 in outer shell is common cutoff, >0.3 is acceptable
+- Completeness: >95% is good, >99% is excellent
+- Multiplicity: >3 is good, >5 is excellent
+- I/σ(I): >2 in outer shell is common cutoff
+- Anomalous signal: if CC_anom > 0.3 in inner shells, anomalous signal is present
 
 ## Troubleshooting
 
 ### "No experiments found" during import
 - Check file paths and patterns
-- Verify image format is supported
-- Try using template= parameter
+- Verify image format is supported (CBF, HDF5/NXS, SMV, TIFF)
+- Try using `input.template=image_####.cbf` parameter
+- For HDF5/NXS: check the file is not corrupted with `h5dump -H file.nxs`
 
 ### "No solution found" during indexing
-- Try different method: indexing.method=fft1d
-- Provide known unit cell if available
-- Check for multiple lattices
-- Verify beam center is correct
+- Try different method: `indexing.method=fft1d` or `indexing.method=real_space_grid_search`
+- Provide known unit cell: `indexing.known_symmetry.unit_cell=a,b,c,alpha,beta,gamma`
+- Check for multiple lattices: `indexing.max_lattices=2`
+- Verify beam center: run `dials.search_beam_position` first
+- Increase search scope: `indexing.mm_search_scope=8.0`
+- Try with fewer spots: use `spotfinder.scan_range=1,100` to find spots on a subset
 
-### Low indexed percentage
-- Crystal may have multiple domains
-- Try max_lattices=2
-- Check for ice rings
+### Low indexed percentage (< 70%)
+- Crystal may have multiple domains → `indexing.max_lattices=2`
+- Ice rings present → `spotfinder.filter.ice_rings.filter=True`
+- Increase HKL tolerance → `indexing.index_assignment.simple.hkl_tolerance=0.4`
+- Wrong beam centre → run `dials.search_beam_position`
+
+### Refinement fails or diverges
+- Fix detector: `refinement.parameterisation.detector.fix=all`
+- Fix beam: `refinement.parameterisation.beam.fix=all`
+- Disable scan-varying: `refinement.parameterisation.scan_varying=False`
+- More static cycles: `n_static_macrocycles=3`
+- Change outlier rejection: `refinement.reflections.outlier.algorithm=tukey`
+
+### Integration out of memory
+- Reduce memory: `integration.block.max_memory_usage=0.50`
+- Fewer processors: `integration.mp.nproc=2`
+- Smaller blocks: `integration.block.size=5 integration.block.units=degrees`
 
 ### High Rmerge during scaling
-- Check for non-isomorphism
-- Apply outlier rejection
-- Check for radiation damage
+- Apply absorption correction: `physical.absorption_correction=True physical.absorption_level=medium`
+- Enable ΔCC½ filtering: `filtering.method=deltacchalf filtering.deltacchalf.stdcutoff=4.0`
+- Try array model: `model=array`
+- Apply resolution cutoff: `d_min=2.5`
+- Check indexing consistency: `scaling_options.check_consistent_indexing=True`
+- Exclude damaged images: `exclude_images=0:start:end`
+
+### Ice rings in data
+- Filter during spot finding: `spotfinder.filter.ice_rings.filter=True`
+- Generate mask: `dials.generate_mask imported.expt ice_rings.filter=True`
+- Filter during integration: `integration.filter.ice_rings=True`
+- Filter during export: `mtz.filter_ice_rings=True`
+
+### Electron diffraction (MicroED/cRED)
+- Set probe type: `geometry.beam.probe=electron` during import
+- Adjust spot finding: `spotfinder.threshold.dispersion.sigma_strong=4.0`
+- For cRED: `exclude_images_multiple=20` to skip positioning images
+
+### High-pressure DAC data
+- Apply anvil correction: `dials.anvil_correction integrated.expt integrated.refl anvil.thickness=1.5925`
+- Generate shadow mask: `dials.generate_mask imported.expt`
+
+### Multiple crystals / multi-lattice
+- Index multiple lattices: `indexing.max_lattices=5`
+- Use cosym for symmetry: `dials.cosym` instead of `dials.symmetry`
+- Check consistent indexing during scaling: `scaling_options.check_consistent_indexing=True`
+
+### Weak diffraction / low resolution
+- Lower sigma threshold: `spotfinder.threshold.dispersion.sigma_strong=2.0`
+- Use summation integration: `integration.profile.fitting=False`
+- Apply resolution cutoff: `d_min=3.0` during scaling
+- Use dose_decay model: `model=dose_decay` for radiation-sensitive crystals
 
 ## Shell Commands
 
@@ -430,12 +669,17 @@ When an HTML report is generated (e.g., after scaling), proactively offer to ope
 
 **You CAN change the working directory** — use the `change_working_directory` tool. Do NOT tell users they need to restart or type CLI commands to change directories.
 
-When a user asks to "work in a different folder", "save output somewhere else", "create a new directory", "switch to a folder", or "let me work in my own directory", use the `change_working_directory` tool immediately. The directory will be created automatically if it doesn't exist.
+**CRITICAL DISTINCTION — Switch vs Create:**
+- **"switch to", "go to", "move to", "work in"** → use `change_working_directory(path="xxx", create=false)` — do NOT create new directories
+- **"create", "make", "new directory"** → use `change_working_directory(path="xxx", create=true)` — creates the directory
 
-Examples of when to use `change_working_directory`:
-- "Can I work in the yang folder?" → `change_working_directory(path="yang")`
-- "Create a directory called student1 for my work" → `change_working_directory(path="student1")`
-- "Save my output to /data/output/alice" → `change_working_directory(path="/data/output/alice")`
+When switching, the tool will search the current directory AND parent directory for matches, handling typos and case sensitivity. Sibling directories (in the parent) are commonly the target when users say "switch to xxx".
+
+Examples:
+- "Switch to the round2 folder" → `change_working_directory(path="../round2")` or `change_working_directory(path="round2")` — do NOT create
+- "Go to the yang directory" → `change_working_directory(path="../yang")` — do NOT create
+- "Create a directory called student1" → `change_working_directory(path="student1", create=true)` — creates it
+- "Make a new folder for round 2" → `change_working_directory(path="round2", create=true)` — creates it
 - "Go back to the main directory" → Tell user to type `cd` (returns to base directory)
 
 This does NOT modify the .env file — the default starting directory is preserved for the next session.

@@ -250,7 +250,7 @@ class DIALSAgent:
         
         elif tool_call.name == "change_working_directory":
             dir_path = tool_call.input.get("path", "")
-            create = tool_call.input.get("create", True)
+            create = tool_call.input.get("create", False)  # Default: do NOT create
             
             if not dir_path:
                 return {"error": "No path provided"}
@@ -261,13 +261,51 @@ class DIALSAgent:
             else:
                 new_path = Path(dir_path).resolve()
             
-            # Create if needed
+            # If directory doesn't exist, try fuzzy matching
             if not new_path.exists():
-                if create:
+                # Search current directory and parent directory for close matches
+                dir_name = new_path.name
+                search_dirs = [self.working_directory, self.working_directory.parent]
+                matches = []
+                
+                for search_dir in search_dirs:
+                    if not search_dir.exists():
+                        continue
+                    for d in search_dir.iterdir():
+                        if d.is_dir() and d.name.lower() == dir_name.lower():
+                            matches.append(d)
+                        elif d.is_dir() and (
+                            dir_name.lower() in d.name.lower() or
+                            d.name.lower() in dir_name.lower()
+                        ):
+                            matches.append(d)
+                
+                if len(matches) == 1:
+                    # Exact case-insensitive match or single close match
+                    new_path = matches[0]
+                    console.print(f"[yellow]📁 Found matching directory: {new_path.name}[/yellow]")
+                elif len(matches) > 1:
+                    # Multiple matches — report them
+                    match_names = [str(m) for m in matches]
+                    return {
+                        "error": f"Directory '{dir_name}' not found. Did you mean one of these?",
+                        "suggestions": match_names
+                    }
+                elif create:
+                    # Only create if explicitly requested
                     new_path.mkdir(parents=True, exist_ok=True)
                     console.print(f"[green]📁 Created directory: {new_path}[/green]")
                 else:
-                    return {"error": f"Directory does not exist: {new_path}"}
+                    # Search parent directory too for the exact name
+                    parent_path = (self.working_directory.parent / dir_name).resolve()
+                    if parent_path.exists() and parent_path.is_dir():
+                        new_path = parent_path
+                        console.print(f"[yellow]📁 Found in parent directory: {new_path}[/yellow]")
+                    else:
+                        return {
+                            "error": f"Directory not found: {new_path}. "
+                                     f"To create it, ask the user to say 'create' or 'make' a directory."
+                        }
             
             # Switch to the new directory
             self.working_directory = new_path
@@ -415,6 +453,21 @@ class DIALSAgent:
                 return {"error": f"Command timed out after 60 seconds: {command}"}
             except Exception as e:
                 return {"error": f"Failed to run command: {str(e)}"}
+        
+        elif tool_call.name == "lookup_phil_params":
+            from .core.tools import lookup_phil_params
+            command = tool_call.input.get("command", "")
+            search_term = tool_call.input.get("search_term", "")
+            result = lookup_phil_params(command, search_term)
+            return {"phil_params": result}
+        
+        elif tool_call.name == "diagnose_problem":
+            from .core.tools import diagnose_problem
+            problem = tool_call.input.get("problem", "")
+            current_stage = tool_call.input.get("current_stage", "")
+            context = tool_call.input.get("context", "")
+            result = diagnose_problem(problem, current_stage, context)
+            return {"diagnosis": result}
         
         else:
             return {"error": f"Unknown tool: {tool_call.name}"}
