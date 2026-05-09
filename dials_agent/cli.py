@@ -371,6 +371,33 @@ class DIALSAgent:
                 "message": f"Data directory changed to {data_path}. Found {len(data_files)} data file(s)."
             }
         
+        elif tool_call.name == "calculate":
+            expression = tool_call.input.get("expression", "")
+            description = tool_call.input.get("description", "")
+            
+            if not expression:
+                return {"error": "No expression provided"}
+            
+            try:
+                # Safe evaluation — only allow math operations
+                import math as _math
+                allowed_names = {
+                    k: v for k, v in _math.__dict__.items()
+                    if not k.startswith('_')
+                }
+                allowed_names.update({
+                    "abs": abs, "round": round, "min": min, "max": max,
+                    "sum": sum, "len": len, "int": int, "float": float,
+                })
+                result = eval(expression, {"__builtins__": {}}, allowed_names)
+                return {
+                    "expression": expression,
+                    "result": result,
+                    "description": description,
+                }
+            except Exception as e:
+                return {"error": f"Calculation error: {str(e)}", "expression": expression}
+        
         elif tool_call.name == "get_timing_report":
             report = self._get_timing_report()
             total_duration = sum(e["duration"] for e in self.command_timings)

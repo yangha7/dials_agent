@@ -197,6 +197,24 @@ TOOLS = [
         }
     },
     {
+        "name": "calculate",
+        "description": "Perform a mathematical calculation. Use this for ANY arithmetic: counting, subtraction, division, percentages, ranges, etc. Do NOT do mental math — always use this tool for numerical calculations to avoid errors.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "expression": {
+                    "type": "string",
+                    "description": "A Python math expression to evaluate (e.g., '1200 * 0.1', '67.85 - 67.82', '107640 / 1200', '100 * 12', '(3600 - 1200) / 100')"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Brief description of what this calculation represents"
+                }
+            },
+            "required": ["expression"]
+        }
+    },
+    {
         "name": "get_timing_report",
         "description": "Get the timing report showing how long each DIALS command took. The agent automatically records start time, end time, and duration for every command. Use this when the user asks about timing, performance, or how long steps took. The data is also saved to dials_agent_timing.log in the working directory.",
         "input_schema": {
