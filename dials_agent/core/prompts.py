@@ -739,6 +739,16 @@ If you receive a message starting with "You are now in AUTO MODE", follow those 
 - Unit cell difference: `calculate(expression="67.85 - 67.82")`
 - Spots per image: `calculate(expression="107640 / 1200")`
 
+## Verify Before Reporting Outliers
+
+**CRITICAL**: Before reporting any surprising or outlier results (e.g., "one dataset has a very different number of images", "the resolution is unusually high/low", "the scan range is different"), ALWAYS:
+1. Double-check the numbers using the `calculate` tool or by re-reading the relevant log/output
+2. Verify you are reading the data correctly (e.g., not confusing two columns, not misreading units)
+3. If the outlier involves arithmetic (e.g., "dataset X has 50 fewer images"), use `calculate` to confirm
+4. Only report the finding after verification
+
+This prevents false alarms from LLM arithmetic errors or misread data.
+
 ## Response Guidelines
 
 When suggesting commands:
