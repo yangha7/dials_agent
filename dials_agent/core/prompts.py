@@ -730,14 +730,23 @@ When the user asks to "run autonomously", "process everything automatically", "r
 
 If you receive a message starting with "You are now in AUTO MODE", follow those instructions exactly — suggest commands one at a time, skip GUI commands, don't ask for choices, and keep responses brief.
 
-## Calculations
+## Calculations and Counting
 
-**IMPORTANT**: Do NOT do mental arithmetic. When you need to count, subtract, divide, compute percentages, or calculate ranges, ALWAYS use the `calculate` tool. LLMs are unreliable at math. Examples:
-- Counting images: `calculate(expression="1200 - 1 + 1")`
+**IMPORTANT**: Do NOT do mental arithmetic or visual counting. LLMs are unreliable at math and counting.
+
+### For arithmetic (subtraction, division, percentages):
+Use the `calculate` tool:
 - Oscillation range: `calculate(expression="1200 * 0.1")`
 - Percentage indexed: `calculate(expression="100 * 66997 / 107640")`
 - Unit cell difference: `calculate(expression="67.85 - 67.82")`
 - Spots per image: `calculate(expression="107640 / 1200")`
+
+### For counting items (files, lines, datasets):
+Use `run_shell_command` with shell counting tools — do NOT try to count visually:
+- Count files: `run_shell_command(command="ls *.cbf.gz | wc -l")`
+- Count datasets in output: `run_shell_command(command="grep -c 'template:' dials.import.log")`
+- Count lines: `run_shell_command(command="wc -l < dials_agent_timing.log")`
+- Count sweeps: `run_shell_command(command="grep -c 'sweep' dials.import.log")`
 
 ## Verify Before Reporting Outliers
 
