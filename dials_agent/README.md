@@ -1,4 +1,4 @@
-# DIALS AI Agent
+# DIALS AI Agent (v1.2)
 
 A natural language interface for DIALS (Diffraction Integration for Advanced Light Sources) crystallography data processing.
 
@@ -17,6 +17,10 @@ The DIALS AI Agent allows users with less command-line experience to process cry
 - **File Access**: Agent can directly read log files and open HTML reports
 - **Visualization**: Integrated support for `dials.image_viewer` and `dials.reciprocal_lattice_viewer`
 - **Multi-Provider LLM Support**: Works with CBORG, OpenAI, Google Gemini, and Anthropic Claude
+- **Run Comparison** *(v1.3)*: Compare results from multiple processing runs (human vs agent, different parameters) with consistency assessment
+- **PHIL Parameter Lookup** *(v1.2)*: On-demand access to complete parameter documentation for all 82 DIALS commands
+- **Problem Diagnosis** *(v1.2)*: Intelligent troubleshooting with specific parameter-level fixes for 15+ common problems
+- **62 Commands Known** *(v1.2)*: Comprehensive knowledge of workflow, utility, SSX, visualization, and format conversion commands
 
 ## Installation
 
@@ -162,6 +166,7 @@ python -m dials_agent.cli -d /path/to/output
 - `help` - Show available commands
 - `status` - Show current workflow status
 - `history` - Show command history
+- `compare <dir1> <dir2> [...]` - Compare results from multiple processing runs
 - `clear` - Clear conversation history
 - `cd <path>` - Change working directory
 - `quit` / `exit` - Exit the agent
@@ -211,6 +216,7 @@ dials_agent/
 └── dials/
     ├── __init__.py
     ├── commands.py       # Command definitions
+    ├── compare.py        # Run comparison tool
     ├── executor.py       # Command execution
     ├── parser.py         # Output parsing
     └── workflow.py       # Workflow state management
@@ -338,6 +344,90 @@ For containerized deployment (DIALS must be installed on the host):
 - DIALS installed on the host system
 - Internet access for LLM API calls
 
+## Comparing Runs
+
+The comparison feature lets you compare results from multiple DIALS processing runs to assess consistency. This is useful for:
+
+- **Human vs Agent**: Verify the agent produces results comparable to expert processing
+- **Parameter Tuning**: Compare runs with different parameters to find optimal settings
+- **Reproducibility**: Check that repeated runs produce consistent results
+
+### From the Command Line
+
+```bash
+# Compare two directories
+dials-agent --compare run_agent/ run_human/
+
+# With custom labels
+dials-agent --compare run1/ run2/ run3/ --compare-labels "agent,human,v2"
+
+# Save report to JSON
+dials-agent --compare run1/ run2/ --compare-output comparison_report.json
+```
+
+### From the Interactive CLI
+
+```
+You: compare run_agent run_human
+```
+
+Or with options:
+
+```
+You: compare run_agent run_human --labels agent,human --output report.json
+```
+
+### What Gets Compared
+
+The tool extracts and compares these metrics from each run's log files:
+
+| Category | Metrics |
+|----------|---------|
+| **Spot Finding** | Number of spots found |
+| **Indexing** | Indexed reflections, unit cell, space group, RMSD |
+| **Integration** | Number of integrated reflections |
+| **Scaling** | Resolution, completeness, multiplicity, Rmerge, Rmeas, Rpim, CC1/2, I/σ(I) |
+| **Timing** | Per-step and total processing time |
+| **Workflow** | Completion status, final stage |
+
+### Consistency Assessment
+
+Each metric is assessed as:
+- **✓ consistent** — Values agree within expected tolerance
+- **~ close** — Minor differences (within acceptable range)
+- **✗ differs** — Significant differences that warrant investigation
+
+Tolerances are metric-specific:
+- Spot/reflection counts: 5% relative variation
+- Resolution: 0.1 Å absolute
+- R-values: 10% relative variation
+- CC1/2: 0.005 absolute
+- Completeness: 1% absolute
+- Timing: 20% relative variation
+
+### JSON Report Format
+
+The `--compare-output` flag saves a structured JSON report:
+
+```json
+{
+  "num_runs": 2,
+  "labels": ["agent", "human"],
+  "directories": ["/path/to/run1", "/path/to/run2"],
+  "metrics": {
+    "Spots Found": [25000, 24800],
+    "Space Group": ["P213", "P213"],
+    "CC1/2": [0.998, 0.997]
+  },
+  "consistency": {
+    "Spots Found": "consistent",
+    "Space Group": "consistent",
+    "CC1/2": "consistent"
+  },
+  "summary": "..."
+}
+```
+
 ## Development
 
 ### Running Tests
@@ -356,6 +446,33 @@ ruff check dials_agent/
 ## License
 
 This project is part of the DIALS software suite.
+
+## Version History
+
+### v1.3.0 — Run Comparison
+- **`compare` command**: Compare results from multiple DIALS processing runs side-by-side
+- **CLI `--compare` flag**: Standalone comparison mode (no API key needed)
+- **Consistency assessment**: Automatic evaluation of metric agreement with metric-specific tolerances
+- **JSON reports**: Save comparison results for programmatic analysis
+- **Markdown output**: Generate comparison reports in Markdown format
+- **31 unit/integration tests**: Comprehensive test coverage for the comparison module
+
+### v1.2.0 — PHIL Parameter Knowledge & Problem Diagnosis
+- **PHIL Parameter Documentation**: Fetched complete parameter docs for all 82 DIALS commands using `dials.program -c -e2 -a2` (15,343 lines total, stored in `docs/phil_params/`)
+- **`lookup_phil_params` tool**: On-demand parameter lookup for any DIALS command with keyword search
+- **`diagnose_problem` tool**: Maps 15+ common problems (indexing failures, high Rmerge, ice rings, etc.) to specific parameter-level solutions
+- **62 commands known**: Expanded from 21 to 62 commands across 5 categories (workflow, utility, serial crystallography, visualization, format conversion)
+- **Enhanced system prompt**: 56K chars with 20+ new utility command references, SSX commands, electron diffraction support, DAC support, and comprehensive troubleshooting
+- **Reusable fetch script**: `docs/fetch_phil_params.sh` to regenerate parameter docs
+
+### v1.1.0 — Core Agent
+- Natural language interface with multi-provider LLM support
+- Semi-automated workflow with command approval
+- Output parsing and metric extraction
+- Workflow tracking and file management
+- Visualization support (image viewer, reciprocal lattice viewer)
+- Auto mode for unattended processing
+- Tutorial system with guided walkthroughs
 
 ## Acknowledgments
 

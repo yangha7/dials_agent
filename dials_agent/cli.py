@@ -25,6 +25,7 @@ from rich.text import Text
 from .config import Settings, get_settings, configure_from_env_file
 from .core.claude_client import ClaudeClient, ToolCall, create_client
 from .core.tools import determine_workflow_stage
+from .dials.compare import compare_runs, display_comparison, display_comparison_markdown
 from .dials.executor import CommandExecutor, CommandResult, create_executor
 from .dials.parser import OutputParser, create_parser
 from .dials.workflow import WorkflowManager, create_workflow_manager
@@ -1065,6 +1066,16 @@ class DIALSAgent:
                     console.print(f"[dim]Base directory:    {self.base_directory}[/dim]")
                     continue
                 
+                elif lower_input.startswith('compare ') or lower_input == 'compare':
+                    if lower_input == 'compare':
+                        console.print("[yellow]Usage: compare <dir1> <dir2> [dir3 ...][/yellow]")
+                        console.print("[dim]Compare DIALS processing results across multiple directories.[/dim]")
+                        console.print("[dim]Example: compare run_agent run_human run_v2[/dim]")
+                    else:
+                        args_str = user_input[8:].strip()
+                        self._run_compare(args_str)
+                    continue
+                
                 # Detect autonomous processing requests and switch to auto mode
                 auto_keywords = [
                     "automatically", "autonomous", "on your own", "without interruption",
@@ -1219,6 +1230,7 @@ class DIALSAgent:
 - **timing** - Show timing summary for all executed commands
 - **auto** - Run through the entire workflow automatically (no confirmations)
 - **auto <message>** - Auto mode with custom instruction (e.g., `auto process insulin data fast version`)
+- **compare <dir1> <dir2> [...]** - Compare results from multiple processing runs
 - **reset** / **clean** / **start over** - Remove DIALS output files and start fresh
 - **clear** - Clear conversation history
 - **multi** - Enable multi-crystal mode (uses joint=false, dials.cosym)
@@ -1251,6 +1263,20 @@ For multi-crystal datasets like the tutorial:
 7. Symmetry: `dials.cosym integrated.expt integrated.refl`
 8. Scale: `dials.scale symmetrized.expt symmetrized.refl`
 9. Export: `dials.export scaled.expt scaled.refl`
+
+## Comparing Runs
+
+To compare results from multiple processing runs (e.g., human vs agent):
+```
+compare run_agent run_human run_v2
+```
+Or from the command line:
+```
+dials-agent --compare run1 run2 run3
+dials-agent --compare run1 run2 --compare-output report.json
+```
+This extracts metrics from each directory's log files and shows a
+side-by-side comparison with consistency assessment.
 """
         console.print(Markdown(help_text))
     
@@ -1488,6 +1514,83 @@ For multi-crystal datasets like the tutorial:
         
         console.print("[green]✓ Workflow state and conversation history reset.[/green]")
         self.display_workflow_status()
+    
+    def _run_compare(self, args_str: str):
+        """
+        Run comparison of multiple DIALS processing directories.
+        
+        Args:
+            args_str: Space-separated directory paths, optionally with --labels and --output flags
+        """
+        import shlex
+        
+        try:
+            parts = shlex.split(args_str)
+        except ValueError:
+            parts = args_str.split()
+        
+        if not parts:
+            console.print("[yellow]Usage: compare <dir1> <dir2> [dir3 ...][/yellow]")
+            console.print("[dim]Options: --labels name1,name2,... --output report.json[/dim]")
+            return
+        
+        # Parse flags
+        directories = []
+        labels = None
+        output_file = None
+        i = 0
+        while i < len(parts):
+            if parts[i] == "--labels" and i + 1 < len(parts):
+                labels = parts[i + 1].split(",")
+                i += 2
+            elif parts[i] == "--output" and i + 1 < len(parts):
+                output_file = parts[i + 1]
+                i += 2
+            else:
+                directories.append(parts[i])
+                i += 1
+        
+        if len(directories) < 2:
+            console.print("[yellow]Need at least 2 directories to compare.[/yellow]")
+            return
+        
+        # Resolve directories relative to working directory or base directory
+        resolved_dirs = []
+        for d in directories:
+            path = Path(d)
+            if not path.is_absolute():
+                # Try relative to current working directory first
+                candidate = self.working_directory / d
+                if not candidate.exists():
+                    # Try relative to base directory
+                    candidate = self.base_directory / d
+                if not candidate.exists():
+                    # Try as-is (might be relative to cwd)
+                    candidate = Path(d).resolve()
+                path = candidate
+            else:
+                path = path.resolve()
+            
+            if not path.exists():
+                console.print(f"[red]Directory not found: {d}[/red]")
+                return
+            
+            resolved_dirs.append(str(path))
+        
+        # Run comparison
+        console.print(f"[dim]Comparing {len(resolved_dirs)} directories...[/dim]")
+        
+        try:
+            result = compare_runs(resolved_dirs, labels)
+            display_comparison(result, console)
+            
+            # Save JSON report if requested
+            if output_file:
+                result.save_json(output_file)
+                console.print(f"[green]Report saved to: {output_file}[/green]")
+        except Exception as e:
+            console.print(f"[red]Comparison failed: {e}[/red]")
+            logger.exception("Error in compare")
 
 
 def setup_logging(level: str = "INFO", log_file: Optional[str] = None):
@@ -1544,6 +1647,23 @@ def main():
         default=None,
         help="Initial message for auto mode (default: 'Process my data through the complete workflow')"
     )
+    parser.add_argument(
+        "--compare",
+        nargs="+",
+        metavar="DIR",
+        help="Compare results from multiple DIALS processing directories and exit"
+    )
+    parser.add_argument(
+        "--compare-labels",
+        default=None,
+        help="Comma-separated labels for compared runs (e.g., 'agent,human,v2')"
+    )
+    parser.add_argument(
+        "--compare-output",
+        default=None,
+        metavar="FILE",
+        help="Save comparison report to a JSON file"
+    )
     
     args = parser.parse_args()
     
@@ -1582,6 +1702,37 @@ def main():
     
     # Determine working directory: CLI arg > .env setting > current directory
     working_dir = args.directory or settings.working_directory or "."
+    
+    # Compare mode — standalone, no API key needed
+    if args.compare:
+        if len(args.compare) < 2:
+            console.print("[red]Need at least 2 directories to compare.[/red]")
+            sys.exit(1)
+        
+        labels = args.compare_labels.split(",") if args.compare_labels else None
+        
+        # Resolve directories
+        resolved = []
+        for d in args.compare:
+            p = Path(d).resolve()
+            if not p.exists():
+                console.print(f"[red]Directory not found: {d}[/red]")
+                sys.exit(1)
+            resolved.append(str(p))
+        
+        try:
+            result = compare_runs(resolved, labels)
+            display_comparison(result, console)
+            
+            if args.compare_output:
+                result.save_json(args.compare_output)
+                console.print(f"[green]Report saved to: {args.compare_output}[/green]")
+            
+            sys.exit(0)
+        except Exception as e:
+            console.print(f"[red]Comparison failed: {e}[/red]")
+            logger.exception("Comparison error")
+            sys.exit(1)
     
     # Check DIALS only mode
     if args.check_dials:

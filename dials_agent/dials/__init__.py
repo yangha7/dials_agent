@@ -2,7 +2,7 @@
 DIALS integration module for the AI Agent.
 
 This module provides components for executing DIALS commands,
-parsing output, and managing workflow state.
+parsing output, managing workflow state, and comparing runs.
 """
 
 from .commands import (
@@ -15,6 +15,14 @@ from .commands import (
     get_next_workflow_command,
     get_workflow_commands,
     validate_command,
+)
+from .compare import (
+    ComparisonResult,
+    RunMetrics,
+    compare_runs,
+    display_comparison,
+    display_comparison_markdown,
+    extract_metrics,
 )
 from .executor import (
     CommandExecutor,
@@ -46,6 +54,13 @@ __all__ = [
     "get_next_workflow_command",
     "get_workflow_commands",
     "validate_command",
+    # Compare
+    "ComparisonResult",
+    "RunMetrics",
+    "compare_runs",
+    "display_comparison",
+    "display_comparison_markdown",
+    "extract_metrics",
     # Executor
     "CommandExecutor",
     "CommandResult",
