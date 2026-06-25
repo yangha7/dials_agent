@@ -11,11 +11,96 @@ and presents a side-by-side comparison with consistency metrics.
 import json
 import logging
 import re
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
+
+# Ordered from most to least advanced stage; dials.report is most informative
+# on scaled or integrated data.
+_REPORT_STAGE_FILES: list[tuple[str, list[str]]] = [
+    ("scaled",     ["scaled.expt",     "scaled.refl"]),
+    ("integrated", ["integrated.expt", "integrated.refl"]),
+    ("refined",    ["refined.expt",    "refined.refl"]),
+    ("indexed",    ["indexed.expt",    "indexed.refl"]),
+    ("imported",   ["imported.expt"]),
+]
+
+
+def generate_dials_report(
+    directory: str,
+    label: str = "",
+    timeout: int = 300,
+) -> dict[str, Optional[str]]:
+    """
+    Run ``dials.report`` on the most advanced output files found in *directory*.
+
+    Returns a dict with keys:
+      ``html``  – absolute path to the generated HTML file, or None on failure
+      ``json``  – absolute path to the generated JSON file, or None on failure
+      ``stage`` – which stage's files were used (e.g. "scaled")
+      ``error`` – error message string if the run failed, else None
+    """
+    dir_path = Path(directory).resolve()
+    result: dict[str, Optional[str]] = {"html": None, "json": None, "stage": None, "error": None}
+
+    if not dir_path.exists():
+        result["error"] = f"Directory not found: {directory}"
+        return result
+
+    # Find the most advanced pair of expt/refl files
+    input_files: list[str] = []
+    for stage, files in _REPORT_STAGE_FILES:
+        if all((dir_path / f).exists() for f in files):
+            input_files = [str(dir_path / f) for f in files]
+            result["stage"] = stage
+            break
+
+    if not input_files:
+        result["error"] = "No DIALS output files found for dials.report"
+        return result
+
+    # Name outputs after the label (or directory name) so multiple runs
+    # in the same parent directory do not overwrite each other.
+    stem = label or dir_path.name
+    html_name = f"dials.report.{stem}.html" if label else "dials.report.html"
+    json_name = f"dials.report.{stem}.json" if label else "dials.report.json"
+    html_path = dir_path / html_name
+    json_path = dir_path / json_name
+
+    cmd = [
+        "dials.report",
+        *input_files,
+        f"output.html={html_path}",
+        f"output.json={json_path}",
+    ]
+
+    logger.info("Running: %s", " ".join(cmd))
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=str(dir_path),
+        )
+        if proc.returncode != 0:
+            result["error"] = f"dials.report exited {proc.returncode}: {proc.stderr[-500:]}"
+        else:
+            if html_path.exists():
+                result["html"] = str(html_path)
+            if json_path.exists():
+                result["json"] = str(json_path)
+    except FileNotFoundError:
+        result["error"] = "dials.report not found — is DIALS on the PATH?"
+    except subprocess.TimeoutExpired:
+        result["error"] = f"dials.report timed out after {timeout}s"
+    except Exception as exc:
+        result["error"] = str(exc)
+
+    return result
 
 
 # ── Metric extraction from log files ────────────────────────────────────────
@@ -443,6 +528,10 @@ class ComparisonResult:
     metrics_table: dict[str, list[Any]]  # metric_name -> [value_per_run]
     consistency: dict[str, str]  # metric_name -> "consistent" / "differs" / "partial"
     summary: str
+    # dials.report outputs: one entry per run (may be None if generation failed)
+    report_html: list[Optional[str]] = field(default_factory=list)
+    report_json: list[Optional[str]] = field(default_factory=list)
+    report_errors: list[Optional[str]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to serializable dictionary."""
@@ -453,6 +542,10 @@ class ComparisonResult:
             "metrics": self.metrics_table,
             "consistency": self.consistency,
             "summary": self.summary,
+            "reports": {
+                "html": self.report_html,
+                "json": self.report_json,
+            },
         }
 
     def save_json(self, filepath: str):
@@ -540,13 +633,19 @@ def _assess_consistency(values: list[Any], metric_name: str) -> str:
     return "n/a"
 
 
-def compare_runs(directories: list[str], labels: Optional[list[str]] = None) -> ComparisonResult:
+def compare_runs(
+    directories: list[str],
+    labels: Optional[list[str]] = None,
+    generate_reports: bool = True,
+) -> ComparisonResult:
     """
     Compare multiple DIALS processing runs.
 
     Args:
         directories: List of paths to run directories
         labels: Optional labels for each run (defaults to directory names)
+        generate_reports: If True, run ``dials.report`` on each directory to
+            produce HTML/JSON reports for visual comparison.
 
     Returns:
         ComparisonResult with detailed comparison data
@@ -625,11 +724,29 @@ def compare_runs(directories: list[str], labels: Optional[list[str]] = None) -> 
     # Generate summary
     summary = _generate_summary(runs, metrics_table, consistency)
 
+    # Run dials.report on each directory to produce HTML/JSON reports
+    report_html: list[Optional[str]] = []
+    report_json: list[Optional[str]] = []
+    report_errors: list[Optional[str]] = []
+    if generate_reports:
+        for run in runs:
+            rpt = generate_dials_report(run.directory, label=run.label)
+            report_html.append(rpt["html"])
+            report_json.append(rpt["json"])
+            report_errors.append(rpt["error"])
+            if rpt["error"]:
+                logger.warning("dials.report failed for %s: %s", run.label, rpt["error"])
+            elif rpt["html"]:
+                logger.info("dials.report → %s", rpt["html"])
+
     return ComparisonResult(
         runs=runs,
         metrics_table=metrics_table,
         consistency=consistency,
         summary=summary,
+        report_html=report_html,
+        report_json=report_json,
+        report_errors=report_errors,
     )
 
 
@@ -783,6 +900,21 @@ def display_comparison(result: ComparisonResult, console=None):
 
         console.print(cmd_table)
 
+    # dials.report links
+    if result.report_html:
+        rpt_table = Table(title="📄 DIALS Reports", border_style="dim")
+        rpt_table.add_column("Run", style="cyan")
+        rpt_table.add_column("HTML Report")
+        rpt_table.add_column("Note", style="dim")
+
+        for run, html, err in zip(result.runs, result.report_html, result.report_errors):
+            if html:
+                rpt_table.add_row(run.label, html, "")
+            else:
+                rpt_table.add_row(run.label, "[dim]—[/dim]", err or "not generated")
+
+        console.print(rpt_table)
+
     # Summary
     console.print(Panel(
         result.summary,
@@ -850,6 +982,17 @@ def display_comparison_markdown(result: ComparisonResult) -> str:
         lines.append(row)
 
     lines.append("")
+
+    # dials.report links
+    if result.report_html:
+        lines.append("## DIALS Reports")
+        lines.append("")
+        for run, html, err in zip(result.runs, result.report_html, result.report_errors):
+            if html:
+                lines.append(f"- **{run.label}**: [{Path(html).name}]({html})")
+            else:
+                lines.append(f"- **{run.label}**: not generated ({err or 'unknown error'})")
+        lines.append("")
 
     # Summary
     lines.append("## Summary")

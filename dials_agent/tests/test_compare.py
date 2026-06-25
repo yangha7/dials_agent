@@ -22,6 +22,7 @@ from dials_agent.dials.compare import (
     compare_runs,
     display_comparison_markdown,
     extract_metrics,
+    generate_dials_report,
     _assess_consistency,
     _parse_timing_log,
     _parse_unit_cell,
@@ -434,6 +435,61 @@ class TestRichDisplay:
         # Use a string buffer console to avoid terminal output during tests
         console = Console(file=open(os.devnull, "w"))
         display_comparison(result, console)  # Should not raise
+
+
+class TestGenerateDialsReport:
+    def test_missing_directory(self, tmp_path):
+        result = generate_dials_report(str(tmp_path / "nonexistent"))
+        assert result["html"] is None
+        assert result["error"] is not None
+
+    def test_no_dials_files(self, tmp_path):
+        result = generate_dials_report(str(tmp_path))
+        assert result["html"] is None
+        assert "No DIALS output files" in result["error"]
+
+    def test_dials_report_not_on_path(self, tmp_path):
+        # Create a directory with a scaled.expt and scaled.refl so the file
+        # selection logic passes, but dials.report itself is not available.
+        (tmp_path / "scaled.expt").write_text("mock")
+        (tmp_path / "scaled.refl").write_text("mock")
+        import unittest.mock as mock
+        with mock.patch("subprocess.run", side_effect=FileNotFoundError("dials.report")):
+            result = generate_dials_report(str(tmp_path))
+        assert result["html"] is None
+        assert "not found" in result["error"]
+
+    def test_stage_selection_prefers_scaled(self, tmp_path):
+        for f in ["scaled.expt", "scaled.refl", "integrated.expt", "integrated.refl"]:
+            (tmp_path / f).write_text("mock")
+        import unittest.mock as mock
+        with mock.patch("subprocess.run", side_effect=FileNotFoundError("dials.report")):
+            result = generate_dials_report(str(tmp_path))
+        assert result["stage"] == "scaled"
+
+    def test_compare_runs_populates_report_fields(self, consistent_runs):
+        # With generate_reports=False the report lists should be empty.
+        result = compare_runs(consistent_runs, ["agent", "human"], generate_reports=False)
+        assert result.report_html == []
+        assert result.report_json == []
+        assert result.report_errors == []
+
+    def test_compare_runs_attempts_report_generation(self, consistent_runs):
+        import unittest.mock as mock
+        fake_report = {"html": "/fake/dials.report.html", "json": None, "stage": "scaled", "error": None}
+        with mock.patch("dials_agent.dials.compare.generate_dials_report", return_value=fake_report):
+            result = compare_runs(consistent_runs, ["agent", "human"], generate_reports=True)
+        assert len(result.report_html) == 2
+        assert result.report_html[0] == "/fake/dials.report.html"
+
+    def test_markdown_includes_report_section(self, consistent_runs):
+        import unittest.mock as mock
+        fake_report = {"html": "/fake/dials.report.agent.html", "json": None, "stage": "scaled", "error": None}
+        with mock.patch("dials_agent.dials.compare.generate_dials_report", return_value=fake_report):
+            result = compare_runs(consistent_runs, ["agent", "human"], generate_reports=True)
+        md = display_comparison_markdown(result)
+        assert "## DIALS Reports" in md
+        assert "dials.report.agent.html" in md
 
 
 if __name__ == "__main__":

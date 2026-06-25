@@ -1070,6 +1070,8 @@ class DIALSAgent:
                     if lower_input == 'compare':
                         console.print("[yellow]Usage: compare <dir1> <dir2> [dir3 ...][/yellow]")
                         console.print("[dim]Compare DIALS processing results across multiple directories.[/dim]")
+                        console.print("[dim]Runs dials.report on each directory and shows HTML report paths.[/dim]")
+                        console.print("[dim]Options: --labels name1,name2  --output report.json  --no-report[/dim]")
                         console.print("[dim]Example: compare run_agent run_human run_v2[/dim]")
                     else:
                         args_str = user_input[8:].strip()
@@ -1538,6 +1540,7 @@ side-by-side comparison with consistency assessment.
         directories = []
         labels = None
         output_file = None
+        generate_reports = True
         i = 0
         while i < len(parts):
             if parts[i] == "--labels" and i + 1 < len(parts):
@@ -1546,6 +1549,9 @@ side-by-side comparison with consistency assessment.
             elif parts[i] == "--output" and i + 1 < len(parts):
                 output_file = parts[i + 1]
                 i += 2
+            elif parts[i] == "--no-report":
+                generate_reports = False
+                i += 1
             else:
                 directories.append(parts[i])
                 i += 1
@@ -1579,11 +1585,13 @@ side-by-side comparison with consistency assessment.
         
         # Run comparison
         console.print(f"[dim]Comparing {len(resolved_dirs)} directories...[/dim]")
-        
+        if generate_reports:
+            console.print("[dim]Running dials.report on each directory...[/dim]")
+
         try:
-            result = compare_runs(resolved_dirs, labels)
+            result = compare_runs(resolved_dirs, labels, generate_reports=generate_reports)
             display_comparison(result, console)
-            
+
             # Save JSON report if requested
             if output_file:
                 result.save_json(output_file)
@@ -1664,6 +1672,12 @@ def main():
         metavar="FILE",
         help="Save comparison report to a JSON file"
     )
+    parser.add_argument(
+        "--no-report",
+        action="store_true",
+        default=False,
+        help="Skip running dials.report when comparing directories"
+    )
     
     args = parser.parse_args()
     
@@ -1720,10 +1734,12 @@ def main():
                 sys.exit(1)
             resolved.append(str(p))
         
+        if not args.no_report:
+            console.print("[dim]Running dials.report on each directory...[/dim]")
         try:
-            result = compare_runs(resolved, labels)
+            result = compare_runs(resolved, labels, generate_reports=not args.no_report)
             display_comparison(result, console)
-            
+
             if args.compare_output:
                 result.save_json(args.compare_output)
                 console.print(f"[green]Report saved to: {args.compare_output}[/green]")
