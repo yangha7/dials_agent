@@ -25,7 +25,13 @@ from rich.text import Text
 from .config import Settings, get_settings, configure_from_env_file
 from .core.claude_client import ClaudeClient, ToolCall, create_client
 from .core.tools import determine_workflow_stage
-from .dials.compare import compare_runs, display_comparison, display_comparison_markdown
+from .dials.compare import (
+    compare_runs,
+    display_comparison,
+    display_comparison_markdown,
+    save_comparison_markdown,
+    save_comparison_html,
+)
 from .dials.executor import CommandExecutor, CommandResult, create_executor
 from .dials.parser import OutputParser, create_parser
 from .dials.workflow import WorkflowManager, create_workflow_manager
@@ -496,7 +502,65 @@ class DIALSAgent:
             context = tool_call.input.get("context", "")
             result = diagnose_problem(problem, current_stage, context)
             return {"diagnosis": result}
-        
+
+        elif tool_call.name == "create_html_file":
+            filename = tool_call.input.get("filename", "")
+            content = tool_call.input.get("content", "")
+            overwrite = tool_call.input.get("overwrite", True)
+
+            if not filename:
+                return {"error": "No filename provided"}
+            if not filename.endswith(".html"):
+                filename = filename + ".html"
+            if not content:
+                return {"error": "No content provided"}
+
+            filepath = self.working_directory / filename
+            if filepath.exists() and not overwrite:
+                return {"error": f"File already exists: {filename}. Set overwrite=true to replace it."}
+
+            try:
+                filepath.write_text(content, encoding="utf-8")
+                size = len(content.encode("utf-8"))
+                console.print(f"[green]🌐 Created {filename} ({size:,} bytes)[/green]")
+                return {
+                    "status": "success",
+                    "filename": filename,
+                    "path": str(filepath),
+                    "bytes_written": size,
+                }
+            except Exception as e:
+                return {"error": f"Failed to write {filename}: {e}"}
+
+        elif tool_call.name == "create_markdown_file":
+            filename = tool_call.input.get("filename", "")
+            content = tool_call.input.get("content", "")
+            overwrite = tool_call.input.get("overwrite", True)
+
+            if not filename:
+                return {"error": "No filename provided"}
+            if not filename.endswith(".md"):
+                filename = filename + ".md"
+            if not content:
+                return {"error": "No content provided"}
+
+            filepath = self.working_directory / filename
+            if filepath.exists() and not overwrite:
+                return {"error": f"File already exists: {filename}. Set overwrite=true to replace it."}
+
+            try:
+                filepath.write_text(content, encoding="utf-8")
+                size = len(content.encode("utf-8"))
+                console.print(f"[green]📝 Created {filename} ({size:,} bytes)[/green]")
+                return {
+                    "status": "success",
+                    "filename": filename,
+                    "path": str(filepath),
+                    "bytes_written": size,
+                }
+            except Exception as e:
+                return {"error": f"Failed to write {filename}: {e}"}
+
         else:
             return {"error": f"Unknown tool: {tool_call.name}"}
     
@@ -771,24 +835,48 @@ class DIALSAgent:
     
     def chat(self, user_message: str) -> str:
         """
-        Send a message to the agent and get a response.
-        
-        Args:
-            user_message: The user's message
-            
-        Returns:
-            The agent's response
+        Send a message to the agent, display token usage, and return the text.
         """
-        # Clear any pending command
         self.pending_command = None
-        
-        # Send message to Claude
+
         response = self.claude.send_message(
             user_message,
             tool_handler=self._handle_tool_call
         )
-        
+
+        self._display_token_usage(response.usage)
         return response.message
+
+    def _display_token_usage(self, usage) -> None:
+        """Print a compact dim token-usage line after each turn."""
+        if usage is None:
+            return
+
+        parts = []
+
+        # Per-turn counts
+        if usage.input_tokens or usage.output_tokens:
+            parts.append(f"{usage.input_tokens:,} in / {usage.output_tokens:,} out")
+
+        # Cache info (Anthropic only — both fields are 0 on OpenAI-compat)
+        if usage.cache_read_tokens:
+            parts.append(f"{usage.cache_read_tokens:,} cached")
+        if usage.cache_creation_tokens:
+            parts.append(f"{usage.cache_creation_tokens:,} cache write")
+
+        # Session running total
+        session = self.claude.session_usage
+        parts.append(f"session {session.total:,} tok")
+
+        # Optional budget
+        budget = self.settings.token_budget
+        if budget > 0:
+            used = session.total
+            remaining = max(0, budget - used)
+            pct = 100 * remaining / budget
+            parts.append(f"budget {remaining:,} left ({pct:.0f}%)")
+
+        console.print(f"[dim]↳ {' | '.join(parts)}[/dim]")
     
     def run_auto(self, initial_message: str = None, skip_dials_check: bool = False):
         """
@@ -1520,26 +1608,32 @@ side-by-side comparison with consistency assessment.
     def _run_compare(self, args_str: str):
         """
         Run comparison of multiple DIALS processing directories.
-        
-        Args:
-            args_str: Space-separated directory paths, optionally with --labels and --output flags
+
+        Flags: --labels name1,name2,...
+               --output report.json
+               --output-md report.md
+               --output-html report.html
+               --no-report   (skip running dials.report)
         """
         import shlex
-        
+
         try:
             parts = shlex.split(args_str)
         except ValueError:
             parts = args_str.split()
-        
+
         if not parts:
             console.print("[yellow]Usage: compare <dir1> <dir2> [dir3 ...][/yellow]")
-            console.print("[dim]Options: --labels name1,name2,... --output report.json[/dim]")
+            console.print("[dim]Options: --labels name1,name2,... --output report.json "
+                          "--output-md report.md --output-html report.html[/dim]")
             return
-        
+
         # Parse flags
         directories = []
         labels = None
         output_file = None
+        output_md = None
+        output_html = None
         generate_reports = True
         i = 0
         while i < len(parts):
@@ -1548,6 +1642,12 @@ side-by-side comparison with consistency assessment.
                 i += 2
             elif parts[i] == "--output" and i + 1 < len(parts):
                 output_file = parts[i + 1]
+                i += 2
+            elif parts[i] == "--output-md" and i + 1 < len(parts):
+                output_md = parts[i + 1]
+                i += 2
+            elif parts[i] == "--output-html" and i + 1 < len(parts):
+                output_html = parts[i + 1]
                 i += 2
             elif parts[i] == "--no-report":
                 generate_reports = False
@@ -1592,10 +1692,15 @@ side-by-side comparison with consistency assessment.
             result = compare_runs(resolved_dirs, labels, generate_reports=generate_reports)
             display_comparison(result, console)
 
-            # Save JSON report if requested
             if output_file:
                 result.save_json(output_file)
-                console.print(f"[green]Report saved to: {output_file}[/green]")
+                console.print(f"[green]JSON saved:  {output_file}[/green]")
+            if output_md:
+                save_comparison_markdown(result, output_md)
+                console.print(f"[green]MD saved:    {output_md}[/green]")
+            if output_html:
+                save_comparison_html(result, output_html)
+                console.print(f"[green]HTML saved:  {output_html}[/green]")
         except Exception as e:
             console.print(f"[red]Comparison failed: {e}[/red]")
             logger.exception("Error in compare")
@@ -1670,7 +1775,19 @@ def main():
         "--compare-output",
         default=None,
         metavar="FILE",
-        help="Save comparison report to a JSON file"
+        help="Save comparison to a JSON file"
+    )
+    parser.add_argument(
+        "--compare-output-md",
+        default=None,
+        metavar="FILE",
+        help="Save comparison to a Markdown file"
+    )
+    parser.add_argument(
+        "--compare-output-html",
+        default=None,
+        metavar="FILE",
+        help="Save comparison to a self-contained HTML file"
     )
     parser.add_argument(
         "--no-report",
@@ -1742,8 +1859,14 @@ def main():
 
             if args.compare_output:
                 result.save_json(args.compare_output)
-                console.print(f"[green]Report saved to: {args.compare_output}[/green]")
-            
+                console.print(f"[green]JSON saved:  {args.compare_output}[/green]")
+            if args.compare_output_md:
+                save_comparison_markdown(result, args.compare_output_md)
+                console.print(f"[green]MD saved:    {args.compare_output_md}[/green]")
+            if args.compare_output_html:
+                save_comparison_html(result, args.compare_output_html)
+                console.print(f"[green]HTML saved:  {args.compare_output_html}[/green]")
+
             sys.exit(0)
         except Exception as e:
             console.print(f"[red]Comparison failed: {e}[/red]")

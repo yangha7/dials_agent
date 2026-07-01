@@ -55,456 +55,35 @@ Six parameters defining the crystal lattice:
 ### Space Group
 Symmetry of the crystal structure, e.g., P212121, I213, C2
 
-## Command Reference (with Full Parameter Details)
+## Command Reference
+
+**Use the `lookup_phil_params` tool whenever you need command parameters, options, or detailed docs.** Do not guess parameters from memory.
+
+The main workflow commands and their purpose:
+
+| Command | Purpose | Key outputs |
+|---|---|---|
+| `dials.import` | Read image headers, create experiment file | imported.expt |
+| `dials.find_spots` | Locate diffraction spots | strong.refl |
+| `dials.index` | Assign Miller indices, determine unit cell | indexed.expt, indexed.refl |
+| `dials.refine_bravais_settings` | Find possible Bravais lattices | bravais_setting_*.expt |
+| `dials.reindex` | Re-index to a different setting | reindexed.expt/refl |
+| `dials.refine` | Improve crystal/detector models | refined.expt, refined.refl |
+| `dials.integrate` | Measure spot intensities | integrated.expt, integrated.refl |
+| `dials.symmetry` | Determine space group (single crystal) | symmetrized.expt/refl |
+| `dials.cosym` | Determine symmetry, resolve indexing ambiguity (multi-crystal) | symmetrized.expt/refl |
+| `dials.scale` | Apply absorption/decay corrections, scale data | scaled.expt/refl, dials.scale.html |
+| `dials.export` | Export to MTZ/other formats | scaled.mtz |
+| `dials.merge` | Merge scaled data with R-free flags | merged.mtz |
+
+Key utility commands: `dials.show`, `dials.image_viewer`, `dials.reciprocal_lattice_viewer`, `dials.report`, `dials.generate_mask`, `dials.apply_mask`, `dials.filter_reflections`, `dials.search_beam_position`, `dials.two_theta_refine`, `dials.estimate_resolution`, `dials.compute_delta_cchalf`, `dials.damage_analysis`, `dials.combine_experiments`, `dials.split_experiments`, `dials.cluster_unit_cell`, `dials.modify_experiments`.
+
+Serial crystallography: `dials.stills_process`, `dials.ssx_index`, `dials.ssx_integrate`.
 
 ### dials.import
-- **Purpose**: Import image data files into DIALS format. Reads metadata and creates experiment file.
-- **Usage**: `dials.import /path/to/images/*.cbf` or `dials.import /path/to/data.nxs`
-- **Output**: imported.expt
-- **Formats**: CBF, HDF5/NeXus (.nxs, .h5), SMV, TIFF
-- **Key params**:
-  - `output.experiments=imported.expt` - Output filename
-  - `input.template=image_####.cbf` - Image template with # for frame numbers
-  - `input.directory=/path/to/images/` - Directory containing images
-  - `input.reference_geometry=ref.expt` - Use geometry from reference experiment
-  - `geometry.beam.wavelength=0.9795` - Override wavelength (Angstrom)
-  - `geometry.beam.probe=electron` - Beam probe type (x-ray, electron, neutron)
-  - `geometry.detector.distance=200` - Override detector distance (mm)
-  - `geometry.detector.slow_fast_beam_centre=105.5,111.2` - Override beam centre (mm)
-  - `geometry.goniometer.axis=1,0,0` - Override rotation axis
-  - `geometry.scan.image_range=1,1800` - Override image range
-  - `geometry.scan.oscillation=0,0.1` - Override oscillation (start, width)
-  - `lookup.mask=mask.pickle` - Apply a pixel mask
-  - `format.dynamic_shadowing=auto` - Enable dynamic shadowing
-- **Tip**: For large datasets, offer to use image_range to process a subset first
-
-### dials.find_spots
-- **Purpose**: Find strong diffraction spots using threshold algorithms
-- **Usage**: `dials.find_spots imported.expt`
-- **Output**: strong.refl
-- **Key params**:
-  - `spotfinder.threshold.algorithm=dispersion_extended` - Algorithm: dispersion, dispersion_extended, radial_profile
-  - `spotfinder.threshold.dispersion.sigma_strong=3.0` - Sigma threshold (higher = fewer spots)
-  - `spotfinder.threshold.dispersion.sigma_background=6.0` - Background sigma threshold
-  - `spotfinder.threshold.dispersion.global_threshold=0` - Global intensity threshold
-  - `spotfinder.threshold.dispersion.gain=None` - Detector gain override
-  - `spotfinder.filter.d_min=2.0` - High resolution limit (Angstrom)
-  - `spotfinder.filter.d_max=50` - Low resolution limit (Angstrom)
-  - `spotfinder.filter.min_spot_size=Auto` - Minimum spot size (pixels)
-  - `spotfinder.filter.max_spot_size=1000` - Maximum spot size (pixels)
-  - `spotfinder.filter.ice_rings.filter=True` - Filter ice ring regions
-  - `spotfinder.scan_range=1,100` - Image range to search (multiple allowed)
-  - `spotfinder.region_of_interest=100,900,100,900` - Detector ROI (x0,x1,y0,y1)
-  - `spotfinder.force_2d=False` - Force 2D spot finding
-  - `spotfinder.mp.nproc=4` - Number of processes
-  - `spotfinder.filter.untrusted.rectangle=0,100,0,100` - Mask rectangle region
-  - `spotfinder.filter.untrusted.circle=500,500,50` - Mask circle region
-
-### dials.index
-- **Purpose**: Assign Miller indices and determine unit cell
-- **Usage**: `dials.index imported.expt strong.refl`
-- **Output**: indexed.expt, indexed.refl
-- **Key params**:
-  - `indexing.method=fft3d` - Method: fft1d, fft3d, real_space_grid_search, ffbidx, low_res_spot_match, pink_indexer
-  - `indexing.known_symmetry.unit_cell=37,79,79,90,90,90` - Known unit cell
-  - `indexing.known_symmetry.space_group=P212121` - Known space group
-  - `indexing.max_lattices=1` - Max lattices to find (increase for multi-lattice)
-  - `indexing.joint_indexing=Auto` - Joint indexing of multiple experiments
-  - `indexing.nproc=4` - Number of processes
-  - `indexing.index_assignment.simple.hkl_tolerance=0.3` - HKL assignment tolerance
-  - `indexing.refinement_protocol.n_macro_cycles=5` - Refinement macro-cycles
-  - `indexing.refinement_protocol.d_min_start=4.0` - Starting resolution limit
-  - `indexing.refinement_protocol.d_min_final=1.5` - Final resolution limit
-  - `indexing.image_range=1,100` - Subset of images for indexing
-  - `refinement.parameterisation.beam.fix=all` - Fix beam parameters
-  - `refinement.parameterisation.detector.fix=all` - Fix detector parameters
-  - `refinement.parameterisation.crystal.fix=cell` - Fix crystal parameters
-  - `refinement.reflections.outlier.algorithm=auto` - Outlier rejection: null, auto, mcd, tukey
-
-### dials.refine_bravais_settings
-- **Purpose**: Determine possible Bravais lattices consistent with indexed data
-- **Usage**: `dials.refine_bravais_settings indexed.expt indexed.refl`
-- **Output**: bravais_summary.json, bravais_setting_*.expt
-- **Key params**:
-  - `lepage_max_delta=5` - Maximum delta for Le Page algorithm
-  - `nproc=Auto` - Number of processes
-  - `best_monoclinic_beta=True` - Prefer I2 over C2 for less oblique cell
-  - `crystal_id=None` - Crystal ID for multi-crystal experiments
-
-### dials.reindex
-- **Purpose**: Re-index data from one setting to another
-- **Usage**: `dials.reindex indexed.expt indexed.refl change_of_basis_op=b+c,a+c,a+b`
-- **Output**: reindexed.expt, reindexed.refl
-- **Key params**:
-  - `change_of_basis_op=a,b,c` - Change of basis (h,k,l or a,b,c or x,y,z notation)
-  - `space_group=P212121` - Space group to apply AFTER change of basis
-  - `hkl_offset=0,0,1` - HKL offset
-  - `reference.experiments=ref.expt` - Reference for resolving indexing ambiguity
-  - `reference.reflections=ref.refl` - Reference reflections
-
-### dials.refine
-- **Purpose**: Refine crystal and detector models against indexed reflections
-- **Usage**: `dials.refine indexed.expt indexed.refl`
-- **Output**: refined.expt, refined.refl
-- **Key params**:
-  - `refinement.parameterisation.scan_varying=Auto` - Scan-varying refinement (Auto/True/False)
-  - `refinement.parameterisation.interval_width_degrees=36.0` - Interval for scan-varying
-  - `refinement.parameterisation.beam.fix=in_spindle_plane+wavelength` - Fix beam: all, in_spindle_plane, out_spindle_plane, wavelength
-  - `refinement.parameterisation.crystal.fix=cell` - Fix crystal: all, cell, orientation
-  - `refinement.parameterisation.detector.fix=all` - Fix detector: all, position, orientation, distance
-  - `refinement.parameterisation.goniometer.fix=all` - Fix goniometer: all, in_beam_plane, out_beam_plane
-  - `refinement.reflections.outlier.algorithm=auto` - Outlier rejection algorithm
-  - `n_static_macrocycles=1` - Number of static refinement macro-cycles
-
-### dials.integrate
-- **Purpose**: Integrate reflections to measure intensities
-- **Usage**: `dials.integrate refined.expt refined.refl`
-- **Output**: integrated.expt, integrated.refl
-- **Key params**:
-  - `integration.profile.fitting=True` - Use profile fitting (False for summation only)
-  - `integration.background.algorithm=Auto` - Background: Auto, glm, gmodel, null, simple
-  - `integration.block.size=auto` - Block size for processing
-  - `integration.block.units=degrees` - Block units: degrees, radians, frames
-  - `integration.block.max_memory_usage=0.80` - Max memory fraction
-  - `integration.mp.nproc=4` - Number of processes
-  - `integration.mp.njobs=1` - Number of cluster jobs
-  - `integration.mp.method=multiprocessing` - Method: multiprocessing, drmaa, sge, lsf, pbs
-  - `prediction.d_min=1.5` - High resolution limit (Angstrom)
-  - `prediction.d_max=50` - Low resolution limit (Angstrom)
-  - `scan_range=1,100` - Image range to integrate
-  - `integration.lookup.mask=mask.pickle` - Apply mask during integration
-
-### dials.symmetry
-- **Purpose**: Determine Laue group symmetry (POINTLESS method, best for single crystal)
-- **Usage**: `dials.symmetry integrated.expt integrated.refl`
-- **Output**: symmetrized.expt, symmetrized.refl, dials.symmetry.html
-- **Key params**:
-  - `d_min=Auto` - High resolution limit
-  - `min_i_mean_over_sigma_mean=4` - Minimum I/sigma for inclusion
-  - `min_cc_half=0.6` - Minimum CC1/2 for inclusion
-  - `normalisation=ml_aniso` - Normalisation: kernel, quasi, ml_iso, ml_aniso
-  - `laue_group=auto` - Specify Laue group (auto=test all, None=use input)
-  - `systematic_absences.check=True` - Check systematic absences
-  - `systematic_absences.method=direct` - Method: direct or fourier
-  - `best_monoclinic_beta=True` - Prefer I2 over C2 for less oblique cell
-  - `partiality_threshold=0.4` - Minimum partiality for reflections
-
-### dials.cosym
-- **Purpose**: Determine symmetry and resolve indexing ambiguity (for multiple crystals)
-- **Usage**: `dials.cosym integrated.expt integrated.refl`
-- **Output**: symmetrized.expt, symmetrized.refl
-- **When to use**: Multiple crystals, space groups with indexing ambiguity (e.g., I213)
-- **Key params**:
-  - `space_group=I213` - Target space group
-  - `d_min=2.0` - High resolution limit
-  - `lattice_group=I23` - Lattice group
-  - `best_monoclinic_beta=True` - Prefer I2 over C2
-
-### dials.scale
-- **Purpose**: Scale data with corrections for absorption, decay, and systematic effects
-- **Usage**: `dials.scale symmetrized.expt symmetrized.refl`
-- **Output**: scaled.expt, scaled.refl, dials.scale.html
-- **Models**: physical (default), KB, array, dose_decay
-- **Key params**:
-  - `model=physical` - Scaling model: KB, array, dose_decay, physical
-  - `d_min=1.8` - High resolution cutoff (Angstrom)
-  - `d_max=50` - Low resolution cutoff (Angstrom)
-  - `anomalous=True` - Separate anomalous pairs (for SAD/MAD phasing)
-  - `physical.absorption_correction=auto` - Absorption correction (auto=True if oscillation>60)
-  - `physical.absorption_level=medium` - Absorption level: low (~1%), medium (~5%), high (>25%)
-  - `physical.decay_correction=True` - Apply B-factor decay correction
-  - `physical.scale_interval=auto` - Rotation interval for scale parameters
-  - `physical.lmax=auto` - Spherical harmonics for absorption (2-6)
-  - `overwrite_existing_models=True` - For re-scaling
-  - `output.unmerged_mtz=scaled_unmerged.mtz` - Direct unmerged MTZ output
-  - `output.merged_mtz=scaled_merged.mtz` - Direct merged MTZ output
-  - `filtering.method=deltacchalf` - Enable delta CC1/2 filtering
-  - `filtering.deltacchalf.stdcutoff=4.0` - Std dev cutoff for filtering
-  - `scaling_options.check_consistent_indexing=True` - Check indexing consistency
-
-### dials.export
-- **Purpose**: Export to other formats for downstream analysis
-- **Usage**: `dials.export scaled.expt scaled.refl`
-- **Output**: scaled.mtz (default)
-- **Formats**: mtz, nxs, mmcif, xds_ascii, sadabs, mosflm, xds, shelx, pets, json
-- **Key params**:
-  - `format=mtz` - Output format
-  - `intensity=auto` - Intensity type: auto, profile, sum, scale
-  - `mtz.hklout=output.mtz` - MTZ output filename
-  - `mtz.combine_partials=True` - Combine partial reflections
-  - `mtz.partiality_threshold=0.4` - Partiality threshold
-  - `mtz.filter_ice_rings=True` - Filter ice ring reflections
-  - `mtz.d_min=1.5` - Resolution limit for MTZ
-  - `mtz.best_unit_cell=67.5,67.5,67.5,90,90,90` - Best unit cell
-  - `nxs.hklout=output.nxs` - NeXus output filename
-  - `mmcif.hklout=output.mmcif` - mmCIF output filename
-  - `shelx.hklout=dials.hkl` - SHELX output filename
-  - `shelx.composition=C3H7NO2S` - Composition for SHELX
-
-## Utility Commands
-
-### dials.show
-- **Purpose**: Display experiment/reflection information
-- **Usage**: `dials.show imported.expt` or `dials.show indexed.refl`
-- **Key params**: `show_scan_varying=True`, `show_all_reflection_data=True`, `show_flags=True`, `show_identifiers=True`, `max_reflections=100`
-
-### dials.image_viewer
-- **Purpose**: Interactive image viewer (GUI)
-- **Usage**: `dials.image_viewer imported.expt strong.refl`
-
-### dials.reciprocal_lattice_viewer
-- **Purpose**: 3D reciprocal space viewer (GUI)
-- **Usage**: `dials.reciprocal_lattice_viewer indexed.expt indexed.refl`
-
-### dials.report
-- **Purpose**: Generate HTML analysis report
-- **Usage**: `dials.report integrated.refl integrated.expt`
-- **Key params**: `output.html=dials.report.html`, `output.json=report.json`
-
-### dials.estimate_resolution
-- **Purpose**: Estimate resolution limits by fitting curves to merging statistics
-- **Usage**: `dials.estimate_resolution scaled.expt scaled.refl` or `dials.estimate_resolution scaled_unmerged.mtz`
-- **Metrics**: cc_half (default), isigma, misigma, completeness, rmerge, cc_ref
-- **Key params**: `resolution.cc_half=0.3`, `resolution.isigma=0.25`, `resolution.misigma=1.0`, `resolution.completeness=0.5`, `resolution.rmerge=0.5`, `resolution.reference=ref.mtz`
-
-### dials.merge
-- **Purpose**: Merge scaled data into MTZ file
-- **Usage**: `dials.merge scaled.expt scaled.refl`
-- **Key params**: `d_min=1.8`, `anomalous=True`, `n_bins=20`, `best_unit_cell=...`, `partiality_threshold=0.4`
-
-### dials.two_theta_refine
-- **Purpose**: Refine unit cell using 2-theta angles (more accurate than standard refinement)
-- **Usage**: `dials.two_theta_refine integrated.expt integrated.refl`
-
-### dials.generate_mask
-- **Purpose**: Generate pixel mask for excluding bad detector regions
-- **Usage**: `dials.generate_mask imported.expt`
-- **Key params**: `border=5`, `d_min=2.0`, `d_max=20.0`, `untrusted.rectangle=50,100,50,100`, `untrusted.circle=200,200,100`, `ice_rings.filter=True`, `resolution_range=3.4,3.5`, `output.mask=pixels.mask`
-
-### dials.apply_mask
-- **Purpose**: Apply a pixel mask to an experiment file
-- **Usage**: `dials.apply_mask imported.expt pixels.mask`
-
-### dials.filter_reflections
-- **Purpose**: Filter reflections by flags, resolution, partiality, and other criteria
-- **Usage**: `dials.filter_reflections refined.refl flag_expression=used_in_refinement`
-- **Key params**: `flag_expression='integrated & ~reference_spot'`, `d_min=2.5`, `d_max=20`, `partiality.min=0.5`, `select_good_intensities=True`, `ice_rings.filter=True`
-
-### dials.search_beam_position
-- **Purpose**: Search for optimal beam centre position
-- **Usage**: `dials.search_beam_position imported.expt strong.refl`
-- **Key params**: `method=default` (or midpoint, maximum, inversion), `default.mm_search_scope=4.0`, `default.max_reflections=10000`
-
-### dials.check_indexing_symmetry
-- **Purpose**: Check indexing symmetry of indexed reflections
-- **Usage**: `dials.check_indexing_symmetry indexed.expt indexed.refl`
-- **Key params**: `d_min=2.0`, `grid_search_scope=0`
-
-### dials.combine_experiments
-- **Purpose**: Combine multiple experiment/reflection files into one
-- **Usage**: `dials.combine_experiments exp1.expt exp2.expt refl1.refl refl2.refl`
-- **Key params**: `reference_from_experiment.beam=0`, `reference_from_experiment.detector=0`, `clustering.use=True`
-
-### dials.split_experiments
-- **Purpose**: Split multi-experiment file into separate files
-- **Usage**: `dials.split_experiments combined.expt combined.refl`
-
-### dials.spot_counts_per_image
-- **Purpose**: Print spot counts per image for quality assessment
-- **Usage**: `dials.spot_counts_per_image strong.refl`
-
-### dials.detect_blanks
-- **Purpose**: Identify blank or damaged images
-- **Usage**: `dials.detect_blanks imported.expt strong.refl`
-
-### dials.predict
-- **Purpose**: Predict reflection positions from experiment model
-- **Usage**: `dials.predict refined.expt`
-
-### dials.estimate_gain
-- **Purpose**: Estimate detector gain from images
-- **Usage**: `dials.estimate_gain imported.expt`
-
-### dials.anvil_correction
-- **Purpose**: Apply diamond anvil cell absorption correction
-- **Usage**: `dials.anvil_correction integrated.expt integrated.refl`
-- **Key params**: `anvil.thickness=1.5925`
-
-### dials.import_xds
-- **Purpose**: Import XDS processing results into DIALS format
-- **Usage**: `dials.import_xds XPARM.XDS INTEGRATE.HKL`
-
-### dials.align_crystal
-- **Purpose**: Calculate goniometer settings to align crystal axes
-- **Usage**: `dials.align_crystal refined.expt`
-
-### dials.missing_reflections
-- **Purpose**: Identify missing reflections for completeness analysis
-- **Usage**: `dials.missing_reflections scaled.expt scaled.refl`
-
-### dials.stereographic_projection
-- **Purpose**: Generate stereographic projections of crystal orientations
-- **Usage**: `dials.stereographic_projection refined.expt hkl=1,0,0`
-
-### dials.plot_scan_varying_model
-- **Purpose**: Plot scan-varying crystal model parameters vs image number
-- **Usage**: `dials.plot_scan_varying_model refined.expt`
-
-## Additional Utility Commands
-
-### dials.merge
-- **Purpose**: Merge scaled data into a single MTZ file with R-free flags and French-Wilson treatment
-- **Usage**: `dials.merge scaled.expt scaled.refl`
-- **Output**: merged.mtz, dials.merge.html
-- **Key params**:
-  - `d_min=1.8` - High resolution cutoff
-  - `d_max=50` - Low resolution cutoff
-  - `anomalous=True` - Output anomalous intensities
-  - `truncate=True` - Apply French & Wilson correction for amplitudes
-  - `best_unit_cell=67.5,67.5,67.5,90,90,90` - Override unit cell
-  - `n_residues=200` - Number of residues for Wilson scaling
-  - `partiality_threshold=0.4` - Minimum partiality
-  - `assess_space_group=True` - Check space group from axial reflections
-  - `r_free_flags.generate=True` - Generate R-free flags
-  - `r_free_flags.fraction=0.05` - Fraction of reflections in test set
-  - `output.mtz=merged.mtz` - Output filename
-  - `output.additional_stats=False` - Calculate R-split statistic
-  - `exclude_images=0:150:200` - Exclude image range (exp:start:end)
-
-### dials.estimate_resolution
-- **Purpose**: Estimate resolution limits by fitting curves to merging statistics
-- **Usage**: `dials.estimate_resolution scaled.expt scaled.refl` or `dials.estimate_resolution scaled_unmerged.mtz`
-- **Metrics**: cc_half (default), isigma, misigma, completeness, rmerge, cc_ref
-- **Key params**: `resolution.cc_half=0.3`, `resolution.isigma=0.25`, `resolution.misigma=1.0`, `resolution.completeness=0.5`, `resolution.rmerge=0.5`, `resolution.reference=ref.mtz`
-
-### dials.search_beam_position
-- **Purpose**: Search for optimal beam centre position using grid search
-- **Usage**: `dials.search_beam_position imported.expt strong.refl`
-- **Key params**: `method=default`, `default.mm_search_scope=4.0`, `default.max_reflections=10000`, `default.wide_search_binning=2`
-
-### dials.generate_mask
-- **Purpose**: Generate pixel mask for excluding bad detector regions, ice rings, or resolution ranges
-- **Usage**: `dials.generate_mask imported.expt`
-- **Key params**:
-  - `border=5` - Mask border pixels
-  - `d_min=2.0` - Mask below this resolution
-  - `d_max=20.0` - Mask above this resolution
-  - `resolution_range=3.4,3.5` - Mask specific resolution range (multiple allowed)
-  - `untrusted.rectangle=50,100,50,100` - Mask rectangle (x0,x1,y0,y1)
-  - `untrusted.circle=200,200,100` - Mask circle (xc,yc,r)
-  - `untrusted.polygon=x1,y1,x2,y2,...` - Mask polygon
-  - `ice_rings.filter=True` - Mask ice ring regions
-  - `ice_rings.d_min=1.0` - Min resolution for ice ring masking
-  - `output.mask=pixels.mask` - Output mask filename
-  - `output.experiments=masked.expt` - Output experiment with mask applied
-
-### dials.filter_reflections
-- **Purpose**: Filter reflections by flags, resolution, partiality, and other criteria
-- **Usage**: `dials.filter_reflections refined.refl flag_expression=used_in_refinement`
-- **Key params**:
-  - `flag_expression='integrated & ~reference_spot'` - Boolean flag expression
-  - `d_min=2.5` - High resolution limit
-  - `d_max=20` - Low resolution limit
-  - `partiality.min=0.5` - Minimum partiality
-  - `select_good_intensities=True` - Select only good intensities
-  - `ice_rings.filter=True` - Filter ice ring reflections
-  - `dead_time.value=0` - Detector dead time correction
-
-### dials.compute_delta_cchalf
-- **Purpose**: Compute ΔCC½ for each dataset/image group to identify outliers
-- **Usage**: `dials.compute_delta_cchalf scaled.expt scaled.refl`
-- **Key params**: `mode=dataset` (or image_group), `stdcutoff=4.0`, `group_size=10`
-
-### dials.damage_analysis
-- **Purpose**: Analyze radiation damage using dose-dependent statistics (Rd plot, relative B-factor)
-- **Usage**: `dials.damage_analysis scaled.expt scaled.refl`
-- **Key params**: `dose=None` (auto from image number), `d_min=None`, `d_max=None`, `output.html=dials.damage_analysis.html`
-
-### dials.correlation_matrix
-- **Purpose**: Compute correlation matrix between datasets for clustering
-- **Usage**: `dials.correlation_matrix scaled.expt scaled.refl`
-- **Key params**: `d_min=None`, `d_max=None`, `output.html=dials.correlation_matrix.html`, `output.json=dials.correlation_matrix.json`
-
-### dials.refine_error_model
-- **Purpose**: Refine the error model for scaled data to improve sigma estimates
-- **Usage**: `dials.refine_error_model scaled.expt scaled.refl`
-- **Key params**: `error_model=basic`, `basic.a=None`, `basic.b=None`, `output.html=dials.refine_error_model.html`
-
-### dials.modify_experiments
-- **Purpose**: Modify experiment models (beam, detector, goniometer, crystal parameters)
-- **Usage**: `dials.modify_experiments refined.expt`
-- **Key params**: `geometry.beam.wavelength=0.9795`, `geometry.detector.distance=200`, `geometry.detector.slow_fast_beam_centre=105,111`
-
-### dials.slice_sequence
-- **Purpose**: Extract a subset of images from a scan
-- **Usage**: `dials.slice_sequence imported.expt strong.refl image_range=1,500`
-- **Key params**: `image_range=1,500`, `block_size=100`
-
-### dials.cluster_unit_cell
-- **Purpose**: Cluster unit cells from multiple experiments to identify groups
-- **Usage**: `dials.cluster_unit_cell *.expt`
-- **Key params**: `threshold=5000`, `plot.show=False`, `plot.name=cluster_unit_cell.png`
-
-### dials.background
-- **Purpose**: Analyze background levels across images
-- **Usage**: `dials.background imported.expt`
-- **Key params**: `n_bins=100`, `images=1,10,100`
-
-### dials.detect_blanks
-- **Purpose**: Identify blank or damaged images in a scan
-- **Usage**: `dials.detect_blanks imported.expt strong.refl`
-- **Key params**: `phi_step=2`, `counts_fractional_loss=0.1`, `misigma_fractional_loss=0.1`
-
-### dials.spot_counts_per_image
-- **Purpose**: Print spot counts per image for quality assessment
-- **Usage**: `dials.spot_counts_per_image strong.refl`
-
-### dials.find_hot_pixels
-- **Purpose**: Find hot pixels in detector images
-- **Usage**: `dials.find_hot_pixels imported.expt`
-- **Key params**: `output.mask=hot_pixels.mask`
-
-### dials.predict
-- **Purpose**: Predict reflection positions from experiment model
-- **Usage**: `dials.predict refined.expt`
-- **Key params**: `d_min=1.5`, `d_max=50`, `output.reflections=predicted.refl`
-
-### dials.two_theta_refine
-- **Purpose**: Refine unit cell using 2θ angles (more accurate than standard refinement)
-- **Usage**: `dials.two_theta_refine integrated.expt integrated.refl`
-- **Key params**: `output.experiments=tt_refined.expt`, `output.p4p=refined_cell.p4p`
-
-### dials.align_crystal
-- **Purpose**: Calculate goniometer settings to align crystal axes with beam/rotation axis
-- **Usage**: `dials.align_crystal refined.expt`
-- **Key params**: `align.crystal.vector=0,0,1`, `align.frame=laboratory`
-
-### dials.anvil_correction
-- **Purpose**: Apply diamond anvil cell absorption correction
-- **Usage**: `dials.anvil_correction integrated.expt integrated.refl`
-- **Key params**: `anvil.thickness=1.5925`, `anvil.density=3.51`
-
-### dials.sequence_to_stills
-- **Purpose**: Convert rotation data to still shots (for stills processing pipeline)
-- **Usage**: `dials.sequence_to_stills refined.expt refined.refl`
-
-## Serial Crystallography (SSX) Commands
-
-### dials.stills_process
-- **Purpose**: Full SSX/stills processing pipeline (import → spot finding → indexing → integration in one step)
-- **Usage**: `dials.stills_process /path/to/images/*.cbf`
-- **Key params**: Many — use `lookup_phil_params` tool for full list (2500+ lines of parameters)
-- **When to use**: Serial crystallography, XFEL data, still shots
-
-### dials.ssx_index
-- **Purpose**: Index serial crystallography still shots
-- **Usage**: `dials.ssx_index imported.expt strong.refl`
-- **Key params**: `indexing.method=fft3d`, `indexing.known_symmetry.unit_cell=...`, `indexing.known_symmetry.space_group=...`, `nproc=8`
-
-### dials.ssx_integrate
-- **Purpose**: Integrate serial crystallography still shots
-- **Usage**: `dials.ssx_integrate indexed.expt indexed.refl`
-- **Key params**: `algorithm=ellipsoid` (or stills), `nproc=8`, `ellipsoid.rlp_mosaicity.model=simple6`
+- Formats: CBF, HDF5/NeXus (.nxs, .h5), SMV, TIFF
+- Tip: for large datasets, offer `image_range=1,1200` to process a subset first
+- Use `lookup_phil_params` for full parameter list
 
 ## PHIL Parameter Lookup
 
@@ -908,55 +487,57 @@ You have access to tools that allow you to suggest DIALS commands, check workflo
 
 
 def get_system_prompt() -> str:
-    """Get the system prompt for the DIALS AI Agent."""
+    """Get the static system prompt for the DIALS AI Agent (suitable for prompt caching)."""
     from .tutorials import get_tutorial_prompt_section
     tutorials_section = get_tutorial_prompt_section()
     return SYSTEM_PROMPT.replace("{tutorials_section}", tutorials_section)
 
 
-def get_system_prompt_with_context(
+def get_dynamic_context(
     working_directory: str,
-    existing_files: list[str],
-    data_files: list[dict[str, str]] | None = None,
+    existing_files: "list[str]",
+    data_files: "list[dict[str, str]] | None" = None,
     data_directory: str = ""
 ) -> str:
     """
-    Get the system prompt with additional context about the current state.
-    
-    Args:
-        working_directory: The current working directory
-        existing_files: List of DIALS-related files in the directory
-        data_files: List of discovered diffraction data files (from discover_data_files())
-        data_directory: Configured data directory path (for display in context)
-        
-    Returns:
-        System prompt with context appended
+    Build the small dynamic context block appended after the cached static prompt.
+
+    This is the only part that changes per-session, so it must NOT carry
+    cache_control — only the static prompt block should be cached.
     """
-    # Format data files section
     if data_files:
         data_files_section = "Available diffraction data files:\n"
         for f in data_files:
             data_files_section += f"- {f['path']} ({f['type']}, {f['size_mb']} MB)\n"
     else:
         data_files_section = "Available diffraction data files:\n- None found. Ask the user to specify the path to their data file."
-    
-    # Data directory info
-    data_dir_section = ""
-    if data_directory:
-        data_dir_section = f"\nData directory (input files): {data_directory}"
-    
-    context = f"""
 
-## Current Context
+    data_dir_section = f"\nData directory (input files): {data_directory}" if data_directory else ""
 
-Working directory: {working_directory}{data_dir_section}
+    return (
+        "\n## Current Context\n\n"
+        f"Working directory: {working_directory}{data_dir_section}\n\n"
+        f"{data_files_section}\n\n"
+        "Existing DIALS files:\n"
+        + (
+            "\n".join(f"- {f}" for f in existing_files)
+            if existing_files
+            else "- None found"
+        )
+        + "\n\nBased on the existing files, determine what step of the workflow the user is "
+        "at and suggest appropriate next steps.\n"
+        "When suggesting dials.import commands, use the actual file paths from "
+        '"Available diffraction data files" above.'
+    )
 
-{data_files_section}
 
-Existing DIALS files:
-{chr(10).join(f'- {f}' for f in existing_files) if existing_files else '- None found'}
-
-Based on the existing files, determine what step of the workflow the user is at and suggest appropriate next steps.
-When suggesting dials.import commands, use the actual file paths from "Available diffraction data files" above."""
-    
-    return get_system_prompt() + context
+def get_system_prompt_with_context(
+    working_directory: str,
+    existing_files: "list[str]",
+    data_files: "list[dict[str, str]] | None" = None,
+    data_directory: str = ""
+) -> str:
+    """Concatenated prompt for providers that don't support list-form system (OpenAI-compat)."""
+    return get_system_prompt() + get_dynamic_context(
+        working_directory, existing_files, data_files, data_directory
+    )
