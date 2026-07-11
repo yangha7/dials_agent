@@ -1000,3 +1000,120 @@ def display_comparison_markdown(result: ComparisonResult) -> str:
     lines.append(result.summary)
 
     return "\n".join(lines)
+
+
+def save_comparison_markdown(result: ComparisonResult, filepath: str) -> None:
+    """Write the comparison as a Markdown file."""
+    Path(filepath).write_text(display_comparison_markdown(result), encoding="utf-8")
+
+
+def display_comparison_html(result: ComparisonResult) -> str:
+    """
+    Generate a self-contained HTML report for the comparison.
+
+    Returns an HTML string with inline CSS — no external dependencies.
+    """
+    status_color = {"consistent": "#2e7d32", "partial": "#e65100", "differs": "#c62828", "n/a": "#757575"}
+    status_label = {"consistent": "✓ same", "partial": "~ close", "differs": "✗ differs", "n/a": "—"}
+
+    def esc(s: str) -> str:
+        return (s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+    # ── header ──────────────────────────────────────────────────────────────
+    html = ["""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DIALS Run Comparison</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 2rem auto; padding: 0 1rem; color: #212121; }
+  h1   { color: #1565c0; }
+  h2   { color: #37474f; border-bottom: 1px solid #cfd8dc; padding-bottom: .3rem; margin-top: 2rem; }
+  table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+  th, td { padding: .5rem .75rem; border: 1px solid #cfd8dc; text-align: left; }
+  th { background: #eceff1; font-weight: 600; }
+  tr:nth-child(even) { background: #f9fafb; }
+  .consistent { color: #2e7d32; font-weight: 600; }
+  .partial    { color: #e65100; font-weight: 600; }
+  .differs    { color: #c62828; font-weight: 600; }
+  .na         { color: #757575; }
+  .badge-ok   { background: #e8f5e9; border-radius: 4px; padding: 2px 6px; }
+  .badge-warn { background: #fff3e0; border-radius: 4px; padding: 2px 6px; }
+  .badge-err  { background: #ffebee; border-radius: 4px; padding: 2px 6px; }
+  pre  { background: #f5f5f5; padding: 1rem; border-radius: 4px; overflow-x: auto; }
+  ul   { margin-top: .5rem; }
+  .summary { background: #f1f8e9; border-left: 4px solid #7cb342; padding: 1rem; border-radius: 4px; }
+</style>
+</head>
+<body>
+"""]
+
+    html.append(f"<h1>DIALS Run Comparison</h1>\n<p>Comparing <strong>{len(result.runs)}</strong> processing runs.</p>\n")
+
+    # ── runs overview ────────────────────────────────────────────────────────
+    html.append("<h2>Runs</h2><ul>")
+    for r in result.runs:
+        status = "✓ complete" if r.workflow_complete else f"→ {r.final_stage}"
+        html.append(f"  <li><strong>{esc(r.label)}</strong>: <code>{esc(r.directory)}</code> ({esc(status)})</li>")
+    html.append("</ul>")
+
+    # ── metrics table ────────────────────────────────────────────────────────
+    html.append("<h2>Metrics</h2>")
+    html.append("<table><thead><tr><th>Metric</th>")
+    for run in result.runs:
+        html.append(f"<th>{esc(run.label)}</th>")
+    html.append("<th>Status</th></tr></thead><tbody>")
+
+    for metric_name, values in result.metrics_table.items():
+        if all(v is None for v in values):
+            continue
+        status = result.consistency.get(metric_name, "n/a")
+        css = {"consistent": "consistent", "partial": "partial", "differs": "differs"}.get(status, "na")
+        badge = {"consistent": "badge-ok", "partial": "badge-warn", "differs": "badge-err"}.get(status, "")
+        label = status_label.get(status, status)
+
+        html.append("<tr>")
+        html.append(f"  <td>{esc(metric_name)}</td>")
+        for v in values:
+            cell = esc(_format_value(v))
+            if status == "differs":
+                cell = f'<span class="differs">{cell}</span>'
+            elif status == "partial":
+                cell = f'<span class="partial">{cell}</span>'
+            html.append(f"  <td>{cell}</td>")
+        html.append(f'  <td><span class="{css} {badge}">{esc(label)}</span></td>')
+        html.append("</tr>")
+
+    html.append("</tbody></table>")
+
+    # ── commands ─────────────────────────────────────────────────────────────
+    if any(r.commands for r in result.runs):
+        html.append("<h2>Commands Executed</h2><table><thead><tr><th>Run</th><th>#</th><th>Sequence</th></tr></thead><tbody>")
+        for run in result.runs:
+            cmd_names = [c.split()[0] for c in run.commands] if run.commands else []
+            seq = " → ".join(esc(c) for c in cmd_names) if cmd_names else "—"
+            html.append(f"<tr><td><strong>{esc(run.label)}</strong></td><td>{len(run.commands)}</td><td><code>{seq}</code></td></tr>")
+        html.append("</tbody></table>")
+
+    # ── dials.report links ───────────────────────────────────────────────────
+    if result.report_html:
+        html.append("<h2>DIALS Reports</h2><ul>")
+        for run, rpt_html, err in zip(result.runs, result.report_html, result.report_errors):
+            if rpt_html:
+                name = esc(Path(rpt_html).name)
+                html.append(f'  <li><strong>{esc(run.label)}</strong>: <a href="{esc(rpt_html)}">{name}</a></li>')
+            else:
+                html.append(f'  <li><strong>{esc(run.label)}</strong>: not generated ({esc(err or "unknown error")})</li>')
+        html.append("</ul>")
+
+    # ── summary ──────────────────────────────────────────────────────────────
+    html.append(f'<h2>Summary</h2><div class="summary"><pre>{esc(result.summary)}</pre></div>')
+
+    html.append("</body></html>")
+    return "\n".join(html)
+
+
+def save_comparison_html(result: ComparisonResult, filepath: str) -> None:
+    """Write the comparison as a self-contained HTML file."""
+    Path(filepath).write_text(display_comparison_html(result), encoding="utf-8")

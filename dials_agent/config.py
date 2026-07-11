@@ -82,8 +82,12 @@ class Settings(BaseSettings):
         description="Model to use (auto-selected per provider if empty)"
     )
     max_tokens: int = Field(
-        default=4096,
+        default=16384,
         description="Maximum tokens in response"
+    )
+    token_budget: int = Field(
+        default=0,
+        description="Optional session token budget (input+output). 0 = no limit. Shown as 'budget remaining' in the UI."
     )
     
     # ── DIALS settings ─────────────────────────────────────────────────

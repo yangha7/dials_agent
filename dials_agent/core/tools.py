@@ -260,6 +260,50 @@ TOOLS = [
         }
     },
     {
+        "name": "create_markdown_file",
+        "description": "Write markdown content to a .md file in the working directory. Use this to save notes, summaries, processing reports, or any structured text the user wants to keep. The filename must end in .md. Content should be valid markdown.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "filename": {
+                    "type": "string",
+                    "description": "The filename to write (must end in .md, relative to working directory, e.g. 'processing_notes.md', 'session_report.md')"
+                },
+                "content": {
+                    "type": "string",
+                    "description": "The markdown content to write to the file"
+                },
+                "overwrite": {
+                    "type": "boolean",
+                    "description": "If true, overwrite existing file. If false and file exists, return an error. Default: true."
+                }
+            },
+            "required": ["filename", "content"]
+        }
+    },
+    {
+        "name": "create_html_file",
+        "description": "Write HTML content to a .html file in the working directory. Use this to save self-contained HTML reports, dashboards, or visualizations the user wants to keep. The filename must end in .html.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "filename": {
+                    "type": "string",
+                    "description": "The filename to write (must end in .html, relative to working directory, e.g. 'report.html', 'processing_summary.html')"
+                },
+                "content": {
+                    "type": "string",
+                    "description": "The HTML content to write to the file"
+                },
+                "overwrite": {
+                    "type": "boolean",
+                    "description": "If true, overwrite existing file. If false and file exists, return an error. Default: true."
+                }
+            },
+            "required": ["filename", "content"]
+        }
+    },
+    {
         "name": "diagnose_problem",
         "description": "Diagnose a DIALS processing problem and suggest parameter-level fixes. Use this when the user reports an issue like 'indexing failed', 'too few spots', 'high Rmerge', 'low completeness', etc. Returns specific parameter suggestions based on common crystallography problems.",
         "input_schema": {
@@ -480,133 +524,77 @@ def discover_data_files(
     working_directory: str = ".",
     search_parent: bool = True,
     max_depth: int = 2,
-    data_directory: str = ""
+    data_directory: str = "",
+    max_files: int = 30,
 ) -> list[dict[str, str]]:
     """
     Discover diffraction data files that can be imported by DIALS.
-    
-    Searches the working directory, optionally parent/sibling directories,
-    and a configured data directory for common diffraction data file formats.
-    
-    Args:
-        working_directory: The directory to start searching from
-        search_parent: Whether to also search parent directory and siblings
-        max_depth: Maximum depth to search within directories
-        data_directory: Additional directory to search for input data files
-        
-    Returns:
-        List of dicts with 'path' (relative path to file) and 'type' (file type)
+
+    Searches the working directory, the parent directory (files only, not
+    recursive), and an explicitly configured data_directory.  Sibling
+    directories are intentionally excluded — on a shared RAID they can
+    contain thousands of files and blow up the context window.
+
+    Returns at most *max_files* entries so the dynamic context stays small.
     """
     data_files = []
+    seen: set = set()
     working_path = Path(working_directory).resolve()
-    
-    def scan_directory(directory: Path, relative_base: Path, current_depth: int = 0):
-        """Recursively scan a directory for data files."""
-        if current_depth > max_depth:
+
+    def add_file(item: Path) -> None:
+        resolved = str(item.resolve())
+        if resolved in seen:
             return
-        
+        seen.add(resolved)
+        suffix = item.suffix.lower()
         try:
-            for item in directory.iterdir():
-                if item.is_file():
-                    suffix = item.suffix.lower()
-                    if suffix in DATA_FILE_EXTENSIONS:
-                        # Calculate relative path from working directory
-                        try:
-                            rel_path = item.relative_to(working_path)
-                        except ValueError:
-                            # File is not under working_path, use relative path with ..
-                            rel_path = os.path.relpath(item, working_path)
-                        
-                        data_files.append({
-                            "path": str(rel_path),
-                            "type": suffix[1:].upper(),  # Remove dot, uppercase
-                            "name": item.name,
-                            "size_mb": round(item.stat().st_size / (1024 * 1024), 1)
-                        })
-                elif item.is_dir() and not item.name.startswith('.'):
-                    # Recurse into subdirectories
-                    scan_directory(item, relative_base, current_depth + 1)
+            rel_path = item.relative_to(working_path)
+        except ValueError:
+            rel_path = os.path.relpath(item, working_path)
+        data_files.append({
+            "path": str(rel_path),
+            "type": suffix[1:].upper(),
+            "name": item.name,
+            "size_mb": round(item.stat().st_size / (1024 * 1024), 1),
+        })
+
+    def scan_directory(directory: Path, current_depth: int = 0) -> None:
+        if current_depth > max_depth or len(data_files) >= max_files:
+            return
+        try:
+            for item in sorted(directory.iterdir()):
+                if len(data_files) >= max_files:
+                    return
+                if item.is_file() and item.suffix.lower() in DATA_FILE_EXTENSIONS:
+                    add_file(item)
+                elif item.is_dir() and not item.name.startswith("."):
+                    scan_directory(item, current_depth + 1)
         except PermissionError:
-            pass  # Skip directories we can't access
-    
-    # Scan the working directory
-    scan_directory(working_path, working_path)
-    
-    # Optionally scan parent directory and siblings
-    if search_parent and working_path.parent.exists():
+            pass
+
+    # 1. Scan the working directory itself (recursive, up to max_depth)
+    scan_directory(working_path)
+
+    # 2. Scan the parent directory — files only, no recursion into siblings.
+    #    Siblings can be enormous dataset directories on a shared RAID.
+    if search_parent and len(data_files) < max_files:
         parent = working_path.parent
-        
-        # Scan parent directory itself (not recursively)
         try:
-            for item in parent.iterdir():
-                if item.is_file():
-                    suffix = item.suffix.lower()
-                    if suffix in DATA_FILE_EXTENSIONS:
-                        rel_path = os.path.relpath(item, working_path)
-                        data_files.append({
-                            "path": str(rel_path),
-                            "type": suffix[1:].upper(),
-                            "name": item.name,
-                            "size_mb": round(item.stat().st_size / (1024 * 1024), 1)
-                        })
+            for item in sorted(parent.iterdir()):
+                if len(data_files) >= max_files:
+                    break
+                if item.is_file() and item.suffix.lower() in DATA_FILE_EXTENSIONS:
+                    add_file(item)
         except PermissionError:
             pass
-        
-        # Scan sibling directories
-        try:
-            for sibling in parent.iterdir():
-                if sibling.is_dir() and sibling != working_path and not sibling.name.startswith('.'):
-                    scan_directory(sibling, working_path, current_depth=1)
-        except PermissionError:
-            pass
-    
-    # Scan the configured data directory if provided
-    if data_directory:
+
+    # 3. Scan the explicitly configured data directory (recursive).
+    if data_directory and len(data_files) < max_files:
         data_path = Path(data_directory).resolve()
         if data_path.exists() and data_path != working_path:
-            # Track already-found files by resolved absolute path to avoid duplicates
-            existing_resolved = set()
-            for f in data_files:
-                try:
-                    # Resolve relative paths against working_path
-                    p = Path(f["path"])
-                    if not p.is_absolute():
-                        p = (working_path / p).resolve()
-                    else:
-                        p = p.resolve()
-                    existing_resolved.add(str(p))
-                except (OSError, ValueError):
-                    pass
-            
-            def scan_data_directory(directory: Path, current_depth: int = 0):
-                """Scan data directory for data files, using absolute paths."""
-                if current_depth > max_depth:
-                    return
-                try:
-                    for item in directory.iterdir():
-                        if item.is_file():
-                            suffix = item.suffix.lower()
-                            if suffix in DATA_FILE_EXTENSIONS:
-                                resolved = str(item.resolve())
-                                if resolved not in existing_resolved:
-                                    # Use absolute path for data directory files
-                                    data_files.append({
-                                        "path": str(item),
-                                        "type": suffix[1:].upper(),
-                                        "name": item.name,
-                                        "size_mb": round(item.stat().st_size / (1024 * 1024), 1)
-                                    })
-                                    existing_resolved.add(resolved)
-                        elif item.is_dir() and not item.name.startswith('.'):
-                            scan_data_directory(item, current_depth + 1)
-                except PermissionError:
-                    pass
-            
-            scan_data_directory(data_path)
-    
-    # Sort by path for consistent ordering
+            scan_directory(data_path)
+
     data_files.sort(key=lambda x: x["path"])
-    
     return data_files
 
 
@@ -634,37 +622,48 @@ def format_data_files_for_prompt(data_files: list[dict[str, str]]) -> str:
 # PHIL Parameter Lookup
 # ============================================================================
 
-# Base directory for PHIL parameter files (relative to project root)
-_PHIL_PARAMS_DIR = Path(__file__).parent.parent.parent / "docs" / "phil_params"
+# Directories to search for command documentation, in priority order
+_DOCS_ROOT = Path(__file__).parent.parent.parent / "docs"
+_PHIL_PARAMS_DIR = _DOCS_ROOT / "phil_params"   # machine-generated PHIL dumps
+_PROGRAMS_DIR = _DOCS_ROOT / "programs"          # human-readable markdown docs
 
 
 def lookup_phil_params(command: str, search_term: str = "") -> str:
     """
-    Look up PHIL parameter documentation for a DIALS command.
-    
+    Look up documentation for a DIALS command.
+
+    Checks (in order):
+      1. docs/phil_params/<command>.txt  — machine-generated PHIL dump
+      2. docs/programs/<command>.md      — human-readable markdown
+
     Args:
         command: DIALS command name (e.g., 'dials.index')
-        search_term: Optional search term to filter results
-        
-    Returns:
-        String containing the PHIL parameter documentation
+        search_term: Optional keyword to filter results
     """
-    # Normalize command name to filename
-    filename = command.replace(".", "_") + ".txt"
-    filepath = _PHIL_PARAMS_DIR / filename
-    
+    # 1. Try phil_params .txt
+    txt_name = command.replace(".", "_") + ".txt"
+    filepath = _PHIL_PARAMS_DIR / txt_name
     if not filepath.exists():
-        # Try alternative paths
-        alt_path = Path(os.environ.get("DIALS_AGENT_ROOT", "")) / "docs" / "phil_params" / filename
-        if alt_path.exists():
-            filepath = alt_path
+        alt = Path(os.environ.get("DIALS_AGENT_ROOT", "")) / "docs" / "phil_params" / txt_name
+        if alt.exists():
+            filepath = alt
         else:
-            return (
-                f"No PHIL parameter documentation found for '{command}'.\n"
-                f"Looked in: {_PHIL_PARAMS_DIR}\n"
-                f"Available commands can be listed with: ls docs/phil_params/\n"
-                f"You can generate it by running: {command} -c -e2 -a2"
-            )
+            filepath = None
+
+    # 2. Fall back to programs .md
+    if filepath is None:
+        md_name = command.replace(".", "_") + ".md"
+        md_path = _PROGRAMS_DIR / md_name
+        if md_path.exists():
+            filepath = md_path
+
+    if filepath is None:
+        return (
+            f"No documentation found for '{command}'.\n"
+            f"Checked: {_PHIL_PARAMS_DIR / txt_name}\n"
+            f"         {_PROGRAMS_DIR / (command.replace('.', '_') + '.md')}\n"
+            f"Generate PHIL dump with: {command} -c -e2 -a2"
+        )
     
     try:
         content = filepath.read_text(encoding="utf-8")

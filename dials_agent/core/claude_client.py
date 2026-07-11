@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
 from ..config import Settings, get_settings
-from .prompts import get_system_prompt, get_system_prompt_with_context
+from .prompts import get_system_prompt, get_dynamic_context, get_system_prompt_with_context
 from .tools import get_tools, discover_data_files
 
 logger = logging.getLogger(__name__)
@@ -60,12 +60,33 @@ class ToolCall:
 
 
 @dataclass
+class TokenUsage:
+    """Token counts for one API call or an accumulated session total."""
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_creation_tokens: int = 0  # tokens written to cache (Anthropic only)
+    cache_read_tokens: int = 0      # tokens served from cache (Anthropic only)
+
+    @property
+    def total(self) -> int:
+        return self.input_tokens + self.output_tokens
+
+    def __iadd__(self, other: "TokenUsage") -> "TokenUsage":
+        self.input_tokens += other.input_tokens
+        self.output_tokens += other.output_tokens
+        self.cache_creation_tokens += other.cache_creation_tokens
+        self.cache_read_tokens += other.cache_read_tokens
+        return self
+
+
+@dataclass
 class AgentResponse:
     """Response from the agent."""
     message: str
     tool_calls: list[ToolCall] = field(default_factory=list)
     stop_reason: str = "end_turn"
     raw_response: Optional[dict] = None
+    usage: Optional[TokenUsage] = None  # per-turn usage (all rounds combined)
 
 
 class ClaudeClient:
@@ -134,7 +155,19 @@ class ClaudeClient:
         self.conversation_history: list[dict] = []
         self.tools = get_tools()
         self.openai_tools = self._convert_tools_to_openai_format()
-        
+
+        # Cache the static system prompt — computed once; only changes if tutorials change
+        self._static_system_prompt: str = get_system_prompt()
+
+        # Cached data file discovery — refreshed in update_context()
+        self._data_files: list[dict] = discover_data_files(
+            self.working_directory,
+            data_directory=self.settings.data_directory
+        )
+
+        # Cumulative token usage for the whole session
+        self.session_usage: TokenUsage = TokenUsage()
+
         # Keep backward compatibility
         self.api_provider = self.api_type
         
@@ -153,23 +186,15 @@ class ClaudeClient:
             openai_tools.append(openai_tool)
         return openai_tools
     
-    def _get_system_prompt(self) -> str:
-        """Get the system prompt with current context, including discovered data files."""
-        # Always discover data files to provide context for import commands
-        # Also search the configured data_directory if set
-        data_files = discover_data_files(
-            self.working_directory,
-            data_directory=self.settings.data_directory
-        )
-        
-        # Always use context version to include data files info
-        return get_system_prompt_with_context(
+    def _get_dynamic_context(self) -> str:
+        """Return the small dynamic context block (working dir, files). Not cached."""
+        return get_dynamic_context(
             self.working_directory,
             self.existing_files,
-            data_files,
-            data_directory=self.settings.data_directory
+            self._data_files,
+            data_directory=self.settings.data_directory,
         )
-    
+
     def update_context(
         self,
         working_directory: Optional[str] = None,
@@ -177,19 +202,61 @@ class ClaudeClient:
     ):
         """
         Update the context for the conversation.
-        
-        Args:
-            working_directory: New working directory
-            existing_files: Updated list of existing files
+
+        Also refreshes the data-file discovery cache so the next API call
+        sees the latest files without paying discovery cost on every turn.
         """
         if working_directory is not None:
             self.working_directory = working_directory
         if existing_files is not None:
             self.existing_files = existing_files
+        # Refresh data file cache whenever context changes
+        self._data_files = discover_data_files(
+            self.working_directory,
+            data_directory=self.settings.data_directory,
+        )
     
     def clear_history(self):
-        """Clear the conversation history."""
+        """Clear the conversation history and reset session token counters."""
         self.conversation_history = []
+        self.session_usage = TokenUsage()
+
+    # Maximum chars kept per tool result in history after Claude has responded.
+    # Large log files are trimmed to this size so they don't balloon the context
+    # on every subsequent turn.  The current turn always gets the full content.
+    TOOL_RESULT_HISTORY_LIMIT = 2000
+
+    def _trim_history_tool_results(self) -> None:
+        """
+        Trim large tool results already stored in conversation history.
+
+        Called after each tool-call round, once Claude has processed the full
+        results and we no longer need them verbatim.  Keeps the most recent
+        tool-result message intact (Claude may still need it) and truncates
+        any earlier ones that exceed TOOL_RESULT_HISTORY_LIMIT chars.
+        """
+        # Find indices of all user messages that contain tool results
+        tool_result_indices = [
+            i for i, msg in enumerate(self.conversation_history)
+            if msg.get("role") == "user"
+            and isinstance(msg.get("content"), list)
+            and any(
+                isinstance(item, dict) and item.get("type") == "tool_result"
+                for item in msg["content"]
+            )
+        ]
+
+        # Leave the most recent one untouched — trim all earlier ones
+        for idx in tool_result_indices[:-1]:
+            msg = self.conversation_history[idx]
+            for item in msg["content"]:
+                if not isinstance(item, dict) or item.get("type") != "tool_result":
+                    continue
+                content = item.get("content", "")
+                if isinstance(content, str) and len(content) > self.TOOL_RESULT_HISTORY_LIMIT:
+                    kept = content[:self.TOOL_RESULT_HISTORY_LIMIT]
+                    dropped = len(content) - self.TOOL_RESULT_HISTORY_LIMIT
+                    item["content"] = kept + f"\n[…{dropped} chars trimmed from history]"
     
     def send_message(
         self,
@@ -214,25 +281,36 @@ class ClaudeClient:
         
         try:
             response = self._call_api()
-            
+
             # Process the response
             agent_response = self._process_response(response)
-            
-            # If there are tool calls and a handler is provided, process them
+
+            # Accumulate usage across all tool-call rounds so the caller
+            # sees the total cost of the whole turn, not just the last call.
+            turn_usage = TokenUsage()
+            if agent_response.usage:
+                turn_usage += agent_response.usage
+
             # Loop to handle multiple rounds of tool calls (e.g., Claude calls
             # check_workflow_status, then wants to call run_shell_command)
-            max_tool_rounds = 10
+            max_tool_rounds = 30
             rounds = 0
             while agent_response.tool_calls and tool_handler and rounds < max_tool_rounds:
                 agent_response = self._handle_tool_calls(
                     agent_response,
                     tool_handler
                 )
+                if agent_response.usage:
+                    turn_usage += agent_response.usage
                 rounds += 1
-            
+
             if rounds >= max_tool_rounds:
                 logger.warning(f"Reached maximum tool call rounds ({max_tool_rounds})")
-            
+
+            # Attach combined turn usage and update the session total
+            agent_response.usage = turn_usage
+            self.session_usage += turn_usage
+
             return agent_response
             
         except (AnthropicRateLimitError, OpenAIRateLimitError) as e:
@@ -253,19 +331,37 @@ class ClaudeClient:
             return self._call_anthropic_api()
     
     def _call_anthropic_api(self) -> Any:
-        """Make API call using native Anthropic API."""
+        """Make API call using native Anthropic API with prompt caching.
+
+        The large static system prompt is marked with cache_control so it is
+        cached after the first call (~5-minute TTL, ~10x cheaper on reads).
+        Only the small dynamic context block (working dir, file list) is sent
+        uncached, since it changes as the user navigates the workflow.
+        """
         return self.client.messages.create(
             model=self.model,
             max_tokens=self.settings.max_tokens,
-            system=self._get_system_prompt(),
+            system=[
+                {
+                    "type": "text",
+                    "text": self._static_system_prompt,
+                    "cache_control": {"type": "ephemeral"},
+                },
+                {
+                    "type": "text",
+                    "text": self._get_dynamic_context(),
+                },
+            ],
             tools=self.tools,
-            messages=self.conversation_history
+            messages=self.conversation_history,
         )
-    
+
     def _call_openai_api(self) -> Any:
         """Make API call using OpenAI-compatible API."""
-        # Convert conversation history to OpenAI format
-        messages = [{"role": "system", "content": self._get_system_prompt()}]
+        # OpenAI-compat APIs don't support list-form system with cache_control,
+        # so concatenate static + dynamic into a single string.
+        system_prompt = self._static_system_prompt + self._get_dynamic_context()
+        messages = [{"role": "system", "content": system_prompt}]
         
         # Process messages in pairs to ensure tool_use/tool_result ordering
         i = 0
@@ -394,7 +490,7 @@ class ClaudeClient:
         """Process native Anthropic API response."""
         message_content = ""
         tool_calls = []
-        
+
         for block in response.content:
             if block.type == "text":
                 message_content += block.text
@@ -404,18 +500,30 @@ class ClaudeClient:
                     name=block.name,
                     input=block.input
                 ))
-        
+
+        # Capture token usage from the response
+        usage = None
+        if hasattr(response, "usage") and response.usage is not None:
+            u = response.usage
+            usage = TokenUsage(
+                input_tokens=getattr(u, "input_tokens", 0) or 0,
+                output_tokens=getattr(u, "output_tokens", 0) or 0,
+                cache_creation_tokens=getattr(u, "cache_creation_input_tokens", 0) or 0,
+                cache_read_tokens=getattr(u, "cache_read_input_tokens", 0) or 0,
+            )
+
         # Add assistant message to history
         self.conversation_history.append({
             "role": "assistant",
             "content": response.content
         })
-        
+
         return AgentResponse(
             message=message_content,
             tool_calls=tool_calls,
             stop_reason=response.stop_reason,
-            raw_response=response
+            raw_response=response,
+            usage=usage,
         )
     
     def _process_openai_response(self, response: Any) -> AgentResponse:
@@ -442,12 +550,22 @@ class ClaudeClient:
         })
         
         stop_reason = "end_turn" if choice.finish_reason == "stop" else choice.finish_reason
-        
+
+        # Capture token usage (OpenAI-compat; no cache fields)
+        usage = None
+        if hasattr(response, "usage") and response.usage is not None:
+            u = response.usage
+            usage = TokenUsage(
+                input_tokens=getattr(u, "prompt_tokens", 0) or 0,
+                output_tokens=getattr(u, "completion_tokens", 0) or 0,
+            )
+
         return AgentResponse(
             message=message_content,
             tool_calls=tool_calls,
             stop_reason=stop_reason,
-            raw_response=response
+            raw_response=response,
+            usage=usage,
         )
     
     def _handle_tool_calls(
@@ -490,10 +608,17 @@ class ClaudeClient:
             "role": "user",
             "content": tool_results
         })
-        
+
         # Get LLM's response after tool execution
         response = self._call_api()
-        return self._process_response(response)
+        result = self._process_response(response)
+
+        # After Claude has seen the full tool results and responded, trim any
+        # large results in history — they don't need to live at full size for
+        # the rest of the session.
+        self._trim_history_tool_results()
+
+        return result
     
     def send_message_with_auto_tool_handling(
         self,
