@@ -1,9 +1,9 @@
 # DIALS Agent: Skills-Based Architecture Refactoring Plan
 
-> **Status**: Plan complete, awaiting team review.
+> **Status**: Implemented 2026-07-12 (`dials_agent/skills/`). Steps 1-11 of the plan below are done, including CLI handler decoupling (Section 8) — skill handlers return plain dicts, with two host-only conventions: an `_cli_print` key for display-only messages, and a `requires_confirmation` / `_confirmed` round trip for destructive shell commands. 20 tests added in `tests/test_skills.py` (registry/skill level) plus 18 in `tests/test_cli_dispatch.py` (the `DIALSAgent._handle_tool_call` wrapper: `_cli_print`/host-key stripping, the destructive-command confirm round-trip, and working/data-directory state mutation) — 76 total passing across the test suite. The MCP server (Section 12) is still future work.
 > **Created**: 2026-06-24
-> **Baseline code version**: v1.2.0 (as of 2026-06-24)
-> **Note**: Line numbers reference the codebase as of the creation date. If other changes are made before this refactoring, use the section headers and content descriptions (not line numbers) to locate the correct code.
+> **Baseline code version**: v1.2.0 (as of 2026-06-24); implemented against the codebase as of 2026-07-12, after the token-usage-display/markdown-HTML-tools PR (#1) was merged, which had already changed line numbers in `prompts.py`/`tools.py`/`cli.py`/`claude_client.py` from the baseline. Section headers and content descriptions were used to relocate the correct code rather than the stale line numbers.
+> **Note**: Line numbers above reference the codebase as of the creation date and are now stale; see the file list in Section 9 for the actual result.
 
 ## 1. Overview
 

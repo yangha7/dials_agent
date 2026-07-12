@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dials-agent"
-version = "1.2.0"
+version = "2.0.0"
 description = "Natural language interface for DIALS crystallography data processing"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -54,5 +54,5 @@ Homepage = "https://dials.github.io/"
 Repository = "https://github.com/dials/dials"
 
 [tool.setuptools]
-packages = ["dials_agent", "dials_agent.core", "dials_agent.dials"]
+packages = ["dials_agent", "dials_agent.core", "dials_agent.dials", "dials_agent.skills"]
 package-dir = {"dials_agent" = "."}

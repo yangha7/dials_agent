@@ -1,4 +1,4 @@
-# DIALS AI Agent (v1.2)
+# DIALS AI Agent (v2.0)
 
 A natural language interface for DIALS (Diffraction Integration for Advanced Light Sources) crystallography data processing.
 
@@ -17,6 +17,7 @@ The DIALS AI Agent allows users with less command-line experience to process cry
 - **File Access**: Agent can directly read log files and open HTML reports
 - **Visualization**: Integrated support for `dials.image_viewer` and `dials.reciprocal_lattice_viewer`
 - **Multi-Provider LLM Support**: Works with CBORG, OpenAI, Google Gemini, and Anthropic Claude
+- **Skills-Based Architecture** *(v2.0)*: Domain knowledge, tools, and handlers are organized into self-contained skills (spot finding, indexing, scaling, troubleshooting, etc.), composed by a `SkillRegistry` — modular, independently testable, and MCP-ready
 - **Run Comparison** *(v1.3)*: Compare results from multiple processing runs (human vs agent, different parameters) with consistency assessment
 - **PHIL Parameter Lookup** *(v1.2)*: On-demand access to complete parameter documentation for all 82 DIALS commands
 - **Problem Diagnosis** *(v1.2)*: Intelligent troubleshooting with specific parameter-level fixes for 15+ common problems
@@ -204,15 +205,31 @@ Agent: Indexing failed because no solution was found. This could be due to:
 ```
 dials_agent/
 ├── __init__.py           # Package initialization
-├── cli.py                # CLI interface
+├── cli.py                # CLI interface (dispatches tool calls via SkillRegistry)
 ├── config.py             # Configuration settings
 ├── .env.example          # Example configuration file
 ├── requirements.txt      # Dependencies
 ├── core/
 │   ├── __init__.py
-│   ├── claude_client.py  # LLM API wrapper (multi-provider)
-│   ├── prompts.py        # System prompts
-│   └── tools.py          # Tool definitions
+│   ├── claude_client.py  # LLM API wrapper (multi-provider), composes prompt/tools from a SkillRegistry
+│   ├── base_tools.py     # The 3 tools shared across all skills
+│   ├── prompts.py        # Shared base system prompt
+│   └── tools.py          # Shared utilities (data file discovery)
+├── skills/                # Skills: modular domain knowledge, tools, and handlers
+│   ├── __init__.py        # SkillRegistry + create_default_registry()
+│   ├── base.py             # BaseSkill, SkillContext
+│   ├── data_import.py      # dials.import
+│   ├── spot_finding.py      # dials.find_spots
+│   ├── indexing.py         # dials.index
+│   ├── refinement.py       # dials.refine
+│   ├── integration.py      # dials.integrate
+│   ├── symmetry.py         # dials.symmetry / dials.cosym
+│   ├── scaling.py          # dials.scale
+│   ├── export.py           # dials.export / dials.merge
+│   ├── troubleshooting.py  # diagnose_problem, suggest_troubleshooting
+│   ├── workspace.py        # File access, shell commands, directory management
+│   ├── phil_params.py       # PHIL parameter lookup
+│   └── tutorials.py         # Guided tutorial walkthroughs
 └── dials/
     ├── __init__.py
     ├── commands.py       # Command definitions
@@ -448,6 +465,12 @@ ruff check dials_agent/
 This project is part of the DIALS software suite.
 
 ## Version History
+
+### v2.0.0 — Skills-Based Architecture
+- **Modular skills**: The monolithic system prompt, tool list, and tool-dispatch chain are split into 12 self-contained skills (`data_import`, `spot_finding`, `indexing`, `refinement`, `integration`, `symmetry`, `scaling`, `export`, `troubleshooting`, `workspace`, `phil_params`, `tutorials`), each owning its own prompt fragment, tool schemas, and handler logic
+- **`SkillRegistry`**: Composes all skill prompt fragments into the system prompt and dispatches tool calls to the owning skill; `ClaudeClient` and `cli.py` both consume it
+- **Decoupled handlers**: Skill handlers return plain data dicts with no CLI dependency — an `_cli_print` convention carries display-only messages, and destructive shell commands use a `requires_confirmation` / `_confirmed` round-trip instead of calling `Confirm.ask` directly, so a future MCP server can substitute its own consent mechanism
+- **Behavior-preserving**: Composed prompt and full tool set are unchanged from v1.3; 76 tests cover skill/tool schemas, registry dispatch, and the CLI wrapper layer
 
 ### v1.3.0 — Run Comparison
 - **`compare` command**: Compare results from multiple DIALS processing runs side-by-side

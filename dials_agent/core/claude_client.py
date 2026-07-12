@@ -17,8 +17,10 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
 from ..config import Settings, get_settings
+from ..skills import SkillRegistry, create_default_registry
+from .base_tools import get_base_tools
 from .prompts import get_system_prompt, get_dynamic_context, get_system_prompt_with_context
-from .tools import get_tools, discover_data_files
+from .tools import discover_data_files
 
 logger = logging.getLogger(__name__)
 
@@ -102,19 +104,24 @@ class ClaudeClient:
         self,
         settings: Optional[Settings] = None,
         working_directory: str = ".",
-        existing_files: Optional[list[str]] = None
+        existing_files: Optional[list[str]] = None,
+        registry: Optional[SkillRegistry] = None,
     ):
         """
         Initialize the LLM client.
-        
+
         Args:
             settings: Application settings (uses global settings if not provided)
             working_directory: Current working directory for context
             existing_files: List of existing DIALS files for context
+            registry: Skill registry to compose the system prompt and tools
+                from. Defaults to a registry with every skill loaded, which
+                is what gives behavior equivalent to the old monolithic agent.
         """
         self.settings = settings or get_settings()
         self.working_directory = working_directory
         self.existing_files = existing_files or []
+        self.registry = registry or create_default_registry()
         
         # Resolve provider using auto-detection
         self.provider = self.settings.get_resolved_provider()
@@ -153,11 +160,11 @@ class ClaudeClient:
             logger.info(f"Using native Anthropic API with model {self.model}")
         
         self.conversation_history: list[dict] = []
-        self.tools = get_tools()
+        self.tools = get_base_tools() + self.registry.get_all_tools()
         self.openai_tools = self._convert_tools_to_openai_format()
 
         # Cache the static system prompt — computed once; only changes if tutorials change
-        self._static_system_prompt: str = get_system_prompt()
+        self._static_system_prompt: str = get_system_prompt(self.registry)
 
         # Cached data file discovery — refreshed in update_context()
         self._data_files: list[dict] = discover_data_files(
@@ -652,19 +659,22 @@ class ClaudeClient:
 
 def create_client(
     working_directory: str = ".",
-    existing_files: Optional[list[str]] = None
+    existing_files: Optional[list[str]] = None,
+    registry: Optional[SkillRegistry] = None,
 ) -> ClaudeClient:
     """
     Create a new LLM client instance.
-    
+
     Args:
         working_directory: Current working directory
         existing_files: List of existing DIALS files
-        
+        registry: Skill registry to use (defaults to all skills loaded)
+
     Returns:
         Configured ClaudeClient instance
     """
     return ClaudeClient(
         working_directory=working_directory,
-        existing_files=existing_files
+        existing_files=existing_files,
+        registry=registry,
     )

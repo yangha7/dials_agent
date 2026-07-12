@@ -24,7 +24,7 @@ from rich.text import Text
 
 from .config import Settings, get_settings, configure_from_env_file
 from .core.claude_client import ClaudeClient, ToolCall, create_client
-from .core.tools import determine_workflow_stage
+from .skills import SkillContext
 from .dials.compare import (
     compare_runs,
     display_comparison,
@@ -89,13 +89,41 @@ class DIALSAgent:
         # Active status spinner (set during "Thinking..." to allow tool handlers to pause it)
         self._active_status = None
     
+    def _build_skill_context(self) -> SkillContext:
+        """Build the read-only context passed to skill handlers."""
+        return SkillContext(
+            working_directory=str(self.working_directory),
+            data_directory=self.settings.data_directory,
+            existing_files=self.workflow.get_available_files(),
+            executor=self.executor,
+            parser=self.parser,
+            workflow=self.workflow,
+            command_timings=self.command_timings,
+        )
+
+    @staticmethod
+    def _emit_cli_print(result: dict) -> None:
+        """Print any CLI-only display messages a skill handler attached, then drop them."""
+        for line in result.pop("_cli_print", None) or []:
+            console.print(line)
+
+    @staticmethod
+    def _strip_host_keys(result: dict) -> dict:
+        """Strip host-only metadata (leading underscore) before sending a result to the LLM."""
+        return {k: v for k, v in result.items() if not k.startswith("_")}
+
     def _handle_tool_call(self, tool_call: ToolCall) -> dict:
         """
         Handle a tool call from Claude.
-        
+
+        The three tools every skill shares (suggest_dials_command,
+        explain_dials_concept, analyze_dials_output) are handled directly
+        here. Everything else is dispatched to whichever skill owns it via
+        the ClaudeClient's SkillRegistry — see `dials_agent/skills/`.
+
         Args:
             tool_call: The tool call to handle
-            
+
         Returns:
             Result dictionary
         """
@@ -107,24 +135,20 @@ class DIALSAgent:
                 "command": tool_call.input.get("command"),
                 "message": "Command suggested, awaiting user approval"
             }
-        
-        elif tool_call.name == "check_workflow_status":
-            self.workflow.refresh()
-            return self.workflow.get_workflow_context()
-        
+
         elif tool_call.name == "explain_dials_concept":
             # Claude will provide the explanation in its response
             return {
                 "status": "explanation_requested",
                 "concept": tool_call.input.get("concept")
             }
-        
+
         elif tool_call.name == "analyze_dials_output":
             # Parse the output if provided
             output = tool_call.input.get("output", "")
             command = tool_call.input.get("command", "")
             return_code = tool_call.input.get("return_code", 0)
-            
+
             # Create a mock result for parsing
             result = CommandResult(
                 command=command,
@@ -135,7 +159,7 @@ class DIALSAgent:
                 success=return_code == 0,
                 working_directory=str(self.working_directory)
             )
-            
+
             parsed = self.parser.parse(result)
             return {
                 "summary": parsed.summary,
@@ -143,426 +167,76 @@ class DIALSAgent:
                 "warnings": parsed.warnings,
                 "suggestions": parsed.suggestions
             }
-        
-        elif tool_call.name == "suggest_troubleshooting":
-            # Claude will provide troubleshooting in its response
-            return {
-                "status": "troubleshooting_requested",
-                "problem": tool_call.input.get("problem")
-            }
-        
-        elif tool_call.name == "list_available_commands":
-            from .dials.commands import get_commands_by_category, CommandCategory
-            
-            category = tool_call.input.get("category", "all")
-            if category == "all":
-                commands = {}
-                for cat in CommandCategory:
-                    commands.update(get_commands_by_category(cat))
-            else:
-                try:
-                    cat = CommandCategory(category)
-                    commands = get_commands_by_category(cat)
-                except ValueError:
-                    commands = {}
-            
-            return {
-                "commands": commands,
-                "current_stage": self.workflow.get_stage_name()
-            }
-        
-        elif tool_call.name == "read_file":
-            filename = tool_call.input.get("filename", "")
-            tail_lines = tool_call.input.get("tail_lines")
-            max_chars = tool_call.input.get("max_chars", 50000)
-            
-            filepath = self.working_directory / filename
-            if not filepath.exists():
-                return {
-                    "error": f"File not found: {filename}",
-                    "available_files": [
-                        f.name for f in self.working_directory.iterdir()
-                        if f.is_file() and (f.suffix in {'.log', '.html', '.txt', '.json', '.expt'})
-                    ]
-                }
-            
-            try:
-                content = filepath.read_text(errors='replace')
-                
-                if tail_lines:
-                    lines = content.splitlines()
-                    content = "\n".join(lines[-tail_lines:])
-                
-                if len(content) > max_chars:
-                    content = f"[... truncated {len(content) - max_chars} chars from beginning ...]\n" + content[-max_chars:]
-                
-                console.print(f"[dim]📄 Reading {filename} ({len(content)} chars)[/dim]")
-                return {
-                    "filename": filename,
-                    "content": content,
-                    "size_bytes": filepath.stat().st_size
-                }
-            except Exception as e:
-                return {"error": f"Error reading {filename}: {str(e)}"}
-        
-        elif tool_call.name == "open_file":
-            import subprocess as sp
-            
-            filename = tool_call.input.get("filename", "")
-            filepath = self.working_directory / filename
-            
-            if not filepath.exists():
-                return {"error": f"File not found: {filename}"}
-            
-            suffix = filepath.suffix.lower()
-            
-            if suffix == ".html":
-                # Open HTML files in a web browser (background, non-blocking)
-                try:
-                    # Try firefox first (common on Linux servers), then xdg-open
-                    for browser_cmd in ["firefox", "xdg-open", "open"]:
-                        try:
-                            sp.Popen(
-                                [browser_cmd, str(filepath)],
-                                stdout=sp.DEVNULL,
-                                stderr=sp.DEVNULL,
-                                start_new_session=True
-                            )
-                            console.print(f"[green]🌐 Opened {filename} in browser[/green]")
-                            return {
-                                "status": "opened",
-                                "filename": filename,
-                                "viewer": browser_cmd
-                            }
-                        except FileNotFoundError:
-                            continue
-                    
-                    return {"error": f"No web browser found to open {filename}. Try: firefox {filepath}"}
-                except Exception as e:
-                    return {"error": f"Error opening {filename}: {str(e)}"}
-            
-            elif suffix in {".expt", ".refl"}:
-                # Suggest appropriate DIALS viewer
-                return {
-                    "status": "suggestion",
-                    "message": f"Use dials.image_viewer or dials.reciprocal_lattice_viewer to view {filename}",
-                    "suggested_commands": [
-                        f"dials.image_viewer {filename}",
-                        f"dials.reciprocal_lattice_viewer {filename}"
-                    ]
-                }
-            
-            else:
-                return {"error": f"Unsupported file type: {suffix}. Use read_file for text files."}
-        
-        elif tool_call.name == "change_working_directory":
-            dir_path = tool_call.input.get("path", "")
-            create = tool_call.input.get("create", False)  # Default: do NOT create
-            
-            if not dir_path:
-                return {"error": "No path provided"}
-            
-            # Resolve the path
-            if not Path(dir_path).is_absolute():
-                new_path = (self.working_directory / dir_path).resolve()
-            else:
-                new_path = Path(dir_path).resolve()
-            
-            # If directory doesn't exist, try fuzzy matching
-            if not new_path.exists():
-                # Search current directory and parent directory for close matches
-                dir_name = new_path.name
-                search_dirs = [self.working_directory, self.working_directory.parent]
-                matches = []
-                
-                for search_dir in search_dirs:
-                    if not search_dir.exists():
-                        continue
-                    for d in search_dir.iterdir():
-                        if d.is_dir() and d.name.lower() == dir_name.lower():
-                            matches.append(d)
-                        elif d.is_dir() and (
-                            dir_name.lower() in d.name.lower() or
-                            d.name.lower() in dir_name.lower()
-                        ):
-                            matches.append(d)
-                
-                if len(matches) == 1:
-                    # Exact case-insensitive match or single close match
-                    new_path = matches[0]
-                    console.print(f"[yellow]📁 Found matching directory: {new_path.name}[/yellow]")
-                elif len(matches) > 1:
-                    # Multiple matches — report them
-                    match_names = [str(m) for m in matches]
-                    return {
-                        "error": f"Directory '{dir_name}' not found. Did you mean one of these?",
-                        "suggestions": match_names
-                    }
-                elif create:
-                    # Only create if explicitly requested
-                    new_path.mkdir(parents=True, exist_ok=True)
-                    console.print(f"[green]📁 Created directory: {new_path}[/green]")
-                else:
-                    # Search parent directory too for the exact name
-                    parent_path = (self.working_directory.parent / dir_name).resolve()
-                    if parent_path.exists() and parent_path.is_dir():
-                        new_path = parent_path
-                        console.print(f"[yellow]📁 Found in parent directory: {new_path}[/yellow]")
-                    else:
-                        return {
-                            "error": f"Directory not found: {new_path}. "
-                                     f"To create it, ask the user to say 'create' or 'make' a directory."
-                        }
-            
-            # Switch to the new directory
-            self.working_directory = new_path
-            self.workflow = create_workflow_manager(str(new_path))
-            self.executor = create_executor(str(new_path))
-            self.claude.update_context(
-                working_directory=str(new_path),
-                existing_files=self.workflow.get_available_files()
-            )
-            
-            # Track this directory
-            if new_path not in self.used_directories:
-                self.used_directories.append(new_path)
-            
-            console.print(f"[green]📁 Working directory changed to: {new_path}[/green]")
-            
-            return {
-                "status": "success",
-                "working_directory": str(new_path),
-                "message": f"Working directory changed to {new_path}. All DIALS output will now be saved here.",
-                "existing_files": self.workflow.get_available_files()
-            }
-        
-        elif tool_call.name == "change_data_directory":
-            dir_path = tool_call.input.get("path", "")
-            
-            if not dir_path:
-                return {"error": "No path provided"}
-            
-            data_path = Path(dir_path).resolve()
-            
-            if not data_path.exists():
-                return {"error": f"Data directory does not exist: {data_path}"}
-            
-            if not data_path.is_dir():
-                return {"error": f"Not a directory: {data_path}"}
-            
-            # Update the settings
-            self.settings.data_directory = str(data_path)
-            
-            # Re-discover data files and update Claude's context
-            from .core.tools import discover_data_files
-            data_files = discover_data_files(str(self.working_directory), data_directory=str(data_path))
-            
-            self.claude.update_context(
-                existing_files=self.workflow.get_available_files()
-            )
-            
-            console.print(f"[green]📂 Data directory changed to: {data_path}[/green]")
-            
-            # List discovered data files
-            file_summary = []
-            for f in data_files[:10]:
-                file_summary.append(f)
-            if len(data_files) > 10:
-                file_summary.append(f"... and {len(data_files) - 10} more")
-            
-            return {
-                "status": "success",
-                "data_directory": str(data_path),
-                "data_files_found": len(data_files),
-                "sample_files": file_summary,
-                "message": f"Data directory changed to {data_path}. Found {len(data_files)} data file(s)."
-            }
-        
-        elif tool_call.name == "calculate":
-            expression = tool_call.input.get("expression", "")
-            description = tool_call.input.get("description", "")
-            
-            if not expression:
-                return {"error": "No expression provided"}
-            
-            try:
-                # Safe evaluation — only allow math operations
-                import math as _math
-                allowed_names = {
-                    k: v for k, v in _math.__dict__.items()
-                    if not k.startswith('_')
-                }
-                allowed_names.update({
-                    "abs": abs, "round": round, "min": min, "max": max,
-                    "sum": sum, "len": len, "int": int, "float": float,
-                })
-                result = eval(expression, {"__builtins__": {}}, allowed_names)
-                return {
-                    "expression": expression,
-                    "result": result,
-                    "description": description,
-                }
-            except Exception as e:
-                return {"error": f"Calculation error: {str(e)}", "expression": expression}
-        
-        elif tool_call.name == "get_timing_report":
-            report = self._get_timing_report()
-            total_duration = sum(e["duration"] for e in self.command_timings)
-            if total_duration >= 60:
-                total_str = f"{int(total_duration // 60)}m {total_duration % 60:.1f}s"
-            else:
-                total_str = f"{total_duration:.1f}s"
-            
-            return {
-                "timing_report": report,
-                "total_commands": len(self.command_timings),
-                "total_duration": total_str,
-                "timing_file": str(self.working_directory / "dials_agent_timing.log"),
-            }
-        
-        elif tool_call.name == "run_shell_command":
-            import subprocess as sp
-            
-            command = tool_call.input.get("command", "")
-            explanation = tool_call.input.get("explanation", "")
-            
-            if not command:
-                return {"error": "No command provided"}
-            
-            # Check for destructive commands that need confirmation
-            destructive_keywords = ["rm ", "rm\t", "rmdir", "mv ", "mv\t", "> ", ">> "]
-            is_destructive = any(kw in command for kw in destructive_keywords) or command.startswith("rm ")
-            
-            if is_destructive:
+
+        context = self._build_skill_context()
+        registry = self.claude.registry
+
+        if tool_call.name == "change_working_directory":
+            result = registry.handle_tool_call(tool_call.name, tool_call.input, context)
+            if result.get("status") == "success":
+                new_path = Path(result["working_directory"])
+                self.working_directory = new_path
+                self.workflow = create_workflow_manager(str(new_path))
+                self.executor = create_executor(str(new_path))
+                self.claude.update_context(
+                    working_directory=str(new_path),
+                    existing_files=self.workflow.get_available_files()
+                )
+                if new_path not in self.used_directories:
+                    self.used_directories.append(new_path)
+            self._emit_cli_print(result)
+            return self._strip_host_keys(result)
+
+        if tool_call.name == "change_data_directory":
+            result = registry.handle_tool_call(tool_call.name, tool_call.input, context)
+            if result.get("status") == "success":
+                self.settings.data_directory = result["data_directory"]
+                self.claude.update_context(
+                    existing_files=self.workflow.get_available_files()
+                )
+            self._emit_cli_print(result)
+            return self._strip_host_keys(result)
+
+        if tool_call.name == "run_shell_command":
+            result = registry.handle_tool_call(tool_call.name, tool_call.input, context)
+
+            if result.get("status") == "requires_confirmation":
                 # Stop the spinner so the confirmation prompt is clearly visible
                 if self._active_status:
                     self._active_status.stop()
-                
-                console.print(f"\n[bold yellow]⚠  Shell command (destructive):[/bold yellow] {command}")
-                if explanation:
-                    console.print(f"[dim]{explanation}[/dim]")
+
+                console.print(f"\n[bold yellow]⚠  {result['message']}[/bold yellow]")
+                if result.get("explanation"):
+                    console.print(f"[dim]{result['explanation']}[/dim]")
+
                 if not Confirm.ask("[bold red]Allow this command?[/bold red]", default=False):
-                    # Restart spinner
                     if self._active_status:
                         self._active_status.start()
                     return {"status": "cancelled", "message": "User declined to run destructive command"}
-                
-                # Restart spinner after confirmation
+
                 if self._active_status:
                     self._active_status.start()
-            else:
-                console.print(f"\n[dim]$ {command}[/dim]")
-            
-            try:
-                result = sp.run(
-                    command,
-                    shell=True,
-                    cwd=str(self.working_directory),
-                    capture_output=True,
-                    text=True,
-                    timeout=60
+
+                result = registry.handle_tool_call(
+                    tool_call.name, {**tool_call.input, "_confirmed": True}, context
                 )
-                
-                output = result.stdout
-                if result.stderr:
-                    output += f"\n[stderr]: {result.stderr}"
-                
-                # Truncate very long output
-                if len(output) > 10000:
-                    output = output[:5000] + "\n\n[... output truncated ...]\n\n" + output[-5000:]
-                
-                # Refresh workflow state after shell commands (files may have changed)
+
+            if result.pop("_files_may_have_changed", False):
+                # Files may have changed — refresh workflow state
                 self.workflow.refresh()
                 self.claude.update_context(
                     existing_files=self.workflow.get_available_files()
                 )
-                
-                return {
-                    "status": "success" if result.returncode == 0 else "error",
-                    "return_code": result.returncode,
-                    "output": output,
-                    "command": command
-                }
-            except sp.TimeoutExpired:
-                return {"error": f"Command timed out after 60 seconds: {command}"}
-            except Exception as e:
-                return {"error": f"Failed to run command: {str(e)}"}
-        
-        elif tool_call.name == "lookup_phil_params":
-            from .core.tools import lookup_phil_params
-            command = tool_call.input.get("command", "")
-            search_term = tool_call.input.get("search_term", "")
-            result = lookup_phil_params(command, search_term)
-            return {"phil_params": result}
-        
-        elif tool_call.name == "diagnose_problem":
-            from .core.tools import diagnose_problem
-            problem = tool_call.input.get("problem", "")
-            current_stage = tool_call.input.get("current_stage", "")
-            context = tool_call.input.get("context", "")
-            result = diagnose_problem(problem, current_stage, context)
-            return {"diagnosis": result}
 
-        elif tool_call.name == "create_html_file":
-            filename = tool_call.input.get("filename", "")
-            content = tool_call.input.get("content", "")
-            overwrite = tool_call.input.get("overwrite", True)
+            self._emit_cli_print(result)
+            return self._strip_host_keys(result)
 
-            if not filename:
-                return {"error": "No filename provided"}
-            if not filename.endswith(".html"):
-                filename = filename + ".html"
-            if not content:
-                return {"error": "No content provided"}
+        if registry.owns_tool(tool_call.name):
+            result = registry.handle_tool_call(tool_call.name, tool_call.input, context)
+            self._emit_cli_print(result)
+            return self._strip_host_keys(result)
 
-            filepath = self.working_directory / filename
-            if filepath.exists() and not overwrite:
-                return {"error": f"File already exists: {filename}. Set overwrite=true to replace it."}
-
-            try:
-                filepath.write_text(content, encoding="utf-8")
-                size = len(content.encode("utf-8"))
-                console.print(f"[green]🌐 Created {filename} ({size:,} bytes)[/green]")
-                return {
-                    "status": "success",
-                    "filename": filename,
-                    "path": str(filepath),
-                    "bytes_written": size,
-                }
-            except Exception as e:
-                return {"error": f"Failed to write {filename}: {e}"}
-
-        elif tool_call.name == "create_markdown_file":
-            filename = tool_call.input.get("filename", "")
-            content = tool_call.input.get("content", "")
-            overwrite = tool_call.input.get("overwrite", True)
-
-            if not filename:
-                return {"error": "No filename provided"}
-            if not filename.endswith(".md"):
-                filename = filename + ".md"
-            if not content:
-                return {"error": "No content provided"}
-
-            filepath = self.working_directory / filename
-            if filepath.exists() and not overwrite:
-                return {"error": f"File already exists: {filename}. Set overwrite=true to replace it."}
-
-            try:
-                filepath.write_text(content, encoding="utf-8")
-                size = len(content.encode("utf-8"))
-                console.print(f"[green]📝 Created {filename} ({size:,} bytes)[/green]")
-                return {
-                    "status": "success",
-                    "filename": filename,
-                    "path": str(filepath),
-                    "bytes_written": size,
-                }
-            except Exception as e:
-                return {"error": f"Failed to write {filename}: {e}"}
-
-        else:
-            return {"error": f"Unknown tool: {tool_call.name}"}
+        return {"error": f"Unknown tool: {tool_call.name}"}
     
     def execute_command(self, command: str) -> CommandResult:
         """
@@ -634,33 +308,6 @@ class DIALSAgent:
         
         with open(timing_file, "a") as f:
             f.write(line)
-    
-    def _get_timing_report(self) -> str:
-        """Get the timing report from the log file or in-memory data."""
-        # Try to read from file first (persists across restarts)
-        timing_file = self.working_directory / "dials_agent_timing.log"
-        if timing_file.exists():
-            return timing_file.read_text()
-        
-        # Fall back to in-memory data
-        if not self.command_timings:
-            return "No commands have been executed yet."
-        
-        lines = []
-        for entry in self.command_timings:
-            duration = entry["duration"]
-            if duration >= 60:
-                minutes = int(duration // 60)
-                seconds = duration % 60
-                duration_str = f"{minutes}m {seconds:.1f}s"
-            else:
-                duration_str = f"{duration:.1f}s"
-            status = "OK" if entry["success"] else "FAILED"
-            lines.append(
-                f"{entry.get('start_time', 'N/A')}  →  {entry.get('end_time', 'N/A')}  "
-                f"[{duration_str:>10}]  {status:6}  {entry['command']}"
-            )
-        return "\n".join(lines)
     
     def _display_timing(self, cmd_name: str, duration: float):
         """Display timing information for a command."""
