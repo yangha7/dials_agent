@@ -661,6 +661,7 @@ def create_client(
     working_directory: str = ".",
     existing_files: Optional[list[str]] = None,
     registry: Optional[SkillRegistry] = None,
+    settings: Optional[Settings] = None,
 ) -> ClaudeClient:
     """
     Create a new LLM client instance.
@@ -669,6 +670,7 @@ def create_client(
         working_directory: Current working directory
         existing_files: List of existing DIALS files
         registry: Skill registry to use (defaults to all skills loaded)
+        settings: Application settings (uses global settings if not provided)
 
     Returns:
         Configured ClaudeClient instance
@@ -677,4 +679,5 @@ def create_client(
         working_directory=working_directory,
         existing_files=existing_files,
         registry=registry,
+        settings=settings,
     )

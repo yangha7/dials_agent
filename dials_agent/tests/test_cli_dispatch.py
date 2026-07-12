@@ -58,6 +58,27 @@ def test_agent_wires_all_skills_and_tools(agent):
     assert len(agent.claude.registry.skill_names) == 12
 
 
+def test_agent_forwards_its_settings_to_the_claude_client(tmp_path):
+    """Regression test: DIALSAgent(settings=...) must reach ClaudeClient.
+
+    Previously create_client() silently ignored the settings passed into
+    DIALSAgent, so the LLM client always fell back to the global env-based
+    settings regardless of what was explicitly configured.
+    """
+    settings = Settings(
+        llm_provider="anthropic",
+        anthropic_api_key="sk-dummy-test-key",
+        cborg_api_key="", openai_api_key="", gemini_api_key="",
+        token_budget=42,
+    )
+    agent = DIALSAgent(working_directory=str(tmp_path), settings=settings)
+
+    assert agent.claude.settings is agent.settings
+    assert agent.claude.provider == "anthropic"
+    assert agent.claude.api_type == "anthropic"
+    assert agent.claude.settings.token_budget == 42
+
+
 # ---------------------------------------------------------------------------
 # Base tools (handled directly by DIALSAgent, not the registry)
 # ---------------------------------------------------------------------------

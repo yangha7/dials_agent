@@ -77,7 +77,8 @@ class DIALSAgent:
         # Initialize Claude client with context
         self.claude = create_client(
             working_directory=str(self.working_directory),
-            existing_files=self.workflow.get_available_files()
+            existing_files=self.workflow.get_available_files(),
+            settings=self.settings,
         )
         
         # Pending command for approval
