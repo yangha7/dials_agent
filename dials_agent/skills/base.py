@@ -30,6 +30,8 @@ class SkillContext:
     parser: Any = None         # OutputParser instance
     workflow: Any = None       # WorkflowManager instance
     command_timings: list[dict] = field(default_factory=list)
+    session_usage: Any = None  # TokenUsage instance (cumulative session totals)
+    token_budget: int = 0      # 0 = no limit
 
 
 class BaseSkill(ABC):

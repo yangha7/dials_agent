@@ -19,6 +19,7 @@ from dials_agent.skills import SkillContext, SkillRegistry, create_default_regis
 from dials_agent.dials.workflow import create_workflow_manager
 from dials_agent.dials.executor import create_executor
 from dials_agent.dials.parser import create_parser
+from dials_agent.core.claude_client import TokenUsage
 
 
 EXPECTED_SKILL_NAMES = {
@@ -31,8 +32,8 @@ EXPECTED_TOOL_NAMES = {
     "change_data_directory", "suggest_troubleshooting", "diagnose_problem",
     "check_workflow_status", "list_available_commands", "read_file",
     "open_file", "change_working_directory", "calculate", "get_timing_report",
-    "run_shell_command", "create_markdown_file", "create_html_file",
-    "lookup_phil_params",
+    "get_token_usage", "run_shell_command", "create_markdown_file",
+    "create_html_file", "lookup_phil_params",
 }
 
 
@@ -52,6 +53,8 @@ def make_context(tmp_path: Path, **overrides) -> SkillContext:
         parser=create_parser(),
         workflow=workflow,
         command_timings=[],
+        session_usage=TokenUsage(),
+        token_budget=0,
     )
     defaults.update(overrides)
     return SkillContext(**defaults)
@@ -262,3 +265,39 @@ def test_check_workflow_status_reports_none_stage_on_empty_dir(registry, tmp_pat
         "check_workflow_status", {}, make_context(tmp_path)
     )
     assert isinstance(result, dict)
+
+
+def test_get_token_usage_reports_session_totals(registry, tmp_path):
+    usage = TokenUsage(input_tokens=1500, output_tokens=80, cache_read_tokens=1200)
+    context = make_context(tmp_path, session_usage=usage, token_budget=0)
+
+    result = registry.handle_tool_call("get_token_usage", {}, context)
+
+    assert result["session_input_tokens"] == 1500
+    assert result["session_output_tokens"] == 80
+    assert result["session_cache_read_tokens"] == 1200
+    assert result["session_total_tokens"] == 1580
+    assert result["token_budget"] == 0
+    assert result["budget_remaining"] is None
+    assert result["budget_remaining_pct"] is None
+
+
+def test_get_token_usage_reports_remaining_budget(registry, tmp_path):
+    usage = TokenUsage(input_tokens=8000, output_tokens=2000)
+    context = make_context(tmp_path, session_usage=usage, token_budget=10000)
+
+    result = registry.handle_tool_call("get_token_usage", {}, context)
+
+    assert result["session_total_tokens"] == 10000
+    assert result["budget_remaining"] == 0
+    assert result["budget_remaining_pct"] == 0.0
+
+
+def test_get_token_usage_budget_never_goes_negative(registry, tmp_path):
+    usage = TokenUsage(input_tokens=50000, output_tokens=5000)
+    context = make_context(tmp_path, session_usage=usage, token_budget=10000)
+
+    result = registry.handle_tool_call("get_token_usage", {}, context)
+
+    assert result["budget_remaining"] == 0
+    assert result["budget_remaining_pct"] == 0.0

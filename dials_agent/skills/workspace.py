@@ -139,6 +139,15 @@ TOOLS: list[dict] = [
         }
     },
     {
+        "name": "get_token_usage",
+        "description": "Get the LLM token usage for the current session (input/output/cached tokens, and remaining budget if one is configured). Use this when the user asks about token usage, API cost, or how much budget is left.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+    {
         "name": "run_shell_command",
         "description": "Run a shell command in the working directory. Use this for non-DIALS commands like ls, rm, mv, cp, cat, head, tail, wc, grep, find, etc. For destructive commands (rm, mv), the user will be asked to confirm before execution. Use this instead of telling the user to run commands manually.",
         "input_schema": {
@@ -317,6 +326,10 @@ You can also use `run_shell_command` to rename directories (`mv old_name new_nam
 The agent automatically records the execution time for every DIALS command, including start time, end time, and duration. This data is saved to `dials_agent_timing.log` in the working directory and persists across agent restarts.
 
 When the user asks about timing, performance, or "how long did each step take?", use the `get_timing_report` tool to retrieve the timing data. Do NOT try to figure out timing from file timestamps or log files — use the tool.
+
+## Token Usage
+
+When the user asks about token usage, API cost, or how much of their budget remains, use the `get_token_usage` tool. It reports the cumulative session totals (input/output/cached tokens) and, if a budget is configured, how much remains. Do NOT guess at this from anything in the conversation — the per-turn usage line the CLI prints after each response is not visible to you, so this tool is the only way to answer these questions accurately.
 
 ## Calculations and Counting
 
@@ -573,6 +586,32 @@ This prevents false alarms from LLM arithmetic errors or misread data."""
             "total_duration": total_str,
             "timing_file": str(Path(context.working_directory) / "dials_agent_timing.log"),
         }
+
+    def _handle_get_token_usage(self, tool_input: dict, context: SkillContext) -> dict:
+        usage = context.session_usage
+        input_tokens = getattr(usage, "input_tokens", 0) or 0
+        output_tokens = getattr(usage, "output_tokens", 0) or 0
+        cache_read_tokens = getattr(usage, "cache_read_tokens", 0) or 0
+        cache_creation_tokens = getattr(usage, "cache_creation_tokens", 0) or 0
+        total_tokens = getattr(usage, "total", input_tokens + output_tokens)
+
+        result = {
+            "session_input_tokens": input_tokens,
+            "session_output_tokens": output_tokens,
+            "session_cache_read_tokens": cache_read_tokens,
+            "session_cache_creation_tokens": cache_creation_tokens,
+            "session_total_tokens": total_tokens,
+            "token_budget": context.token_budget,
+            "budget_remaining": None,
+            "budget_remaining_pct": None,
+        }
+
+        if context.token_budget > 0:
+            remaining = max(0, context.token_budget - total_tokens)
+            result["budget_remaining"] = remaining
+            result["budget_remaining_pct"] = round(100 * remaining / context.token_budget, 1)
+
+        return result
 
     def _handle_run_shell_command(self, tool_input: dict, context: SkillContext) -> dict:
         command = tool_input.get("command", "")

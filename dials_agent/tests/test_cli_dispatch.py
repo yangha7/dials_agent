@@ -51,7 +51,7 @@ def agent(tmp_path) -> DIALSAgent:
 # ---------------------------------------------------------------------------
 
 def test_agent_wires_all_skills_and_tools(agent):
-    assert len(agent.claude.tools) == 17
+    assert len(agent.claude.tools) == 18
     tool_names = {t["name"] for t in agent.claude.tools}
     assert "suggest_dials_command" in tool_names  # base tool
     assert "calculate" in tool_names  # skill tool
@@ -254,6 +254,22 @@ def test_diagnose_problem_through_full_wrapper(agent):
 def test_get_timing_report_through_full_wrapper(agent):
     result = agent._handle_tool_call(ToolCall(id="1", name="get_timing_report", input={}))
     assert "No commands have been executed yet." in result["timing_report"]
+
+
+def test_get_token_usage_through_full_wrapper_reflects_live_session_usage(agent):
+    # Starts at zero.
+    result = agent._handle_tool_call(ToolCall(id="1", name="get_token_usage", input={}))
+    assert result["session_total_tokens"] == 0
+    assert result["token_budget"] == 0
+
+    # Simulate usage having accumulated from real turns, and confirm the
+    # tool reflects it live (it reads agent.claude.session_usage fresh on
+    # every call, not a snapshot taken at agent-construction time).
+    agent.claude.session_usage.input_tokens = 1200
+    agent.claude.session_usage.output_tokens = 300
+
+    result = agent._handle_tool_call(ToolCall(id="1", name="get_token_usage", input={}))
+    assert result["session_total_tokens"] == 1500
 
 
 def test_check_workflow_status_through_full_wrapper(agent):

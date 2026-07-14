@@ -100,6 +100,8 @@ class DIALSAgent:
             parser=self.parser,
             workflow=self.workflow,
             command_timings=self.command_timings,
+            session_usage=self.claude.session_usage,
+            token_budget=self.settings.token_budget,
         )
 
     @staticmethod
