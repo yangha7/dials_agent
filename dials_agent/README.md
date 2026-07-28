@@ -471,6 +471,7 @@ This project is part of the DIALS software suite.
 - **`SKILL.md` per skill**: Each skill's prompt-fragment content now lives in `dials_agent/skills/<name>/SKILL.md` (YAML-ish frontmatter with `name`/`description`, markdown body) instead of a Python string literal — `<name>/__init__.py` holds the tool schemas and handler logic and loads the guidance text via `load_skill_md()` at import time. Every flat `skills/<name>.py` module became a `skills/<name>/` package
 - **`get_full_prompt()`**: Preserves the old always-everything concatenation (used by tests to guard against content loss during the split)
 - 85 tests pass (up from 77)
+- **Measured impact**: two live `--auto` full-pipeline runs on the insulin (ins10) dataset averaged **351,109 tokens**, vs. 458,032 for the equivalent v2.0.0 runs (**−23.3%**) and 442,460 for the original pre-skills v1.3 baseline (**−20.6%**) — see [`docs/token_usage_comparison_v2.0_vs_v2.1.md`](docs/token_usage_comparison_v2.0_vs_v2.1.md)
 
 ### v2.0.0 — Skills-Based Architecture
 - **Modular skills**: The monolithic system prompt, tool list, and tool-dispatch chain are split into 12 self-contained skills (`data_import`, `spot_finding`, `indexing`, `refinement`, `integration`, `symmetry`, `scaling`, `export`, `troubleshooting`, `workspace`, `phil_params`, `tutorials`), each owning its own prompt fragment, tool schemas, and handler logic
