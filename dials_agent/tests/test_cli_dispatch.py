@@ -51,10 +51,11 @@ def agent(tmp_path) -> DIALSAgent:
 # ---------------------------------------------------------------------------
 
 def test_agent_wires_all_skills_and_tools(agent):
-    assert len(agent.claude.tools) == 18
+    assert len(agent.claude.tools) == 19
     tool_names = {t["name"] for t in agent.claude.tools}
     assert "suggest_dials_command" in tool_names  # base tool
     assert "calculate" in tool_names  # skill tool
+    assert "load_skill" in tool_names  # progressive-disclosure tool
     assert len(agent.claude.registry.skill_names) == 12
 
 
@@ -275,3 +276,11 @@ def test_get_token_usage_through_full_wrapper_reflects_live_session_usage(agent)
 def test_check_workflow_status_through_full_wrapper(agent):
     result = agent._handle_tool_call(ToolCall(id="1", name="check_workflow_status", input={}))
     assert result["stage_name"] == "none" or "stage_name" in result
+
+
+def test_load_skill_through_full_wrapper(agent):
+    result = agent._handle_tool_call(ToolCall(
+        id="1", name="load_skill", input={"skill_name": "troubleshooting"}
+    ))
+    assert result["skill"] == "troubleshooting"
+    assert result["guidance"] == agent.claude.registry.get_skill("troubleshooting").get_prompt_fragment()

@@ -156,9 +156,11 @@ def get_system_prompt(registry=None) -> str:
     """
     Get the static system prompt for the DIALS AI Agent (suitable for prompt caching).
 
-    Composes the shared base prompt with every registered skill's prompt
-    fragment. If no registry is given, a default registry with all skills
-    is used — this is what gives the monolithic-equivalent behavior.
+    Composes the shared base prompt with the registry's skill index (name +
+    one-line description per skill, not each skill's full guidance — see
+    `SkillRegistry.get_composed_prompt()` for the progressive-disclosure
+    scheme). If no registry is given, a default registry with all skills
+    registered is used.
     """
     if registry is None:
         from ..skills import create_default_registry

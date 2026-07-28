@@ -3,17 +3,24 @@ Skill registry for the DIALS AI Agent.
 
 Each skill is a self-contained unit of domain knowledge (a system-prompt
 fragment), tool definitions, and handler logic. The registry loads all
-skills, composes their prompt fragments into one system prompt, and
-dispatches tool calls to whichever skill owns that tool.
+skills and dispatches tool calls to whichever skill owns that tool.
 
-Loading every skill (the default, via create_default_registry()) produces
-identical behavior to the old monolithic agent — skills are a way of
-organizing that same knowledge, not a change in what the agent knows.
+Progressive disclosure: the system prompt does NOT contain every skill's
+full guidance by default. get_composed_prompt() returns a compact index
+(name + one-line description per skill) plus a `load_skill` tool the LLM
+calls on demand — the same pattern Claude Code itself uses for its own
+skills. A skill's full prompt fragment only enters the conversation (as a
+load_skill tool result) on the turns that actually need it, which keeps
+the cached static system prompt small regardless of how many skills are
+registered. Use get_full_prompt() if you need the old always-everything
+concatenation (e.g. for content-equivalence tests).
 """
 
 from .base import BaseSkill, SkillContext
 
 __all__ = ["BaseSkill", "SkillContext", "SkillRegistry", "create_default_registry"]
+
+LOAD_SKILL_TOOL_NAME = "load_skill"
 
 
 class SkillRegistry:
@@ -35,27 +42,87 @@ class SkillRegistry:
             self._tool_to_skill[tool_name] = skill
 
     def get_composed_prompt(self) -> str:
-        """Compose all skill prompt fragments into one system-prompt block."""
+        """
+        Build the always-loaded skills section of the system prompt: a
+        compact index of every registered skill's name and one-line
+        description, plus instructions to call `load_skill` for detailed
+        guidance. This is what keeps the cached static prompt small.
+        """
+        lines = [
+            "## Available Skills",
+            "",
+            "Each skill below covers one area of DIALS processing in depth "
+            "(detailed parameters, conventions, troubleshooting steps, etc). "
+            "Only the name and one-line description are loaded here — call "
+            "the `load_skill` tool with a skill's name before you need its "
+            "full guidance for that turn. Loading is cheap and only needs to "
+            "happen once per skill per session; its guidance then stays "
+            "available for the rest of the conversation.",
+            "",
+        ]
+        for skill in self._skills.values():
+            lines.append(f"- **{skill.name}**: {skill.description}")
+        return "\n".join(lines)
+
+    def get_full_prompt(self) -> str:
+        """Compose every skill's full prompt fragment into one block (no disclosure gating)."""
         fragments = [skill.get_prompt_fragment() for skill in self._skills.values()]
         return "\n\n".join(fragment for fragment in fragments if fragment)
 
     def get_all_tools(self) -> list[dict]:
-        """Get all tool definitions from all registered skills."""
+        """Get all tool definitions from all registered skills, plus `load_skill`."""
         tools = []
         for skill in self._skills.values():
             tools.extend(skill.get_tools())
+        tools.append(self._load_skill_tool_schema())
         return tools
+
+    def _load_skill_tool_schema(self) -> dict:
+        return {
+            "name": LOAD_SKILL_TOOL_NAME,
+            "description": (
+                "Load the full guidance for one of the skills listed in the "
+                "'Available Skills' index of your system prompt (detailed "
+                "parameters, conventions, troubleshooting steps, etc). Call "
+                "this before you need in-depth instructions for that area — "
+                "only the skill's name and one-line description are in your "
+                "context until you load it."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "skill_name": {
+                        "type": "string",
+                        "description": "Name of the skill to load, e.g. 'troubleshooting' or 'workspace'.",
+                        "enum": sorted(self._skills.keys()),
+                    }
+                },
+                "required": ["skill_name"],
+            },
+        }
+
+    def _handle_load_skill(self, tool_input: dict) -> dict:
+        skill_name = tool_input.get("skill_name", "")
+        skill = self._skills.get(skill_name)
+        if skill is None:
+            return {
+                "error": f"Unknown skill '{skill_name}'.",
+                "available_skills": sorted(self._skills.keys()),
+            }
+        return {"skill": skill.name, "guidance": skill.get_prompt_fragment()}
 
     def handle_tool_call(self, tool_name: str, tool_input: dict, context: SkillContext) -> dict:
         """Dispatch a tool call to whichever skill owns it."""
+        if tool_name == LOAD_SKILL_TOOL_NAME:
+            return self._handle_load_skill(tool_input)
         skill = self._tool_to_skill.get(tool_name)
         if skill is None:
             return {"error": f"Unknown tool: {tool_name}"}
         return skill.handle_tool_call(tool_name, tool_input, context)
 
     def owns_tool(self, tool_name: str) -> bool:
-        """Whether some registered skill handles this tool (vs. a host/base tool)."""
-        return tool_name in self._tool_to_skill
+        """Whether some registered skill (or the registry itself) handles this tool."""
+        return tool_name == LOAD_SKILL_TOOL_NAME or tool_name in self._tool_to_skill
 
     def get_skill(self, name: str) -> BaseSkill | None:
         """Get a skill by name."""

@@ -115,8 +115,9 @@ class ClaudeClient:
             working_directory: Current working directory for context
             existing_files: List of existing DIALS files for context
             registry: Skill registry to compose the system prompt and tools
-                from. Defaults to a registry with every skill loaded, which
-                is what gives behavior equivalent to the old monolithic agent.
+                from. Defaults to a registry with every skill registered;
+                each skill's full guidance is still loaded on demand via
+                the `load_skill` tool rather than injected up front.
         """
         self.settings = settings or get_settings()
         self.working_directory = working_directory

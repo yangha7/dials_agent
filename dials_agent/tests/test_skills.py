@@ -33,7 +33,7 @@ EXPECTED_TOOL_NAMES = {
     "check_workflow_status", "list_available_commands", "read_file",
     "open_file", "change_working_directory", "calculate", "get_timing_report",
     "get_token_usage", "run_shell_command", "create_markdown_file",
-    "create_html_file", "lookup_phil_params",
+    "create_html_file", "lookup_phil_params", "load_skill",
 }
 
 
@@ -121,18 +121,47 @@ def test_unknown_tool_returns_error_dict(registry, tmp_path):
     assert "error" in result
 
 
-def test_composed_prompt_is_content_equivalent_to_monolithic_prompt(registry):
+def test_composed_prompt_is_a_compact_index_not_full_guidance(registry):
+    """Guards the progressive-disclosure scheme: system prompt stays small."""
+    prompt = registry.get_composed_prompt()
+    full_prompt = registry.get_full_prompt()
+
+    # Every skill's name and one-line description is always present...
+    for name in registry.skill_names:
+        skill = registry.get_skill(name)
+        assert name in prompt
+        assert skill.description in prompt
+
+    # ...but the full per-skill guidance is not injected up front.
+    assert len(prompt) < len(full_prompt)
+    assert "load_skill" in prompt
+
+
+def test_full_prompt_is_content_equivalent_to_monolithic_prompt(registry):
     """Guards against accidentally dropping a whole section during the split."""
     from dials_agent.core.tutorials import get_tutorial_prompt_section
 
-    prompt = registry.get_composed_prompt()
+    full_prompt = registry.get_full_prompt()
     tutorials_len = len(get_tutorial_prompt_section())
-    # Composed skills prompt should be roughly the old SYSTEM_PROMPT content
+    # Full skills prompt should be roughly the old SYSTEM_PROMPT content
     # (minus the base-prompt portion, which now lives separately) plus the
     # tutorials section. This is a loose bound, not a byte-for-byte check.
-    assert len(prompt) > tutorials_len
-    assert "lookup_phil_params" in prompt
-    assert "diagnose_problem" in prompt or "Problem Diagnosis" in prompt
+    assert len(full_prompt) > tutorials_len
+    assert "lookup_phil_params" in full_prompt
+    assert "diagnose_problem" in full_prompt or "Problem Diagnosis" in full_prompt
+
+
+def test_load_skill_returns_full_guidance_for_known_skill(registry):
+    for name in registry.skill_names:
+        result = registry.handle_tool_call("load_skill", {"skill_name": name}, None)
+        assert result["skill"] == name
+        assert result["guidance"] == registry.get_skill(name).get_prompt_fragment()
+
+
+def test_load_skill_unknown_name_returns_error(registry):
+    result = registry.handle_tool_call("load_skill", {"skill_name": "not_a_skill"}, None)
+    assert "error" in result
+    assert set(result["available_skills"]) == EXPECTED_SKILL_NAMES
 
 
 # ---------------------------------------------------------------------------
