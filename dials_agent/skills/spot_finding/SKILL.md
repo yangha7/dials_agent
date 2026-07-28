@@ -1,20 +1,9 @@
-"""Spot finding skill: locating diffraction spots on images (dials.find_spots)."""
+---
+name: spot_finding
+description: Finding diffraction spots on images using threshold algorithms (dials.find_spots)
+---
 
-from .base import BaseSkill
-
-
-class SpotFindingSkill(BaseSkill):
-
-    @property
-    def name(self) -> str:
-        return "spot_finding"
-
-    @property
-    def description(self) -> str:
-        return "Finding diffraction spots on images using threshold algorithms (dials.find_spots)"
-
-    def get_prompt_fragment(self) -> str:
-        return """### Spot Finding Quality Indicators
+### Spot Finding Quality Indicators
 - Good: 5,000-50,000 spots total
 - Spots should be evenly distributed across images
 - Very few spots (< 1000): lower sigma_strong, check data quality
@@ -31,4 +20,4 @@ class SpotFindingSkill(BaseSkill):
 Ask: "Would you like to visualize the found spots on the diffraction images?"
 - **View on images**: Suggest `dials.image_viewer imported.expt strong.refl` - shows spots overlaid on diffraction images with bounding boxes
 - **Skip**: Proceed to indexing
-- **NOTE**: Do NOT suggest `dials.reciprocal_lattice_viewer` at this stage — it requires indexed data to show meaningful results. The reciprocal lattice viewer should only be used AFTER indexing."""
+- **NOTE**: Do NOT suggest `dials.reciprocal_lattice_viewer` at this stage — it requires indexed data to show meaningful results. The reciprocal lattice viewer should only be used AFTER indexing.

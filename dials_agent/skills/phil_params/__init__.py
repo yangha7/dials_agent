@@ -3,7 +3,9 @@
 import os
 from pathlib import Path
 
-from .base import BaseSkill, SkillContext
+from ..base import BaseSkill, SkillContext, load_skill_md
+
+_DESCRIPTION, _PROMPT_FRAGMENT = load_skill_md(Path(__file__).parent / "SKILL.md")
 
 TOOLS: list[dict] = [
     {
@@ -27,7 +29,7 @@ TOOLS: list[dict] = [
 ]
 
 # Directories to search for command documentation, in priority order
-_DOCS_ROOT = Path(__file__).parent.parent.parent / "docs"
+_DOCS_ROOT = Path(__file__).parent.parent.parent.parent / "docs"
 _PHIL_PARAMS_DIR = _DOCS_ROOT / "phil_params"   # machine-generated PHIL dumps
 _PROGRAMS_DIR = _DOCS_ROOT / "programs"          # human-readable markdown docs
 
@@ -109,23 +111,10 @@ class PhilParamsSkill(BaseSkill):
 
     @property
     def description(self) -> str:
-        return "On-demand PHIL parameter documentation lookup for all DIALS commands"
+        return _DESCRIPTION
 
     def get_prompt_fragment(self) -> str:
-        return """## PHIL Parameter Lookup
-
-You have access to the **complete PHIL parameter documentation** for all 82 DIALS commands. When a user asks about available parameters, advanced options, or you need to find a specific parameter for troubleshooting:
-
-1. Use the `lookup_phil_params` tool with the command name to get the full parameter listing
-2. Use the `search_term` parameter to search for specific keywords within the output
-3. The documentation includes help text, types, defaults, and expert levels
-
-Example: To find all absorption-related parameters in dials.scale:
-```
-lookup_phil_params(command="dials.scale", search_term="absorption")
-```
-
-**IMPORTANT**: When users ask "what parameters does dials.X have?" or "what options are available for dials.X?", use the `lookup_phil_params` tool to give them accurate, complete information rather than relying on your memory alone."""
+        return _PROMPT_FRAGMENT
 
     def get_tools(self) -> list[dict]:
         return TOOLS

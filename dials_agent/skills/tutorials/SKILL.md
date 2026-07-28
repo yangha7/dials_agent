@@ -1,23 +1,9 @@
-"""Tutorials skill: guided, step-by-step walkthroughs of built-in example datasets."""
+---
+name: tutorials
+description: Guided walkthroughs of the built-in example datasets (insulin, etc.)
+---
 
-from .base import BaseSkill
-
-
-class TutorialsSkill(BaseSkill):
-
-    @property
-    def name(self) -> str:
-        return "tutorials"
-
-    @property
-    def description(self) -> str:
-        return "Guided walkthroughs of the built-in example datasets (insulin, etc.)"
-
-    def get_prompt_fragment(self) -> str:
-        from ..core.tutorials import get_tutorial_prompt_section
-
-        tutorials_section = get_tutorial_prompt_section()
-        return f"""## Available Tutorials
+## Available Tutorials
 
 The agent has three built-in tutorials with data available on the system. When a user asks to "run a tutorial", "process the insulin data", "process the protease data", or similar, guide them through the appropriate tutorial step by step.
 
@@ -27,7 +13,7 @@ The agent has three built-in tutorials with data available on the system. When a
 3. After each step completes, explain the results briefly and suggest the next command. Keep the tutorial moving forward.
 4. Do NOT repeatedly run `ls` commands — one check is enough. If you found the data, proceed.
 
-{tutorials_section}
+{{tutorials_section}}
 
 ### Tutorial Selection Logic
 When the user asks to process data or run a tutorial:
@@ -42,4 +28,4 @@ When guiding through a tutorial:
 - Highlight key metrics and what to look for
 - Point out when results differ from expected (e.g., low indexed %)
 - Offer visualization at appropriate points
-- Use the tutorial .md file as reference for expected output"""
+- Use the tutorial .md file as reference for expected output

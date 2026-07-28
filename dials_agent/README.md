@@ -466,6 +466,12 @@ This project is part of the DIALS software suite.
 
 ## Version History
 
+### v2.1.0 — Progressive Disclosure + SKILL.md
+- **`load_skill` tool**: The system prompt no longer injects every skill's full guidance up front — `SkillRegistry.get_composed_prompt()` now returns a compact index (name + one-line description per skill), and the LLM calls `load_skill` on demand to pull a skill's full guidance into the conversation. Mirrors how Claude Code loads its own skills. Cuts the cached system+tools prefix from ~12.2K to ~5.3K tokens (~56%)
+- **`SKILL.md` per skill**: Each skill's prompt-fragment content now lives in `dials_agent/skills/<name>/SKILL.md` (YAML-ish frontmatter with `name`/`description`, markdown body) instead of a Python string literal — `<name>/__init__.py` holds the tool schemas and handler logic and loads the guidance text via `load_skill_md()` at import time. Every flat `skills/<name>.py` module became a `skills/<name>/` package
+- **`get_full_prompt()`**: Preserves the old always-everything concatenation (used by tests to guard against content loss during the split)
+- 85 tests pass (up from 77)
+
 ### v2.0.0 — Skills-Based Architecture
 - **Modular skills**: The monolithic system prompt, tool list, and tool-dispatch chain are split into 12 self-contained skills (`data_import`, `spot_finding`, `indexing`, `refinement`, `integration`, `symmetry`, `scaling`, `export`, `troubleshooting`, `workspace`, `phil_params`, `tutorials`), each owning its own prompt fragment, tool schemas, and handler logic
 - **`SkillRegistry`**: Composes all skill prompt fragments into the system prompt and dispatches tool calls to the owning skill; `ClaudeClient` and `cli.py` both consume it

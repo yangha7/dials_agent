@@ -1,20 +1,9 @@
-"""Scaling skill: applying corrections and scaling data (dials.scale)."""
+---
+name: scaling
+description: Applying absorption/decay corrections and scaling data (dials.scale)
+---
 
-from .base import BaseSkill
-
-
-class ScalingSkill(BaseSkill):
-
-    @property
-    def name(self) -> str:
-        return "scaling"
-
-    @property
-    def description(self) -> str:
-        return "Applying absorption/decay corrections and scaling data (dials.scale)"
-
-    def get_prompt_fragment(self) -> str:
-        return """### Scaling Quality Indicators
+### Scaling Quality Indicators
 - Rmerge: <10% overall is good, <5% is excellent
 - CC1/2: >0.5 in outer shell is common cutoff, >0.3 is acceptable
 - Completeness: >95% is good, >99% is excellent
@@ -28,4 +17,4 @@ class ScalingSkill(BaseSkill):
 3. **High absorption**: Add `absorption_level=medium` or `absorption_level=high`
 
 ### After Scaling
-Proactively open the HTML report: Use the `open_file` tool to open `dials.scale.html` which contains detailed statistics and diagnostic plots."""
+Proactively open the HTML report: Use the `open_file` tool to open `dials.scale.html` which contains detailed statistics and diagnostic plots.

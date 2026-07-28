@@ -1,20 +1,9 @@
-"""Integration skill: measuring spot intensities (dials.integrate)."""
+---
+name: integration
+description: Measuring spot intensities by profile fitting (dials.integrate)
+---
 
-from .base import BaseSkill
-
-
-class IntegrationSkill(BaseSkill):
-
-    @property
-    def name(self) -> str:
-        return "integration"
-
-    @property
-    def description(self) -> str:
-        return "Measuring spot intensities by profile fitting (dials.integrate)"
-
-    def get_prompt_fragment(self) -> str:
-        return """### Integration Quality Indicators
+### Integration Quality Indicators
 - Profile fitting should succeed for >90% of reflections
 - Check for systematic patterns in integration failures
 
@@ -26,4 +15,4 @@ class IntegrationSkill(BaseSkill):
 - **Recommendation**: Start with `nproc=4` or `nproc=8`. If memory is not an issue, increase. Use `integration.block.max_memory_usage=0.80` to control memory.
 
 ### After Integration (Visualization)
-Optionally offer: `dials.image_viewer integrated.expt integrated.refl` - shows predicted reflection positions as red boxes on images"""
+Optionally offer: `dials.image_viewer integrated.expt integrated.refl` - shows predicted reflection positions as red boxes on images

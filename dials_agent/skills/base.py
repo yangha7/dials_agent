@@ -9,7 +9,27 @@ logic that executes those tools.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
+
+
+def load_skill_md(path: "str | Path") -> tuple[str, str]:
+    """
+    Parse a SKILL.md file into (description, body).
+
+    Frontmatter here is intentionally a minimal flat `key: value` format
+    (not full YAML) between `---` markers, since a skill only needs a
+    name and one-line description — this avoids adding a yaml dependency
+    for two fields. `name` in the frontmatter is documentation only; the
+    skill class remains the source of truth for its own `name` property.
+    """
+    text = Path(path).read_text()
+    _, frontmatter_text, body = text.split("---", 2)
+    frontmatter = {}
+    for line in frontmatter_text.strip().splitlines():
+        key, _, value = line.partition(":")
+        frontmatter[key.strip()] = value.strip()
+    return frontmatter["description"], body.strip()
 
 
 @dataclass
