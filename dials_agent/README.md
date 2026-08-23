@@ -1,4 +1,4 @@
-# DIALS AI Agent (v2.0)
+# DIALS AI Agent (v2.2)
 
 A natural language interface for DIALS (Diffraction Integration for Advanced Light Sources) crystallography data processing.
 
@@ -17,7 +17,8 @@ The DIALS AI Agent allows users with less command-line experience to process cry
 - **File Access**: Agent can directly read log files and open HTML reports
 - **Visualization**: Integrated support for `dials.image_viewer` and `dials.reciprocal_lattice_viewer`
 - **Multi-Provider LLM Support**: Works with CBORG, OpenAI, Google Gemini, and Anthropic Claude
-- **Skills-Based Architecture** *(v2.0)*: Domain knowledge, tools, and handlers are organized into self-contained skills (spot finding, indexing, scaling, troubleshooting, etc.), composed by a `SkillRegistry` — modular, independently testable, and MCP-ready
+- **MCP Server** *(v2.2)*: Exposes a curated subset of the agent's tools over the Model Context Protocol, so other agents (e.g. a future Phenix agent) can call directly into DIALS processing instead of only through the interactive CLI
+- **Skills-Based Architecture** *(v2.0–2.1)*: Domain knowledge, tools, and handlers are organized into self-contained skills (spot finding, indexing, scaling, troubleshooting, etc.), each with its own `SKILL.md`, composed by a `SkillRegistry` with on-demand loading (`load_skill`) to keep the cached prompt small
 - **Run Comparison** *(v1.3)*: Compare results from multiple processing runs (human vs agent, different parameters) with consistency assessment
 - **PHIL Parameter Lookup** *(v1.2)*: On-demand access to complete parameter documentation for all 82 DIALS commands
 - **Problem Diagnosis** *(v1.2)*: Intelligent troubleshooting with specific parameter-level fixes for 15+ common problems
@@ -199,6 +200,17 @@ Agent: Indexing failed because no solution was found. This could be due to:
        
        I suggest trying: dials.index imported.expt strong.refl indexing.method=fft1d
 ```
+
+### MCP Server *(v2.2)*
+
+For letting other agents (e.g. a future Phenix agent, or any orchestrator) call into this agent's tools directly, instead of only through the interactive CLI:
+
+```bash
+pip install "dials-agent[mcp]"   # or: pip install mcp
+python -m dials_agent.mcp_server -d /path/to/output
+```
+
+This is a narrower, curated tool surface than the CLI — see the module docstring in [`dials_agent/mcp_server.py`](dials_agent/mcp_server.py) for exactly what's excluded and why (arbitrary shell execution, and the two tools whose UX only makes sense inside the CLI's own approve-then-execute loop). DIALS command execution is exposed as `execute_dials_command`, which runs immediately — an external agent's decision to call the tool over MCP is itself the approval, there's no separate confirmation step. Stdio transport only for now; `mcp`'s `streamable-http` transport is a natural next step if a caller needs to connect over the network rather than as a local subprocess.
 
 ## Project Structure
 
@@ -465,6 +477,13 @@ ruff check dials_agent/
 This project is part of the DIALS software suite.
 
 ## Version History
+
+### v2.2.0 — MCP Server
+- **`dials_agent/mcp_server.py`**: New `DIALSMCPHost` + `build_server()` expose 15 of the agent's tools over the Model Context Protocol (`python -m dials_agent.mcp_server`), so an external agent (e.g. a future Phenix agent) can call directly into DIALS processing rather than only through the interactive CLI
+- **Curated surface, not full parity**: excludes `run_shell_command` (arbitrary shell — bigger blast radius with no human confirming), and `suggest_dials_command` / `explain_dials_concept` / `suggest_troubleshooting` (designed around the CLI's own approve-then-execute loop or its own LLM answering in the same turn — neither maps onto a stateless external tool call)
+- **`execute_dials_command`**: new tool replacing `suggest_dials_command`'s role for MCP callers — runs a validated DIALS command immediately, since the calling agent's decision to invoke it over MCP is itself the approval
+- Built against `mcp` SDK 2.0.0's `MCPServer` API (`mcp.server.mcpserver`); stdio transport for now
+- 96 tests pass (up from 85), plus a manual end-to-end smoke test over real stdio (tool listing + representative calls across all 15 tools, including confirming `execute_dials_command` rejects non-`dials.`-prefixed commands)
 
 ### v2.1.0 — Progressive Disclosure + SKILL.md
 - **`load_skill` tool**: The system prompt no longer injects every skill's full guidance up front — `SkillRegistry.get_composed_prompt()` now returns a compact index (name + one-line description per skill), and the LLM calls `load_skill` on demand to pull a skill's full guidance into the conversation. Mirrors how Claude Code loads its own skills. Cuts the cached system+tools prefix from ~12.2K to ~5.3K tokens (~56%)
