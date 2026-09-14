@@ -168,10 +168,41 @@ python -m dials_agent.cli -d /path/to/output
 - `help` - Show available commands
 - `status` - Show current workflow status
 - `history` - Show command history
+- `auto` / `auto <message>` - Run the complete workflow unattended (see "Auto Mode" below for multi-dataset behavior)
 - `compare <dir1> <dir2> [...]` - Compare results from multiple processing runs
 - `clear` - Clear conversation history
 - `cd <path>` - Change working directory
 - `quit` / `exit` - Exit the agent
+
+### Auto Mode
+
+`auto` (or `--auto` on the command line) runs the complete workflow — import through
+export — without stopping for confirmation. If `DATA_DIRECTORY` contains multiple
+subdirectories that each look like an independent dataset (i.e. each has its own
+diffraction data files), **every one of them is processed automatically, one at a time,
+each into its own output subdirectory** — you don't need to run `auto` separately per
+dataset. For example:
+
+```
+data/
+├── insulin/       (image_0001.cbf, ...)
+├── lysozyme/      (image_0001.h5, ...)
+└── proteinaseK/   (image_0001.h5, ...)
+```
+
+with `DATA_DIRECTORY=data/` and `WORKING_DIRECTORY=/scratch/results/` produces:
+
+```
+/scratch/results/
+├── insulin/       (imported.expt, ..., scaled.mtz)
+├── lysozyme/
+└── proteinaseK/
+```
+
+If you only want one specific dataset processed, name it in the request —
+`auto process the lysozyme dataset` — and only that subdirectory runs. A flat data
+directory (files directly in it, no subdirectories) behaves exactly as before: a single
+dataset, processed into the configured working directory.
 
 ### Natural Language Examples
 
@@ -265,6 +296,40 @@ The standard DIALS processing workflow:
 8. **Export** (`dials.export`) - Output data for downstream analysis
 
 ## Deploying to Another Computer
+
+### Unfamiliar Environment? Run the Pre-flight Check First
+
+Before deploying to a machine you haven't used before — a new cluster, an
+OOD/Slurm virtual desktop, an unfamiliar VM — run
+[`scripts/preflight_check.sh`](scripts/preflight_check.sh). It's read-only
+(makes no changes) and answers the questions that otherwise take several
+rounds of trial and error:
+
+```bash
+curl -sO https://raw.githubusercontent.com/yangha7/dials_agent/main/scripts/preflight_check.sh
+chmod +x preflight_check.sh
+./preflight_check.sh
+```
+
+(Or, if you've already cloned the repo: `./dials_agent/scripts/preflight_check.sh`.)
+
+It checks:
+- **Ephemeral vs. stable host** — detects a Slurm/PBS-scheduled session (e.g.
+  an OOD "Desktop" app job) and warns if the node itself will disappear when
+  the job ends, so you know to install into a shared/persistent home
+  directory rather than local scratch.
+- **How DIALS is activated** — three patterns seen in practice:
+  1. **Conda**, via `dials_env.sh` (see "Installing into a DIALS Conda
+     Environment" below)
+  2. **SBGrid** (or a module system) — `dials.*` commands are already on
+     `PATH` with no separate activation script; leave `DIALS_PATH` blank
+  3. **Not installed/activated** — needs `module load` / sourcing / install
+     first
+- **Network reachability** — GitHub (to clone), PyPI (to `pip install`), and
+  your LLM provider's API endpoint (CBORG, Anthropic, etc.), since compute
+  nodes on a cluster are sometimes NAT'd through restricted egress even when
+  the browser-based session itself works fine.
+- **Python 3.10+ with `venv`**, and `git`.
 
 ### Quick Deployment Steps
 
@@ -477,6 +542,26 @@ ruff check dials_agent/
 This project is part of the DIALS software suite.
 
 ## Version History
+
+### v2.4.0 — Multi-Dataset Auto Processing
+- **`run_auto` now handles multiple datasets by default**: previously it always processed exactly one dataset into the configured working directory. It now calls a new `_discover_dataset_subdirectories()` — an immediate-subdirectory scan of `DATA_DIRECTORY` for anything containing recognized diffraction data files — and, when 2+ are found, loops over all of them (via a new `_switch_to_dataset()`, which creates `<working_directory>/<dataset_name>/` and points input/output at the right places, clearing conversation history between datasets so context doesn't bleed across them), unless the user's request names one specifically (a single case-insensitive substring match against the discovered names), in which case only that one runs. A flat data directory (no subdirectories) is unchanged — same single-dataset behavior as before
+- The original single-dataset loop body was extracted unchanged into `_run_auto_single()` (now returns whether the workflow completed within its iteration budget, `max_iterations=30` **per dataset** rather than shared across all of them) so multi-dataset processing is a thin wrapper around exactly the same per-dataset logic, not a reimplementation
+- `Ctrl+C` during one dataset now stops the whole multi-dataset run (rather than silently skipping to the next) while still printing the same graceful message as before for the single-dataset case
+- Documented in README ("Auto Mode" section) and in-app help (`help` command, `--auto`/`--auto-message` CLI help text)
+- 16 new tests in `tests/test_auto_multi_dataset.py` (dataset discovery, output-directory creation, conversation-history isolation, single-vs-multi dispatch, named-dataset narrowing, interrupt handling) — 112 total, up from 96
+
+### v2.3.0 — Reciprocal-Lattice Linearity Check + Beam-Centre Knowledge Fix
+- **`dials/scripts/reciprocal_lattice_linearity.py`**: New numeric (no rendering, no vision model) check for whether a crystal's reciprocal lattice is straight, statically bent, or spiraling — computed directly from `indexed.refl`'s Miller indices, `rlp` coordinates, and rotation angles. For each "systematic row" (fix two Miller indices, vary the third), fits a straight line via total-least-squares/SVD and reports the normalized perpendicular residual (curvature) plus how strongly the residual direction correlates with rotation angle (`phi_correlation_r2` — near 1 means the curvature is phi-locked, i.e. a spiral; near 0 with real curvature means a static/fixed geometry error). Model-free: never needs the "true" unit cell, only checks self-consistency with *some* straight lattice. Run via `dials.python <script> indexed.expt indexed.refl` (or `libtbx.python`/`cctbx.python` as a fallback on installs that omit `dials.python`) — wired into the always-present base system prompt (`core/prompts.py`) with a runtime-resolved absolute path, so the LLM can invoke it through the existing `suggest_dials_command`/`analyze_dials_output` tools with no new tool-handling code needed. Validated against synthetic data (straight/statically-bent/spiral scenarios) built with the real `dials.array_family.flex`/cctbx APIs — see the version-history entry below for numbers
+- **Beam-centre knowledge gap fixed**: the agent previously suggested `indexing.max_lattices=N` for apparent multi-lattice patterns without ever connecting that symptom (plus high/unstable refinement RMSDs, sometimes described as "the crystal moving in the beam") to an incorrect initial beam centre — a well-known real-world failure mode (see DIALS's "Correcting Poor Initial Geometry" tutorial), not something to hardcode per-dataset. Added `dials.search_beam_position` as a first-suggested fix in `skills/troubleshooting/__init__.py`'s `multiple_lattices` and `refinement_failed` entries, new keyword mappings (`"beam mov"`, `"crystal mov"`, `"large jumps"`, etc.), and matching guidance in `skills/indexing/SKILL.md` and `skills/refinement/SKILL.md` (the latter previously had a dead-end observation — "large jumps suggest problems" — with no next step attached)
+- **Runs proactively at each relevant step**, not just when asked: the base prompt now instructs the agent to run this automatically right after `dials.index` and again after `dials.refine`, and — when it flags a problem — to (1) explain the finding, (2) point the user at `dials.reciprocal_lattice_viewer`/`dials.image_viewer` to confirm visually themselves (the agent still can't render/view images), and (3) propose the specific fix command rather than only reporting a number. `skills/indexing/SKILL.md` and `skills/refinement/SKILL.md` updated to match ("After Indexing/Refinement (Geometry Check)")
+- **Measured runtime**: ~2s fixed interpreter-startup cost (`dials.python`/`cctbx.python` + dxtbx/dials imports) plus ~0.3-0.4s of actual analysis per crystal at full-sweep scale (benchmarked with a real `dials.array_family.flex` reflection table sized to ~90k/~70k indexed reflections) — roughly 2.5-3s total per run, negligible next to `dials.index` itself (typically tens of seconds to minutes)
+- **Directory clarity fix**: `core/prompts.py`'s dynamic context block previously labeled the output location as generic "Working directory" and only showed the data directory line when one happened to be configured — a real conflation risk (especially for a shared install where the data directory is common but each user's output directory differs, as in the workshop setup). Now always shows both, explicitly labeled "Output directory" and "Data directory", with an explicit instruction not to refer to either as just "the working directory"
+- **Visualization offered at every later step, not just on a flagged geometry check**: restored an always-available (not just problem-triggered) offer to open `dials.reciprocal_lattice_viewer`/`dials.image_viewer` after indexing and refinement even when the geometry check comes back clean; reinforced the existing offer after integration; added one after `dials.cosym` (checking consistent reindexing across datasets); and added explicit "not applicable here" notes at symmetry (single-crystal case)/scaling/export so the agent doesn't awkwardly reach for an image viewer where a per-image/reciprocal-lattice view genuinely isn't the right diagnostic
+- 96 tests still pass; no test changes needed since this only extends prompt/knowledge content and adds a new bundled script, no new tool schemas
+
+### v2.2.1 — Pre-flight Environment Check
+- **`scripts/preflight_check.sh`**: New read-only diagnostic script for deploying to an unfamiliar machine — detects an ephemeral Slurm/PBS-scheduled session (e.g. an OOD virtual-desktop job) vs. a stable host, identifies which of the three observed DIALS-activation patterns applies (conda `dials_env.sh`, SBGrid/module system with `dials.*` already on `PATH`, or not installed), checks Python 3.10+/`venv`/`git`, and checks reachability of GitHub, PyPI, and the LLM provider endpoints (CBORG, Anthropic). Written after deploying to an AWS ParallelCluster/SBGrid-cloud OOD desktop node where DIALS had no `dials_env.sh` at all (SBGrid puts `dials.*` directly on `PATH`) — a case the README's existing deployment steps didn't call out
+- README: new "Unfamiliar Environment? Run the Pre-flight Check First" section documenting the three DIALS-activation patterns
 
 ### v2.2.0 — MCP Server
 - **`dials_agent/mcp_server.py`**: New `DIALSMCPHost` + `build_server()` expose 15 of the agent's tools over the Model Context Protocol (`python -m dials_agent.mcp_server`), so an external agent (e.g. a future Phenix agent) can call directly into DIALS processing rather than only through the interactive CLI

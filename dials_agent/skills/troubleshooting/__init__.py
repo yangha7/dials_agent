@@ -193,9 +193,23 @@ PROBLEM_SOLUTIONS = {
         "stage": "index",
         "solutions": [
             {
+                "action": "Check the beam centre first, before assuming it's really multi-lattice",
+                "params": [],
+                "explanation": (
+                    "An incorrect initial beam centre commonly produces exactly this "
+                    "symptom pattern — spots that look like separate lattices, and/or "
+                    "high or unstable RMSDs / large jumps during refinement — even for "
+                    "a single crystal. Run dials.search_beam_position imported.expt "
+                    "strong.refl and re-index before reaching for multi-lattice options; "
+                    "this often collapses an apparent multi-crystal case into one clean "
+                    "lattice. See the DIALS 'Correcting Poor Initial Geometry' tutorial "
+                    "for a worked example of this exact failure mode."
+                )
+            },
+            {
                 "action": "Enable multi-lattice indexing",
                 "params": ["indexing.max_lattices=5"],
-                "explanation": "Find up to 5 lattices. Check reciprocal lattice viewer to see them."
+                "explanation": "Find up to 5 lattices. Check reciprocal lattice viewer to see them. Only reach for this once a bad beam centre has been ruled out."
             },
             {
                 "action": "Use joint=false for independent indexing",
@@ -210,6 +224,18 @@ PROBLEM_SOLUTIONS = {
         "description": "Refinement failed or diverged",
         "stage": "refine",
         "solutions": [
+            {
+                "action": "Rule out a wrong initial beam centre",
+                "params": [],
+                "explanation": (
+                    "Large jumps or instability in scan-varying parameters — sometimes "
+                    "described as the crystal 'moving' or 'drifting' during the rotation "
+                    "— is frequently caused by an incorrect starting beam centre rather "
+                    "than genuine crystal motion. Run dials.search_beam_position "
+                    "imported.expt strong.refl and re-index/re-refine before tuning "
+                    "refinement parameters further."
+                )
+            },
             {
                 "action": "Fix detector parameters",
                 "params": ["refinement.parameterisation.detector.fix=all"],
@@ -504,6 +530,14 @@ _KEYWORD_MAP = {
     "beam cent": "wrong_beam_centre",
     "beam center": "wrong_beam_centre",
     "beam position": "wrong_beam_centre",
+    "beam mov": "wrong_beam_centre",
+    "moving in the beam": "wrong_beam_centre",
+    "crystal mov": "wrong_beam_centre",
+    "crystal drift": "wrong_beam_centre",
+    "unstable geometry": "wrong_beam_centre",
+    "poor initial geometry": "wrong_beam_centre",
+    "geometry instability": "wrong_beam_centre",
+    "large jumps": "wrong_beam_centre",
     "ice ring": "ice_rings",
     "ice": "ice_rings",
     "electron": "electron_diffraction",

@@ -152,6 +152,54 @@ At any stage, `dials.report <step>.expt <step>.refl` generates an HTML report. O
 You have access to tools that allow you to suggest DIALS commands, check workflow status, read files, open HTML reports, and explain concepts. Use these tools to help users effectively."""
 
 
+def _get_reciprocal_lattice_linearity_note() -> str:
+    """
+    Resolve the absolute path to the bundled reciprocal-lattice
+    linearity/spiral check script and describe how to run it.
+
+    This is computed once (it's part of the cached static prompt, not the
+    per-turn dynamic context — the path is fixed per installation, not
+    per-session) rather than hardcoded, so it's correct regardless of
+    where dials_agent happens to be installed.
+    """
+    from pathlib import Path
+    script_path = (
+        Path(__file__).resolve().parent.parent / "dials" / "scripts" / "reciprocal_lattice_linearity.py"
+    )
+    return (
+        "\n## Numeric Reciprocal-Lattice Check (no rendering needed)\n\n"
+        "You cannot see the reciprocal lattice viewer's rendered image, but you can check "
+        "the same thing numerically, directly from the indexed reflection data — whether "
+        "reciprocal-lattice rows are straight (good geometry), statically bent (a fixed "
+        "model error, e.g. wrong unit cell/detector distance), or spiraling (curvature "
+        "that tracks rotation angle — the crystal or beam drifting during the scan, or a "
+        "wrong beam centre). Run it with dials.python via `suggest_dials_command`:\n\n"
+        f"`dials.python {script_path} indexed.expt indexed.refl`\n\n"
+        "It prints a JSON summary (per crystal, with a plain-language verdict) — read it "
+        "directly. If `dials.python` isn't available on this particular installation (some "
+        "source builds omit it), the script only needs dxtbx/dials/numpy on the "
+        "interpreter's path — try `libtbx.python` or `cctbx.python` instead.\n\n"
+        "**Run this proactively, not just when asked**: after `dials.index` succeeds, and "
+        "again after `dials.refine` succeeds, run this check automatically as part of your "
+        "own workflow — don't wait for the user to bring up multiple lattices or geometry "
+        "concerns. It typically takes only a few seconds total (dominated by interpreter "
+        "startup, not the analysis itself), even for a full dataset with 100k+ reflections, "
+        "so there's no real cost to checking every time.\n\n"
+        "- If the verdict comes back clean (straight, no flagged rows), just note briefly "
+        "that the geometry checks out and move on — don't dwell on it.\n"
+        "- If it flags a problem (static bend or spiral), do all three of the following, not "
+        "just report the number: (1) explain the finding in plain language (bent vs. "
+        "spiraling, and what that implies); (2) suggest the user visually confirm it "
+        "themselves, since you cannot render or view the image yourself — point them at "
+        "`dials.reciprocal_lattice_viewer indexed.expt indexed.refl` (or the refined "
+        "equivalent) and, if relevant, `dials.image_viewer` to look at the raw spots; (3) "
+        "propose the specific next command(s) to try, e.g. "
+        "`dials.search_beam_position imported.expt strong.refl` for a spiral or suspected "
+        "bad beam centre — use the `diagnose_problem` tool for the full menu of options "
+        "rather than only naming one."
+    )
+
+
 def get_system_prompt(registry=None) -> str:
     """
     Get the static system prompt for the DIALS AI Agent (suitable for prompt caching).
@@ -166,7 +214,7 @@ def get_system_prompt(registry=None) -> str:
         from ..skills import create_default_registry
         registry = create_default_registry()
     skills_prompt = registry.get_composed_prompt()
-    return BASE_PROMPT + "\n\n" + skills_prompt
+    return BASE_PROMPT + "\n\n" + skills_prompt + "\n" + _get_reciprocal_lattice_linearity_note()
 
 
 def get_dynamic_context(
@@ -188,11 +236,16 @@ def get_dynamic_context(
     else:
         data_files_section = "Available diffraction data files:\n- None found. Ask the user to specify the path to their data file."
 
-    data_dir_section = f"\nData directory (input files): {data_directory}" if data_directory else ""
+    data_directory_display = data_directory or "not configured — ask the user where their data is, or use change_data_directory"
 
     return (
         "\n## Current Context\n\n"
-        f"Working directory: {working_directory}{data_dir_section}\n\n"
+        "These are two distinct directories — do not conflate them, and do not refer to "
+        "either one as just \"the working directory\" when talking to the user:\n"
+        f"- Output directory (DIALS commands run here; this is where indexed.expt, "
+        f"refined.expt, etc. get written and read from): {working_directory}\n"
+        f"- Data directory (raw input images live here; only used to discover/import data, "
+        f"never written to): {data_directory_display}\n\n"
         f"{data_files_section}\n\n"
         "Existing DIALS files:\n"
         + (
@@ -203,7 +256,8 @@ def get_dynamic_context(
         + "\n\nBased on the existing files, determine what step of the workflow the user is "
         "at and suggest appropriate next steps.\n"
         "When suggesting dials.import commands, use the actual file paths from "
-        '"Available diffraction data files" above.'
+        '"Available diffraction data files" above (these come from the data directory, not '
+        "the output directory)."
     )
 
 

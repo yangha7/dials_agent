@@ -24,6 +24,7 @@ from rich.text import Text
 
 from .config import Settings, get_settings, configure_from_env_file
 from .core.claude_client import ClaudeClient, ToolCall, create_client
+from .core.tools import DATA_FILE_EXTENSIONS
 from .skills import SkillContext
 from .dials.compare import (
     compare_runs,
@@ -528,17 +529,178 @@ class DIALSAgent:
 
         console.print(f"[dim]↳ {' | '.join(parts)}[/dim]")
     
+    def _directory_has_data_files(self, directory: Path, max_depth: int = 2) -> bool:
+        """Shallow check for any recognized diffraction data file under `directory`."""
+        def scan(d: Path, depth: int) -> bool:
+            if depth > max_depth:
+                return False
+            try:
+                for item in d.iterdir():
+                    if item.is_file() and item.suffix.lower() in DATA_FILE_EXTENSIONS:
+                        return True
+                    if item.is_dir() and not item.name.startswith("."):
+                        if scan(item, depth + 1):
+                            return True
+            except PermissionError:
+                pass
+            return False
+        return scan(directory, 0)
+
+    def _discover_dataset_subdirectories(self) -> list[Path]:
+        """
+        Look for multiple independent datasets under the configured data
+        directory: immediate subdirectories that themselves contain
+        recognized diffraction data files.
+
+        Used by `run_auto` to decide whether to process a single dataset
+        (unchanged default behavior) or loop over several, each into its
+        own output subdirectory.
+        """
+        data_dir = self.settings.data_directory
+        if not data_dir:
+            return []
+        base = Path(data_dir)
+        if not base.is_dir():
+            return []
+
+        found = []
+        try:
+            for entry in sorted(base.iterdir()):
+                if entry.is_dir() and not entry.name.startswith(".") and self._directory_has_data_files(entry):
+                    found.append(entry)
+        except PermissionError:
+            pass
+        return found
+
+    def _switch_to_dataset(self, dataset_dir: Path, output_dir: Path):
+        """
+        Point the agent at one dataset for multi-dataset auto processing:
+        input is read from `dataset_dir`, output is written to `output_dir`
+        (created if it doesn't exist yet). Conversation history is cleared
+        so context from a previous dataset doesn't bleed into this one.
+        """
+        output_dir.mkdir(parents=True, exist_ok=True)
+        self.working_directory = output_dir
+        self.workflow = create_workflow_manager(str(output_dir))
+        self.executor = create_executor(str(output_dir))
+        self.settings.data_directory = str(dataset_dir)
+
+        self.claude.clear_history()
+        self.claude.update_context(
+            working_directory=str(output_dir),
+            existing_files=self.workflow.get_available_files(),
+        )
+        if output_dir not in self.used_directories:
+            self.used_directories.append(output_dir)
+
     def run_auto(self, initial_message: str = None, skip_dials_check: bool = False):
         """
         Run the agent in auto mode — process the entire workflow without user interruption.
-        
-        The agent will ask Claude for each step, automatically approve and execute
-        commands, feed results back, and continue until the workflow is complete
-        or an error occurs.
-        
+
+        If the configured data directory contains multiple subdirectories that each
+        look like independent datasets (and the user hasn't named one specifically),
+        each one is processed in turn into its own output subdirectory, rather than
+        assuming there's exactly one dataset to process.
+
         Args:
             initial_message: The initial instruction to send to Claude
             skip_dials_check: Skip DIALS availability check (already done in interactive mode)
+        """
+        console.print(Panel.fit(
+            "[bold blue]DIALS AI Agent — Auto Mode[/bold blue]\n"
+            "Running through the complete workflow without interruption.\n"
+            "Press Ctrl+C to abort.",
+            border_style="blue"
+        ))
+
+        if not skip_dials_check:
+            # Check DIALS availability
+            available, version = self.executor.check_dials_available()
+            if available:
+                console.print(f"[green]✓ DIALS available: {version}[/green]")
+            else:
+                console.print(f"[red]✗ DIALS not found: {version}[/red]")
+                console.print("[red]Cannot run in auto mode without DIALS installed.[/red]")
+                return
+
+            # Show initial status
+            self.display_workflow_status()
+            console.print()
+
+        auto_start_time = time.time()
+
+        dataset_dirs = self._discover_dataset_subdirectories()
+        if len(dataset_dirs) < 2:
+            # Single dataset — unchanged, original behavior.
+            try:
+                self._run_auto_single(initial_message)
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Auto mode interrupted by user.[/yellow]")
+        else:
+            # Multiple candidate datasets found. If the user's message names
+            # exactly one of them, treat that as "specifically suggested" and
+            # process only it; otherwise process all of them, one at a time.
+            named = [
+                d for d in dataset_dirs
+                if initial_message and d.name.lower() in initial_message.lower()
+            ]
+            targets = named if len(named) == 1 else dataset_dirs
+
+            console.print(
+                f"[bold blue]Found {len(dataset_dirs)} dataset subdirectories under "
+                f"{self.settings.data_directory}[/bold blue]"
+            )
+            if targets is dataset_dirs:
+                console.print(f"[dim]No single dataset named in the request — processing all {len(targets)}.[/dim]\n")
+            else:
+                console.print(f"[dim]Processing the one named in the request: {targets[0].name}[/dim]\n")
+
+            results = []
+            base_output_dir = self.base_directory
+            try:
+                for i, dataset_dir in enumerate(targets, 1):
+                    output_dir = (base_output_dir / dataset_dir.name).resolve()
+                    console.print(Panel.fit(
+                        f"[bold blue]Dataset {i}/{len(targets)}: {dataset_dir.name}[/bold blue]\n"
+                        f"Data:   {dataset_dir}\n"
+                        f"Output: {output_dir}",
+                        border_style="blue"
+                    ))
+                    self._switch_to_dataset(dataset_dir, output_dir)
+                    completed = self._run_auto_single(initial_message)
+                    results.append((dataset_dir.name, output_dir, completed))
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Auto mode interrupted by user — stopping before remaining datasets.[/yellow]")
+
+            # Restore to the original base directory for any subsequent interactive use.
+            self.working_directory = base_output_dir
+            self.workflow = create_workflow_manager(str(base_output_dir))
+            self.executor = create_executor(str(base_output_dir))
+
+            console.print("\n[bold]Multi-dataset summary:[/bold]")
+            for name, output_dir, completed in results:
+                status = "[green]complete[/green]" if completed else "[yellow]incomplete (hit iteration limit or error)[/yellow]"
+                console.print(f"  [cyan]{name}[/cyan] → {output_dir}  [{status}]")
+
+        # Show final timing summary (aggregated across all datasets processed above)
+        auto_duration = time.time() - auto_start_time
+        console.print()
+        self.display_timing_summary()
+
+        if auto_duration >= 60:
+            total_minutes = int(auto_duration // 60)
+            total_seconds = auto_duration % 60
+            console.print(f"\n[bold]Total wall-clock time: {total_minutes}m {total_seconds:.1f}s[/bold]")
+        else:
+            console.print(f"\n[bold]Total wall-clock time: {auto_duration:.1f}s[/bold]")
+
+    def _run_auto_single(self, initial_message: str = None, max_iterations: int = 30) -> bool:
+        """
+        Run the complete DIALS workflow, unattended, for whatever dataset is
+        currently configured (`self.working_directory` / `self.settings.data_directory`).
+
+        Returns True if the workflow completed within the iteration budget,
+        False if it hit the limit, errored, or was interrupted.
         """
         # Build the auto-mode instruction
         auto_instruction = (
@@ -551,65 +713,43 @@ class DIALSAgent:
             "5. Continue until the workflow is complete (through export/merge)\n"
             "6. Keep explanations brief in auto mode\n\n"
         )
-        
+
         if initial_message:
             auto_instruction += f"User's request: {initial_message}"
         else:
             auto_instruction += "Process the data through the complete workflow with default settings."
-        
-        console.print(Panel.fit(
-            "[bold blue]DIALS AI Agent — Auto Mode[/bold blue]\n"
-            "Running through the complete workflow without interruption.\n"
-            "Press Ctrl+C to abort.",
-            border_style="blue"
-        ))
-        
-        if not skip_dials_check:
-            # Check DIALS availability
-            available, version = self.executor.check_dials_available()
-            if available:
-                console.print(f"[green]✓ DIALS available: {version}[/green]")
-            else:
-                console.print(f"[red]✗ DIALS not found: {version}[/red]")
-                console.print("[red]Cannot run in auto mode without DIALS installed.[/red]")
-                return
-            
-            # Show initial status
-            self.display_workflow_status()
-            console.print()
-        
-        auto_start_time = time.time()
-        max_iterations = 30  # Safety limit to prevent infinite loops
+
         iteration = 0
         self.auto_mode = True
-        
+        completed = False
+
         # Start with the auto instruction
         current_message = auto_instruction
-        
+
         try:
             while iteration < max_iterations:
                 iteration += 1
                 console.print(f"\n[dim]── Auto step {iteration} ──[/dim]")
-                
+
                 # Send message to Claude
                 with console.status("[bold green]Thinking...") as status:
                     self._active_status = status
                     response = self.chat(current_message)
                     self._active_status = None
-                
+
                 # Display response
                 if response:
                     console.print(f"\n[bold green]Agent[/bold green]")
                     console.print(Markdown(response))
-                
+
                 # Handle pending command — auto-approve
                 if self.pending_command:
                     self.display_command_suggestion(self.pending_command)
                     console.print("[bold yellow]Auto-approving command...[/bold yellow]")
-                    
+
                     result = self.execute_command(self.pending_command["command"])
                     self.display_result(result)
-                    
+
                     if not result.success:
                         console.print("[red]Command failed. Asking agent for troubleshooting...[/red]")
                         current_message = (
@@ -619,14 +759,14 @@ class DIALSAgent:
                         )
                         self.pending_command = None
                         continue
-                    
+
                     # Send result back to Claude for analysis and next step
                     cmd_name = self.pending_command["command"].split()[0] if self.pending_command["command"] else ""
                     if cmd_name in ("dials.scale", "dials.symmetry", "dials.cosym", "dials.merge", "dials.index"):
                         max_output = 8000
                     else:
                         max_output = 3000
-                    
+
                     output_text = result.stdout if result.stdout else result.stderr
                     if len(output_text) > max_output:
                         head = output_text[:max_output // 3]
@@ -634,15 +774,16 @@ class DIALSAgent:
                         output_summary = f"{head}\n\n[... output truncated ...]\n\n{tail}"
                     else:
                         output_summary = output_text
-                    
+
                     self.pending_command = None
-                    
+
                     # Check if workflow is complete
                     self.workflow.refresh()
                     if self.workflow.is_complete():
                         console.print("\n[bold green]🎉 Workflow complete![/bold green]")
+                        completed = True
                         break
-                    
+
                     # Ask Claude to analyze and continue
                     current_message = (
                         f"AUTO MODE: The command '{cmd_name}' completed successfully (return code {result.return_code}). "
@@ -655,38 +796,29 @@ class DIALSAgent:
                     self.workflow.refresh()
                     if self.workflow.is_complete():
                         console.print("\n[bold green]🎉 Workflow complete![/bold green]")
+                        completed = True
                         break
-                    
+
                     # Ask Claude to continue — be very explicit
                     current_message = (
                         "AUTO MODE: You must use the suggest_dials_command tool NOW to suggest the next DIALS command. "
                         "Do not present options or ask questions. Skip GUI commands (image_viewer, reciprocal_lattice_viewer). "
                         "Just suggest the next processing command."
                     )
-            
-            if iteration >= max_iterations:
+
+            if iteration >= max_iterations and not completed:
                 console.print(f"\n[yellow]Reached maximum iterations ({max_iterations}). Stopping auto mode.[/yellow]")
-        
+
         except KeyboardInterrupt:
-            console.print("\n[yellow]Auto mode interrupted by user.[/yellow]")
+            self.auto_mode = False
+            raise
         except Exception as e:
             console.print(f"\n[red]Error in auto mode: {e}[/red]")
             logger.exception("Error in auto mode")
-        
+
         # Exit auto mode
         self.auto_mode = False
-        
-        # Show final timing summary
-        auto_duration = time.time() - auto_start_time
-        console.print()
-        self.display_timing_summary()
-        
-        if auto_duration >= 60:
-            total_minutes = int(auto_duration // 60)
-            total_seconds = auto_duration % 60
-            console.print(f"\n[bold]Total wall-clock time: {total_minutes}m {total_seconds:.1f}s[/bold]")
-        else:
-            console.print(f"\n[bold]Total wall-clock time: {auto_duration:.1f}s[/bold]")
+        return completed
     
     def run_interactive(self):
         """Run the interactive CLI loop."""
@@ -968,8 +1100,8 @@ class DIALSAgent:
 - **next** - Show suggested next step
 - **history** - Show command history
 - **timing** - Show timing summary for all executed commands
-- **auto** - Run through the entire workflow automatically (no confirmations)
-- **auto <message>** - Auto mode with custom instruction (e.g., `auto process insulin data fast version`)
+- **auto** - Run through the entire workflow automatically (no confirmations). If the data directory has multiple dataset subdirectories, each is processed in turn into its own output subdirectory, unless you name one specifically
+- **auto <message>** - Auto mode with custom instruction (e.g., `auto process insulin data fast version`, or `auto process the lysozyme dataset` to process just that one subdirectory)
 - **compare <dir1> <dir2> [...]** - Compare results from multiple processing runs
 - **reset** / **clean** / **start over** - Remove DIALS output files and start fresh
 - **clear** - Clear conversation history
@@ -1403,7 +1535,11 @@ def main():
     parser.add_argument(
         "--auto",
         action="store_true",
-        help="Run through the entire workflow automatically without user confirmation"
+        help=(
+            "Run through the entire workflow automatically without user confirmation. "
+            "If DATA_DIRECTORY has multiple dataset subdirectories, each is processed "
+            "in turn into its own output subdirectory, unless --auto-message names one."
+        )
     )
     parser.add_argument(
         "--auto-message",

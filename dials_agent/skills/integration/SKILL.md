@@ -15,4 +15,9 @@ description: Measuring spot intensities by profile fitting (dials.integrate)
 - **Recommendation**: Start with `nproc=4` or `nproc=8`. If memory is not an issue, increase. Use `integration.block.max_memory_usage=0.80` to control memory.
 
 ### After Integration (Visualization)
-Optionally offer: `dials.image_viewer integrated.expt integrated.refl` - shows predicted reflection positions as red boxes on images
+Always offer this as an option (not just when something looks wrong): "Would you like to
+check the integrated reflections on the images?" → `dials.image_viewer integrated.expt
+integrated.refl` - shows predicted reflection positions as red boxes on images, useful for
+spotting systematic prediction offsets. `dials.reciprocal_lattice_viewer` isn't useful here —
+the lattice itself doesn't change during integration; it was already checked after indexing
+and refinement.

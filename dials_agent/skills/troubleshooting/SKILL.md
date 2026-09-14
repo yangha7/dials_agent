@@ -70,7 +70,15 @@ The tool covers problems in all workflow stages: spot finding, indexing, refinem
 - Generate shadow mask: `dials.generate_mask imported.expt`
 
 ### Multiple crystals / multi-lattice
-- Index multiple lattices: `indexing.max_lattices=5`
+- **Check the beam centre first**: an incorrect initial beam centre commonly produces
+  exactly this symptom pattern (apparent extra lattices, and/or high or unstable
+  refinement RMSDs — sometimes described as the crystal "moving" during the rotation)
+  even for a genuinely single-crystal dataset. Run
+  `dials.search_beam_position imported.expt strong.refl` and re-index/re-refine
+  *before* assuming it's really multi-lattice — this often collapses an apparent
+  multi-crystal case into one clean lattice. This is the exact failure mode taught in
+  DIALS's "Correcting Poor Initial Geometry" tutorial.
+- Index multiple lattices: `indexing.max_lattices=5` (once a bad beam centre has been ruled out)
 - Use cosym for symmetry: `dials.cosym` instead of `dials.symmetry`
 - Check consistent indexing during scaling: `scaling_options.check_consistent_indexing=True`
 

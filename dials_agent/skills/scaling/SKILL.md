@@ -17,4 +17,4 @@ description: Applying absorption/decay corrections and scaling data (dials.scale
 3. **High absorption**: Add `absorption_level=medium` or `absorption_level=high`
 
 ### After Scaling
-Proactively open the HTML report: Use the `open_file` tool to open `dials.scale.html` which contains detailed statistics and diagnostic plots.
+Proactively open the HTML report: Use the `open_file` tool to open `dials.scale.html` which contains detailed statistics and diagnostic plots. `dials.image_viewer`/`dials.reciprocal_lattice_viewer` aren't relevant at this stage — scaling works on merged intensity statistics, not per-image geometry, which was already checked after indexing/refinement; the HTML report is the right diagnostic here.
