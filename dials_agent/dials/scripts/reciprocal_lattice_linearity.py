@@ -41,9 +41,7 @@ import sys
 
 import numpy as np
 
-
-MIN_POINTS_PER_ROW = 5
-MAX_ROWS_PER_FAMILY = 400  # cap for speed on very dense datasets
+from _systematic_rows import MIN_POINTS_PER_ROW, iter_systematic_rows
 
 
 def fit_line_residuals(points: np.ndarray):
@@ -96,29 +94,9 @@ def analyze_row(points: np.ndarray, phis: np.ndarray) -> dict:
 def systematic_rows(miller_indices: np.ndarray, rlp: np.ndarray, phis: np.ndarray):
     """Yield (family_name, fixed_indices, row_stats) for all three families
     of systematic rows (fix two Miller indices, vary the third)."""
-    families = [
-        ("h,k fixed (rows along c*)", (0, 1), 2),
-        ("h,l fixed (rows along b*)", (0, 2), 1),
-        ("k,l fixed (rows along a*)", (1, 2), 0),
-    ]
-    for family_name, fixed_cols, varying_col in families:
-        keys = miller_indices[:, fixed_cols]
-        # group by unique fixed-index pairs
-        uniq, inverse = np.unique(keys, axis=0, return_inverse=True)
-        n_rows_used = 0
-        for row_id in range(len(uniq)):
-            if n_rows_used >= MAX_ROWS_PER_FAMILY:
-                break
-            sel = inverse == row_id
-            n = int(sel.sum())
-            if n < MIN_POINTS_PER_ROW:
-                continue
-            # need actual spread along the varying index, not just enough points
-            if len(np.unique(miller_indices[sel, varying_col])) < MIN_POINTS_PER_ROW:
-                continue
-            stats = analyze_row(rlp[sel], phis[sel])
-            n_rows_used += 1
-            yield family_name, tuple(int(v) for v in uniq[row_id]), stats
+    for family_name, fixed_idx, _varying_values, mask in iter_systematic_rows(miller_indices):
+        stats = analyze_row(rlp[mask], phis[mask])
+        yield family_name, fixed_idx, stats
 
 
 def summarize(rows: list[dict]) -> dict:

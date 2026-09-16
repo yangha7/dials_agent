@@ -21,3 +21,10 @@ integrated.refl` - shows predicted reflection positions as red boxes on images, 
 spotting systematic prediction offsets. `dials.reciprocal_lattice_viewer` isn't useful here —
 the lattice itself doesn't change during integration; it was already checked after indexing
 and refinement.
+
+### After Integration (Centring vs. Pseudo-centring Check)
+Now that real intensities exist, run the numeric centring/pseudo-centring check described in
+your base instructions — this is the first point in the workflow where it's possible (it
+needs intensity data, not just geometry). Do this proactively, before/alongside the `symmetry`
+skill's choice between `dials.symmetry` and `dials.cosym`. A flagged result changes what to
+watch for during symmetry determination, so surface it before that step rather than after.

@@ -200,6 +200,56 @@ def _get_reciprocal_lattice_linearity_note() -> str:
     )
 
 
+def _get_centring_vs_pseudocentring_note() -> str:
+    """
+    Resolve the absolute path to the bundled centring/pseudo-centring
+    intensity-alternation check script and describe how to run it.
+
+    Same rationale as `_get_reciprocal_lattice_linearity_note` for computing
+    the path here rather than hardcoding it.
+    """
+    from pathlib import Path
+    script_path = (
+        Path(__file__).resolve().parent.parent / "dials" / "scripts" / "centring_vs_pseudocentring_check.py"
+    )
+    return (
+        "\n## Numeric Centring vs. Pseudo-centring Check (no rendering needed)\n\n"
+        "This is a different question from the geometry check above: not whether the "
+        "reciprocal lattice is straight, but whether a hidden translational pseudo-symmetry "
+        "is making the data look more centred than it really is (or vice versa) — see DIALS's "
+        "'Centring vs. Pseudo-centring' tutorial. The signature is in *intensities*, not "
+        "positions: along one axis, reflections alternate systematically between strong and "
+        "weak — visible in the reciprocal lattice viewer as 'alternating long and short "
+        "lines', and in the image viewer as spots of one parity (e.g. even l) being "
+        "systematically weaker than the other, with a different spot profile too. You can "
+        "check the intensity part of that numerically, directly from integrated reflection "
+        "data, via `suggest_dials_command`:\n\n"
+        f"`dials.python {script_path} integrated.expt integrated.refl`\n\n"
+        "(Works on indexed.expt/indexed.refl too if integration hasn't run yet, using the "
+        "cruder spot-finding intensities, but integrated data gives a more reliable read. "
+        "Same `libtbx.python`/`cctbx.python` fallback as the geometry check if `dials.python` "
+        "isn't available.) It prints a JSON verdict per crystal, naming which axis (if any) "
+        "shows a statistically significant alternation, and — critically — whether the weak "
+        "set looks like a genuine systematic absence (TRUE centring) or is clearly non-zero "
+        "(PSEUDO-centring, a real but approximate extra translation). This distinction matters "
+        "in practice: treating pseudo-centring reflections as absent (by reindexing into the "
+        "higher-symmetry centred setting) discards real, if weak, data and will hurt map/model "
+        "quality — the tutorial itself found a large improvement in R-factors specifically by "
+        "getting this right (C222₁ correctly picked over a naively \"absences-implied\" cell).\n\n"
+        "**Run this proactively after `dials.integrate` succeeds**, before/alongside choosing "
+        "between `dials.symmetry` and `dials.cosym`, or when `dials.refine_bravais_settings` "
+        "shows multiple plausible higher-symmetry candidates. If it flags an axis: (1) explain "
+        "the finding and which category (true/pseudo) it looks like; (2) suggest the user "
+        "confirm visually via `dials.reciprocal_lattice_viewer` and `dials.image_viewer` on the "
+        "specific reflections named, since you cannot view images yourself; (3) recommend "
+        "`dials.refine_bravais_settings` to test the corresponding centred setting and compare "
+        "refinement statistics before committing to a space group, rather than reindexing on "
+        "this signal alone — this check narrows down what to look for, it doesn't replace that "
+        "judgment call. If nothing is flagged, just note briefly that no pseudo-symmetry "
+        "signature was found and move on."
+    )
+
+
 def get_system_prompt(registry=None) -> str:
     """
     Get the static system prompt for the DIALS AI Agent (suitable for prompt caching).
@@ -214,7 +264,11 @@ def get_system_prompt(registry=None) -> str:
         from ..skills import create_default_registry
         registry = create_default_registry()
     skills_prompt = registry.get_composed_prompt()
-    return BASE_PROMPT + "\n\n" + skills_prompt + "\n" + _get_reciprocal_lattice_linearity_note()
+    return (
+        BASE_PROMPT + "\n\n" + skills_prompt
+        + "\n" + _get_reciprocal_lattice_linearity_note()
+        + "\n" + _get_centring_vs_pseudocentring_note()
+    )
 
 
 def get_dynamic_context(

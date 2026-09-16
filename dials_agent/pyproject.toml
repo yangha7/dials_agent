@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dials-agent"
-version = "2.4.0"
+version = "2.5.0"
 description = "Natural language interface for DIALS crystallography data processing"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -47,6 +47,10 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "black>=24.0.0",
     "ruff>=0.1.0",
+    # Only for testing the pure-Python parts of dials/scripts/centring_vs_pseudocentring_check.py
+    # locally without a DIALS install -- the script itself always runs via dials.python/
+    # cctbx.python/libtbx.python in production, all of which already bundle scipy.
+    "scipy>=1.10.0",
 ]
 
 [project.scripts]
