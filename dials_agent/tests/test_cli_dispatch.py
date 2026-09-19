@@ -284,3 +284,45 @@ def test_load_skill_through_full_wrapper(agent):
     ))
     assert result["skill"] == "troubleshooting"
     assert result["guidance"] == agent.claude.registry.get_skill("troubleshooting").get_prompt_fragment()
+
+
+# ---------------------------------------------------------------------------
+# display_workflow_status shows both directories and the CLI reports its
+# own version -- regression tests for a real gap a user noticed: the
+# startup "welcome" table only had Working Directory, no Data Directory,
+# and the agent's own version was never displayed anywhere.
+# ---------------------------------------------------------------------------
+
+def test_workflow_status_table_shows_data_directory(tmp_path, capsys):
+    settings = Settings(
+        llm_provider="anthropic",
+        anthropic_api_key="sk-dummy-test-key",
+        cborg_api_key="", openai_api_key="", gemini_api_key="",
+        data_directory="/some/shared/data/",
+    )
+    agent = DIALSAgent(working_directory=str(tmp_path), settings=settings)
+    agent.display_workflow_status()
+    out = capsys.readouterr().out
+    assert "Data Directory" in out
+    assert "/some/shared/data/" in out
+
+
+def test_workflow_status_table_handles_unset_data_directory(tmp_path, capsys):
+    settings = Settings(
+        llm_provider="anthropic",
+        anthropic_api_key="sk-dummy-test-key",
+        cborg_api_key="", openai_api_key="", gemini_api_key="",
+        data_directory="",
+    )
+    agent = DIALSAgent(working_directory=str(tmp_path), settings=settings)
+    agent.display_workflow_status()
+    out = capsys.readouterr().out
+    assert "Data Directory" in out
+    assert "(not configured)" in out
+
+
+def test_cli_module_version_matches_package_version():
+    import dials_agent
+    from dials_agent import cli
+    assert cli.__version__ == dials_agent.__version__
+    assert cli.__version__  # non-empty

@@ -22,6 +22,7 @@ from rich.prompt import Confirm, Prompt
 from rich.table import Table
 from rich.text import Text
 
+from . import __version__
 from .config import Settings, get_settings, configure_from_env_file
 from .core.claude_client import ClaudeClient, ToolCall, create_client
 from .core.tools import DATA_FILE_EXTENSIONS
@@ -474,6 +475,7 @@ class DIALSAgent:
         table.add_column("Value", style="white")
         
         table.add_row("Working Directory", str(self.working_directory))
+        table.add_row("Data Directory", self.settings.data_directory or "(not configured)")
         table.add_row("Current Stage", self.workflow.get_stage_name())
         table.add_row("Progress", f"{self.workflow.get_progress_percentage():.0f}%")
         table.add_row("Experiment Files", ", ".join(self.workflow.get_experiment_files()) or "None")
@@ -607,7 +609,7 @@ class DIALSAgent:
             skip_dials_check: Skip DIALS availability check (already done in interactive mode)
         """
         console.print(Panel.fit(
-            "[bold blue]DIALS AI Agent — Auto Mode[/bold blue]\n"
+            f"[bold blue]DIALS AI Agent — Auto Mode[/bold blue] [dim]v{__version__}[/dim]\n"
             "Running through the complete workflow without interruption.\n"
             "Press Ctrl+C to abort.",
             border_style="blue"
@@ -823,7 +825,7 @@ class DIALSAgent:
     def run_interactive(self):
         """Run the interactive CLI loop."""
         console.print(Panel.fit(
-            "[bold blue]DIALS AI Agent[/bold blue]\n"
+            f"[bold blue]DIALS AI Agent[/bold blue] [dim]v{__version__}[/dim]\n"
             "Natural language interface for DIALS crystallography data processing.\n"
             "Type 'help' for commands, 'quit' to exit.",
             border_style="blue"
