@@ -324,6 +324,27 @@ class DIALSAgent:
             time_str = f"{duration:.1f}s"
         console.print(f"[bold magenta]⏱  {cmd_name} completed in {time_str}[/bold magenta]")
     
+    @staticmethod
+    def _display_command_label(command: str) -> str:
+        """
+        Shorten a `dials.python`/`cctbx.python`/`libtbx.python <script>.py ...`
+        invocation to just the script's filename (dropping the installation's
+        absolute path, which is boilerplate and pushes the actually useful
+        part -- which script, and its arguments -- out of a narrow table
+        column). Anything else is returned unchanged.
+
+        Callers should NOT also hard-truncate the result with something like
+        `command[:60]` -- that silently drops information with no ellipsis
+        to show it happened. Let Rich wrap the full text within the column
+        instead; wrapping preserves the information, a blind slice doesn't.
+        """
+        parts = command.split(maxsplit=2)
+        if len(parts) >= 2 and parts[0] in ("dials.python", "cctbx.python", "libtbx.python") and parts[1].endswith(".py"):
+            script_name = Path(parts[1]).name
+            rest = parts[2] if len(parts) > 2 else ""
+            return f"{parts[0]} {script_name}" + (f" {rest}" if rest else "")
+        return command
+
     def display_timing_summary(self):
         """Display a summary table of all command timings."""
         if not self.command_timings:
@@ -332,7 +353,11 @@ class DIALSAgent:
         
         table = Table(title="⏱  Command Timing Summary", border_style="magenta")
         table.add_column("#", style="dim", justify="right")
-        table.add_column("Command", style="cyan")
+        # overflow="fold": wrap at any character rather than falling back to
+        # an ellipsis cut on a long unbroken token (e.g. a glob path with no
+        # spaces) in a narrow terminal -- ensures nothing is ever silently
+        # dropped, at the cost of an occasional mid-word line break.
+        table.add_column("Command", style="cyan", overflow="fold")
         table.add_column("Status", justify="center")
         table.add_column("Duration", style="magenta", justify="right")
         
@@ -349,7 +374,7 @@ class DIALSAgent:
             else:
                 time_str = f"{duration:.1f}s"
             
-            table.add_row(str(i), entry["command"][:60], status, time_str)
+            table.add_row(str(i), self._display_command_label(entry["command"]), status, time_str)
         
         # Add total row
         if total_duration >= 60:
@@ -1164,7 +1189,7 @@ side-by-side comparison with consistency assessment.
         
         table = Table(title="Command History")
         table.add_column("#", style="dim")
-        table.add_column("Command", style="cyan")
+        table.add_column("Command", style="cyan", overflow="fold")
         table.add_column("Status", style="white")
         table.add_column("Duration", style="magenta")
         
@@ -1181,7 +1206,7 @@ side-by-side comparison with consistency assessment.
             else:
                 time_str = f"{duration:.1f}s"
             
-            table.add_row(str(i), cmd.command[:50], status, time_str)
+            table.add_row(str(i), self._display_command_label(cmd.command), status, time_str)
         
         # Add total row
         if total_duration >= 60:

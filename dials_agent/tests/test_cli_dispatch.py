@@ -326,3 +326,56 @@ def test_cli_module_version_matches_package_version():
     from dials_agent import cli
     assert cli.__version__ == dials_agent.__version__
     assert cli.__version__  # non-empty
+
+
+# ---------------------------------------------------------------------------
+# Command display in the timing summary / history tables -- regression
+# tests for a real bug a user noticed: a blind `command[:60]` slice with no
+# ellipsis silently dropped everything past character 60, so e.g. every
+# `dials.python /long/path/to/<script>.py ...` invocation looked identical
+# and unreadable, hiding which numeric check ran on which files.
+# ---------------------------------------------------------------------------
+
+class TestDisplayCommandLabel:
+    def test_shortens_dials_python_script_path_to_basename(self):
+        label = DIALSAgent._display_command_label(
+            "dials.python /shared/home/yangha/workshop_dials_agent/dials_agent/"
+            "dials/scripts/reciprocal_lattice_linearity.py indexed.expt indexed.refl"
+        )
+        assert label == "dials.python reciprocal_lattice_linearity.py indexed.expt indexed.refl"
+
+    def test_shortens_cctbx_python_and_libtbx_python_too(self):
+        for interpreter in ("cctbx.python", "libtbx.python"):
+            label = DIALSAgent._display_command_label(f"{interpreter} /abs/path/to/script.py a.expt b.refl")
+            assert label == f"{interpreter} script.py a.expt b.refl"
+
+    def test_script_with_no_arguments(self):
+        label = DIALSAgent._display_command_label("dials.python /abs/path/to/script.py")
+        assert label == "dials.python script.py"
+
+    def test_ordinary_dials_command_is_unchanged(self):
+        cmd = "dials.import /shared/data/projects/yangha/DPF3/x247398/t1.*.img.bz2"
+        assert DIALSAgent._display_command_label(cmd) == cmd
+
+    def test_non_python_script_argument_is_unchanged(self):
+        # Only shorten when it actually looks like <interpreter> <script>.py
+        cmd = "dials.find_spots imported.expt nproc=Auto"
+        assert DIALSAgent._display_command_label(cmd) == cmd
+
+
+def test_timing_summary_never_truncates_long_commands(agent, capsys):
+    long_command = (
+        "dials.python /shared/home/yangha/workshop_dials_agent/dials_agent/"
+        "dials/scripts/centring_vs_pseudocentring_check.py integrated.expt integrated.refl"
+    )
+    agent.command_timings.append({"command": long_command, "success": True, "duration": 14.8})
+    agent.display_timing_summary()
+    # Rich wraps across lines and strips the newline, so check the actual
+    # words survive somewhere in the output rather than as one substring.
+    out = capsys.readouterr().out
+    assert "centring_vs_pseudocentring_check.py" in out
+    assert "integrated.expt" in out
+    assert "integrated.refl" in out
+    # And the old bug's symptom is gone: the un-shortened absolute path
+    # should NOT appear (it's been reduced to the basename).
+    assert "workshop_dials_agent" not in out
