@@ -175,22 +175,34 @@ def verdict_for_family(family_name: str, result: dict) -> "str | None":
         "and 'spots with even/odd index systematically weaker' in the image viewer (see "
         "DIALS's 'Centring vs. Pseudo-centring' tutorial)."
     )
+    decisive_test = (
+        "This I/sigma(I) reading is a rough first-pass signal, NOT decisive on its own -- real "
+        "systematic absences are rarely perfectly zero in practice (dynamical scattering, "
+        "detector background, and imperfect crystal symmetry all leave some residual signal), "
+        "so even a clearly-nonzero I/sigma(I) does not rule out true centring. The actual "
+        "decisive test: dials.refine_bravais_settings only ever finds SUBGROUPS of the cell "
+        "it's given -- it will show no centred candidates here regardless of which case this "
+        "is, because the current cell was never reindexed toward that hypothesis. Explicitly "
+        f"test it: dials.reindex with the centred space group matching this axis ('{family_name}'), "
+        "THEN re-run dials.refine_bravais_settings on that reindexed result (centred candidates "
+        "can only appear once the input cell's own metric symmetry admits them), THEN compare "
+        "real refinement R-factors between the primitive and centred settings -- as the tutorial "
+        "does (C222₁ there won on R-cryst/R-free, not on an intensity threshold). Do not treat "
+        "an absence of centred candidates from the ORIGINAL, untransformed cell as evidence "
+        "either way."
+    )
     if weak_snr is None:
-        return base + " Could not assess whether the weak set is absent or just weak."
+        return base + " Could not assess the weak set's I/sigma(I). " + decisive_test
     if weak_snr < 3.0:
         return (
-            base + f" The weak reflections have mean I/sigma(I) ~= {weak_snr:.1f} -- consistent "
-            "with genuine systematic absences: this looks like TRUE centring. Consider "
-            "dials.refine_bravais_settings to find the correct centred setting, then "
-            "dials.reindex to that space group."
+            base + f" The weak reflections have mean I/sigma(I) ~= {weak_snr:.1f} -- weak enough "
+            "to be consistent with genuine systematic absences (tentatively leaning TRUE "
+            "centring), though this reading alone is not conclusive. " + decisive_test
         )
     return (
         base + f" The weak reflections have mean I/sigma(I) ~= {weak_snr:.1f} -- clearly above "
-        "background/noise, not consistent with true absences: this looks like PSEUDO-centring "
-        "(a real but approximate extra translation, not exact symmetry). Reindexing to the "
-        "higher-symmetry centred setting and discarding these as absent would be wrong -- verify "
-        "carefully with dials.refine_bravais_settings and compare refinement statistics (as in "
-        "the tutorial) before deciding."
+        "background/noise (tentatively leaning PSEUDO-centring, a real but approximate extra "
+        "translation), though this reading alone is not conclusive. " + decisive_test
     )
 
 

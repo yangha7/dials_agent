@@ -1207,7 +1207,15 @@ DIALS_COMMANDS = {
         description=(
             "Refine all Bravais settings consistent with the primitive unit cell. "
             "Prints a table with metric fit, RMSD, refined unit cell, and change of basis operator "
-            "for each setting. Generates bravais_setting_N.expt files for each setting."
+            "for each setting. Generates bravais_setting_N.expt files for each setting. "
+            "IMPORTANT: it only ever finds SUBGROUPS of the cell it's given -- it cannot discover "
+            "that a primitively-indexed cell is secretly a doubled/centred (C/I/F) lattice on its "
+            "own. If a centring/pseudo-centring check flagged an axis but this command shows only "
+            "primitive (aP/mP/oP) candidates, that does NOT rule out true centring -- it may just "
+            "mean the input cell was never reindexed toward that hypothesis. Try "
+            "`dials.reindex` with the corresponding centred space group/change-of-basis operator "
+            "FIRST, then re-run this command on the reindexed result; centred candidates only "
+            "appear once the input cell's own metric symmetry admits them."
         ),
         category=CommandCategory.UTILITY,
         input_files=["indexed.expt", "indexed.refl"],
@@ -1428,7 +1436,23 @@ DIALS_COMMANDS = {
         ],
         typical_runtime="seconds"
     ),
-    
+
+    "dials.damage_analysis": CommandDefinition(
+        name="dials.damage_analysis",
+        description=(
+            "Quantify radiation damage / decay across a scan from scaled data. Reports Rd "
+            "(relative rate of intensity decay for symmetry-equivalent pairs vs. image "
+            "separation), relative B-factor, and CC1/2 trends vs. accumulated dose/image "
+            "number, in an HTML report -- useful for deciding whether truncating a scan's "
+            "later images would improve overall merging statistics."
+        ),
+        category=CommandCategory.UTILITY,
+        input_files=["scaled.expt", "scaled.refl"],
+        output_files=["dials.damage_analysis.html", "dials.damage_analysis.log"],
+        parameters=[],
+        typical_runtime="seconds"
+    ),
+
     "dials.merge": CommandDefinition(
         name="dials.merge",
         description="Merge scaled data and output MTZ file with merged intensities.",

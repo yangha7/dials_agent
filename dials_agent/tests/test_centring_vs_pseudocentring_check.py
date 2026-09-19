@@ -173,3 +173,22 @@ class TestVerdictText:
         result = {"flagged": True, "variance_ratio": 50.0, "p_value": 1e-20, "n_lag1": 800, "n_lag2": 800}
         text = cpc.verdict_for_family("axis", result)
         assert "Could not assess" in text
+
+    def test_verdict_never_treats_i_over_sigma_as_decisive_on_its_own(self):
+        # Regression test for a real wrong conclusion found live-testing DPF3:
+        # the agent read a high I/sigma(I) as confirming PSEUDO-centring and
+        # stopped there. Every flagged verdict -- low or high SNR -- must
+        # spell out the actual decisive test (reindex toward the centred
+        # hypothesis, re-run refine_bravais_settings on THAT, compare real
+        # refinement statistics) rather than letting the I/sigma(I) reading
+        # stand as the answer.
+        for weak_snr in (0.5, 7.0):
+            result = {
+                "flagged": True, "variance_ratio": 50.0, "p_value": 1e-20,
+                "n_lag1": 800, "n_lag2": 800, "weak_mean_i_over_sigma": weak_snr,
+            }
+            text = cpc.verdict_for_family("h,k fixed (rows along c*)", result)
+            assert "not conclusive" in text or "not decisive" in text
+            assert "dials.reindex" in text
+            assert "refine_bravais_settings" in text
+            assert "ORIGINAL, untransformed cell" in text
