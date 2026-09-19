@@ -277,18 +277,41 @@ def main(expt_path: str, refl_path: str, verify_centering: bool = False) -> dict
     experiments = ExperimentListFactory.from_json_file(expt_path, check_format=False)
     reflections = flex.reflection_table.from_file(refl_path)
 
-    sel = reflections.get_flags(reflections.flags.indexed)
-    reflections = reflections.select(sel)
-
+    # Select on the flag matching whichever intensity column we're about to use, NOT
+    # `indexed`. A real bug found live: `indexed` marks the original strong-spot list
+    # used for orientation during dials.index -- a subset that is itself biased toward
+    # STRONG reflections, since that's how spot-finding/indexing selects candidates in
+    # the first place. Systematic absences are, by definition, weak -- so filtering an
+    # intensity-based absence test to the indexed subset systematically under-samples
+    # exactly the reflections the test is trying to characterize. Confirmed
+    # empirically: on a real dataset, this made a genuine systematic absence (full
+    # population: I/sigma(I) ~ 0.15, 46% negative, cleanly split 50/50 by parity) look
+    # like a much weaker, ambiguous signal (indexed-only subset: I/sigma(I) ~ 8.4, only
+    # 12% of the expected population present at all) -- enough to flag the wrong
+    # category (pseudo- vs. true centring). `integrated`/`integrated_prf`/
+    # `integrated_sum` reflect the full predicted-and-measured population regardless of
+    # strength, which is what an intensity-based test needs.
     if "intensity.prf.value" in reflections and "intensity.prf.variance" in reflections:
         intensity_col, variance_col, source = "intensity.prf.value", "intensity.prf.variance", "profile-fitted"
+        integration_flag = reflections.flags.integrated_prf
     elif "intensity.sum.value" in reflections and "intensity.sum.variance" in reflections:
         intensity_col, variance_col, source = "intensity.sum.value", "intensity.sum.variance", "summed"
+        integration_flag = reflections.flags.integrated_sum
     else:
         return {
             "error": "No intensity.prf.* or intensity.sum.* columns found -- run after "
                      "dials.integrate (or at least dials.find_spots/dials.index)."
         }
+
+    sel = reflections.get_flags(integration_flag)
+    if sel.count(True) == 0:
+        # Not yet integrated (e.g. called on indexed.refl/strong.refl before
+        # dials.integrate has run) -- integrated_prf/integrated_sum will never be set
+        # in that case. Fall back to `indexed` so the documented pre-integration mode
+        # (cruder spot-finding intensities) still works, rather than silently
+        # returning zero reflections.
+        sel = reflections.get_flags(reflections.flags.indexed)
+    reflections = reflections.select(sel)
 
     results_by_crystal = {}
     ids = reflections["id"]
@@ -321,7 +344,7 @@ def main(expt_path: str, refl_path: str, verify_centering: bool = False) -> dict
         )
 
         crystal_result = {
-            "n_indexed_reflections": int(len(sub)),
+            "n_analyzed_reflections": int(len(sub)),
             "intensity_source": source,
             "by_family": by_family,
             "verdict": overall_verdict,
