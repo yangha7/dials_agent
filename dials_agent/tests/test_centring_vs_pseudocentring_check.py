@@ -148,6 +148,87 @@ class TestAnalyzeFamilyEndToEnd:
         assert by_family[PSEUDO_TRANSLATION_FAMILY]["weak_mean_i_over_sigma"] > 3.0
 
 
+class TestNamedCenteringCondition:
+    """
+    Regression tests for a real bug found live-testing: an ad hoc script built
+    even/odd masks correctly but then computed BOTH group means from the
+    full, unmasked array (`I_np.mean()` twice), silently making the whole
+    test a no-op comparison of the data against itself. These tests would
+    catch that exact mistake -- if `allowed_mean_intensity` and
+    `forbidden_mean_intensity` were ever computed without applying the mask,
+    they'd come back equal even when the true group means are wildly
+    different, which every test below constructs.
+    """
+
+    def test_splits_groups_correctly_not_just_overall_mean(self):
+        # h+k even -> allowed (intensity ~1000), h+k odd -> forbidden (intensity ~10).
+        # If group means were computed from the unmasked array, both would come
+        # back as the same overall average instead of these two very different values.
+        hkl = np.array([[h, k, 0] for h in range(20) for k in range(20)])
+        is_even = (hkl[:, 0] + hkl[:, 1]) % 2 == 0
+        intensities = np.where(is_even, 1000.0, 10.0)
+        variances = np.full(len(hkl), 100.0)
+
+        result = cpc.test_named_centering_condition(hkl, intensities, variances, "C")
+        assert result["allowed_mean_intensity"] == pytest.approx(1000.0)
+        assert result["forbidden_mean_intensity"] == pytest.approx(10.0)
+        assert result["allowed_mean_intensity"] != result["forbidden_mean_intensity"]
+        assert result["forbidden_to_allowed_ratio"] == pytest.approx(0.01)
+
+    def test_condition_columns_match_centering_definitions(self):
+        # A: k+l : only k,l should matter, h should be irrelevant to the split.
+        hkl = np.array([[h, k, l] for h in range(3) for k in range(6) for l in range(6)])
+        is_even = (hkl[:, 1] + hkl[:, 2]) % 2 == 0  # k+l even
+        intensities = np.where(is_even, 500.0, 5.0)
+        variances = np.full(len(hkl), 25.0)
+
+        result = cpc.test_named_centering_condition(hkl, intensities, variances, "A")
+        assert result["allowed_mean_intensity"] == pytest.approx(500.0)
+        assert result["forbidden_mean_intensity"] == pytest.approx(5.0)
+
+        # The same data tested against the WRONG condition (C: h+k) should show
+        # no clean split, since h+k parity is unrelated to how intensity was assigned.
+        wrong_result = cpc.test_named_centering_condition(hkl, intensities, variances, "C")
+        assert wrong_result["allowed_mean_intensity"] != pytest.approx(500.0, rel=0.2)
+
+    def test_unknown_condition_raises(self):
+        hkl = np.array([[1, 0, 0], [0, 1, 0]])
+        with pytest.raises(ValueError):
+            cpc.test_named_centering_condition(hkl, np.array([1.0, 2.0]), np.array([1.0, 1.0]), "X")
+
+    def test_empty_group_reports_error_not_a_crash(self):
+        # All h+k even -- no "forbidden" group at all.
+        hkl = np.array([[0, 0, 0], [2, 2, 0], [4, 0, 0]])
+        result = cpc.test_named_centering_condition(hkl, np.array([1.0, 2.0, 3.0]), np.array([1.0, 1.0, 1.0]), "C")
+        assert "error" in result
+
+
+class TestVerifyAllCenterings:
+    def test_returns_all_four_conditions(self):
+        hkl = np.array([[h, k, l] for h in range(4) for k in range(4) for l in range(4)])
+        intensities = np.full(len(hkl), 100.0)
+        variances = np.full(len(hkl), 25.0)
+        results = cpc.verify_all_centerings(hkl, intensities, variances)
+        assert set(results.keys()) == {"A", "B", "C", "I"}
+
+    def test_only_the_true_condition_shows_the_signal(self):
+        # Genuine C-centering signature (h+k odd forbidden); A/B/I should NOT
+        # show the same clean split, since their parity split cuts across
+        # different, unrelated subsets of the same data.
+        rng = np.random.default_rng(3)
+        hkl = np.array([[h, k, l] for h in range(-6, 7) for k in range(-6, 7) for l in range(-6, 7)
+                        if not (h == 0 and k == 0 and l == 0)])
+        is_even_hk = (hkl[:, 0] + hkl[:, 1]) % 2 == 0
+        intensities = np.where(is_even_hk, 800.0, 8.0) + rng.normal(0, 5, len(hkl))
+        variances = np.full(len(hkl), 100.0)
+
+        results = cpc.verify_all_centerings(hkl, intensities, variances)
+        assert results["C"]["forbidden_to_allowed_ratio"] < 0.05
+        for cond in ("A", "B", "I"):
+            # unrelated parity split -> ratio should stay close to 1 (no clean absence)
+            assert 0.7 < results[cond]["forbidden_to_allowed_ratio"] < 1.3
+
+
 class TestVerdictText:
     def test_no_verdict_when_not_flagged(self):
         assert cpc.verdict_for_family("some axis", {"flagged": False}) is None

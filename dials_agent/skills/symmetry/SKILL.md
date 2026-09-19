@@ -17,10 +17,29 @@ description: Determining space group and resolving indexing ambiguity (dials.sym
   the cell is reindexed toward it. The correct sequence: `dials.reindex` toward the centred
   space group matching the flagged axis FIRST, THEN re-run `dials.refine_bravais_settings` on
   that reindexed result (centred candidates only appear once the input cell's metric symmetry
-  admits them), THEN compare real refinement R-factors between the primitive and centred
-  settings — that comparison is the decisive test, not the I/sigma(I) reading of the weak
-  reflections on their own (real systematic absences are rarely perfectly zero in practice, so
-  even clearly-nonzero I/sigma(I) does not rule out true centring by itself).
+  admits them), THEN compare real refinement statistics (Rmerge/Rmeas/Rpim/CC½/completeness
+  from `dials.scale`, not R-cryst/R-free — that needs a structure-refinement program like
+  Phenix/Refmac, which is outside DIALS's scope entirely) between the primitive and centred
+  settings — that comparison, plus a direct check of the actual systematic-absence intensity
+  ratio (see below), is the decisive test, not the I/sigma(I) reading of the weak reflections
+  on their own (real systematic absences are rarely perfectly zero in practice, so even
+  clearly-nonzero I/sigma(I) does not rule out true centring by itself). Two more real mistakes
+  found live-testing this exact sequence, worth avoiding:
+  - **`dials.reindex ... space_group="C 2 2 21"` with no change-of-basis operator (or
+    `change_of_basis_op=a,b,c`, the identity) only relabels the space group symbol — it does
+    NOT transform the Miller indices.** Testing centring on data reindexed this way just
+    re-tests the original, unchanged indices under a new label, and will show no signal
+    regardless of whether centring is real. Use `reference.experiments=bravais_setting_N.expt`
+    (the actual re-refined candidate from `dials.refine_bravais_settings`) so a real
+    transformation is applied, or an explicit non-identity `change_of_basis_op=`.
+  - **Don't write a new ad hoc Python script to test a specific centering condition (e.g. is
+    h+k always even?) directly against intensities** — this is exactly the kind of small
+    numeric script that's easy to get subtly wrong under time pressure (a real instance:
+    building `even_mask`/`odd_mask` correctly but then computing both group means from the
+    full, unmasked array, silently making the whole test a no-op comparison of the data
+    against itself). `dials/scripts/centring_vs_pseudocentring_check.py` already has a
+    `--verify-centering` mode for exactly this (see your base instructions) — it's tested;
+    a fresh script written in the moment isn't.
 
 ### After Symmetry (Visualization)
 - **After `dials.cosym`** (multi-crystal case): since cosym can reindex individual datasets

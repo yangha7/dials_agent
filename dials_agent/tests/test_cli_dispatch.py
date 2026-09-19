@@ -93,6 +93,32 @@ def test_suggest_dials_command_sets_pending_command(agent):
     assert agent.pending_command["command"] == "dials.import foo.nxs"
 
 
+def test_second_suggest_dials_command_while_one_pending_is_rejected_not_silently_overwritten(agent):
+    # Regression test for a real bug found live-testing: the LLM sometimes calls
+    # suggest_dials_command twice in one turn. pending_command is a single field, not a
+    # queue, so the second call used to silently clobber the first -- the CLI would only
+    # ever confirm/run the second command, while the LLM (having gotten a
+    # "pending_approval" ack for the first call too) kept believing both were still
+    # awaiting approval on later turns, producing a repeating "still pending on my end"
+    # loop. The second call must now be rejected with a clear error instead.
+    first = agent._handle_tool_call(ToolCall(
+        id="1", name="suggest_dials_command",
+        input={"command": "dials.index imported.expt strong.refl", "explanation": "index", "expected_output": "indexed.expt"},
+    ))
+    assert first["status"] == "pending_approval"
+
+    second = agent._handle_tool_call(ToolCall(
+        id="2", name="suggest_dials_command",
+        input={"command": "dials.refine indexed.expt indexed.refl", "explanation": "refine", "expected_output": "refined.expt"},
+    ))
+    assert second["status"] == "error"
+    assert "already pending" in second["message"]
+    assert "dials.index imported.expt strong.refl" in second["message"]
+
+    # The first command must survive untouched -- not silently overwritten by the second.
+    assert agent.pending_command["command"] == "dials.index imported.expt strong.refl"
+
+
 def test_explain_dials_concept(agent):
     result = agent._handle_tool_call(ToolCall(
         id="1", name="explain_dials_concept", input={"concept": "unit cell"}

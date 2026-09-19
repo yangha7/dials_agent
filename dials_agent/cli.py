@@ -133,7 +133,26 @@ class DIALSAgent:
             Result dictionary
         """
         if tool_call.name == "suggest_dials_command":
-            # Store the command for user approval
+            # Only one command can actually be pending at a time -- self.pending_command
+            # is a single field, not a queue. Calling this twice in one turn (which does
+            # happen) used to silently overwrite the first suggestion: the CLI would only
+            # ever confirm/run the second one, while the LLM -- having gotten a
+            # "pending_approval" acknowledgment for the first call too -- kept believing
+            # both were still awaiting approval on later turns, producing a repeating
+            # "still pending on my end, please confirm" loop that burned real turns/tokens
+            # for zero benefit. Reject the second call explicitly instead, so the LLM gets
+            # accurate feedback rather than a silent, confusing overwrite.
+            if self.pending_command is not None:
+                return {
+                    "status": "error",
+                    "message": (
+                        f"A command is already pending approval "
+                        f"('{self.pending_command.get('command')}') -- only one command can "
+                        "be pending at a time. Wait for it to be approved and executed "
+                        "(you'll get its real output in the next turn) before suggesting "
+                        "another."
+                    )
+                }
             self.pending_command = tool_call.input
             return {
                 "status": "pending_approval",
@@ -253,8 +272,10 @@ class DIALSAgent:
         Returns:
             CommandResult with execution details
         """
-        console.print(f"\n[bold blue]Executing:[/bold blue] {command}")
-        
+        # Display-only shortening (e.g. dials.python's absolute script path -> just the
+        # filename) -- the real, full command string below is what actually executes.
+        console.print(f"\n[bold blue]Executing:[/bold blue] {self._display_command_label(command)}")
+
         with console.status("[bold green]Running command..."):
             result = self.executor.execute(command)
         
@@ -399,7 +420,7 @@ class DIALSAgent:
         # Create a panel with the suggestion
         content = Text()
         content.append("Command: ", style="bold")
-        content.append(f"{command}\n\n", style="cyan")
+        content.append(f"{self._display_command_label(command)}\n\n", style="cyan")
         content.append("Explanation: ", style="bold")
         content.append(f"{explanation}\n\n")
         content.append("Expected output: ", style="bold")

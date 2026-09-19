@@ -206,7 +206,71 @@ def verdict_for_family(family_name: str, result: dict) -> "str | None":
     )
 
 
-def main(expt_path: str, refl_path: str) -> dict:
+# Column indices (h, k, l) that sum to test each named lattice centering's
+# systematic-absence condition: "allowed" when the sum is even.
+NAMED_CENTERING_CONDITIONS = {
+    "A": (1, 2),   # k+l even
+    "B": (0, 2),   # h+l even
+    "C": (0, 1),   # h+k even
+    "I": (0, 1, 2),  # h+k+l even
+}
+
+
+def test_named_centering_condition(
+    miller_indices: np.ndarray, intensities: np.ndarray, variances: np.ndarray, condition: str
+) -> dict:
+    """
+    Directly test one specific named centering's systematic-absence condition
+    against real intensities: split reflections into "allowed" (sum of the
+    relevant indices even) and "forbidden" (odd) groups and compare their
+    mean intensity and I/sigma(I).
+
+    This is deliberately a separate, explicit function with its own test
+    coverage -- exactly the kind of small ad hoc calculation that's easy to
+    get subtly wrong under time pressure (a real instance found live-testing:
+    building the even/odd mask correctly but then computing both group means
+    from the *unmasked* array, silently turning the whole test into a
+    no-op comparison of the data against itself).
+    """
+    if condition not in NAMED_CENTERING_CONDITIONS:
+        raise ValueError(f"Unknown centering condition '{condition}', expected one of {sorted(NAMED_CENTERING_CONDITIONS)}")
+    cols = NAMED_CENTERING_CONDITIONS[condition]
+    combo = miller_indices[:, cols].sum(axis=1)
+    parity = combo % 2
+    allowed = parity == 0
+    forbidden = parity == 1
+
+    result = {
+        "condition": condition,
+        "n_allowed": int(allowed.sum()),
+        "n_forbidden": int(forbidden.sum()),
+    }
+    if not allowed.any() or not forbidden.any():
+        result["error"] = "one of the two groups is empty -- cannot compare"
+        return result
+
+    sig = np.sqrt(np.clip(variances, 1e-12, None))
+    allowed_mean_i = float(intensities[allowed].mean())
+    forbidden_mean_i = float(intensities[forbidden].mean())
+    result.update({
+        "allowed_mean_intensity": allowed_mean_i,
+        "forbidden_mean_intensity": forbidden_mean_i,
+        "forbidden_mean_i_over_sigma": float(np.mean(intensities[forbidden] / sig[forbidden])),
+        "allowed_mean_i_over_sigma": float(np.mean(intensities[allowed] / sig[allowed])),
+        "forbidden_to_allowed_ratio": (forbidden_mean_i / allowed_mean_i) if allowed_mean_i != 0 else None,
+    })
+    return result
+
+
+def verify_all_centerings(miller_indices: np.ndarray, intensities: np.ndarray, variances: np.ndarray) -> dict:
+    """Run `test_named_centering_condition` for all four centering types (A/B/C/I)."""
+    return {
+        cond: test_named_centering_condition(miller_indices, intensities, variances, cond)
+        for cond in NAMED_CENTERING_CONDITIONS
+    }
+
+
+def main(expt_path: str, refl_path: str, verify_centering: bool = False) -> dict:
     from dials.array_family import flex
     from dxtbx.model.experiment_list import ExperimentListFactory
 
@@ -256,19 +320,26 @@ def main(expt_path: str, refl_path: str) -> dict:
             "evidence of hidden translational pseudo-symmetry."
         )
 
-        results_by_crystal[str(crystal_id)] = {
+        crystal_result = {
             "n_indexed_reflections": int(len(sub)),
             "intensity_source": source,
             "by_family": by_family,
             "verdict": overall_verdict,
         }
+        if verify_centering:
+            crystal_result["named_centering_tests"] = verify_all_centerings(miller_indices, intensities, variances)
+        results_by_crystal[str(crystal_id)] = crystal_result
 
     return {"n_crystals": len(results_by_crystal), "crystals": results_by_crystal}
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print(json.dumps({"error": "usage: centring_vs_pseudocentring_check.py <indexed.expt> <indexed.refl>"}))
+    args = [a for a in sys.argv[1:] if a != "--verify-centering"]
+    verify = "--verify-centering" in sys.argv[1:]
+    if len(args) != 2:
+        print(json.dumps({
+            "error": "usage: centring_vs_pseudocentring_check.py <indexed.expt> <indexed.refl> [--verify-centering]"
+        }))
         sys.exit(1)
-    result = main(sys.argv[1], sys.argv[2])
+    result = main(args[0], args[1], verify_centering=verify)
     print(json.dumps(result, indent=2))
