@@ -85,6 +85,10 @@ class DIALSAgent:
         
         # Pending command for approval
         self.pending_command: Optional[dict] = None
+
+        # Whether the workflow was already complete before the most recently executed
+        # command ran -- see execute_command/display_result.
+        self._workflow_was_complete_before_last_command: bool = False
         
         # Timing tracker for all executed commands
         self.command_timings: list[dict] = []
@@ -275,6 +279,12 @@ class DIALSAgent:
         # Display-only shortening (e.g. dials.python's absolute script path -> just the
         # filename) -- the real, full command string below is what actually executes.
         console.print(f"\n[bold blue]Executing:[/bold blue] {self._display_command_label(command)}")
+
+        # Snapshot completion state *before* running this command, so display_result can
+        # tell "this command just finished the workflow" apart from "the workflow was
+        # already complete before this command ran" (e.g. resuming in a directory copied
+        # from a prior finished run for further investigation) -- see its use below.
+        self._workflow_was_complete_before_last_command = self.workflow.is_complete()
 
         with console.status("[bold green]Running command..."):
             result = self.executor.execute(command)
@@ -474,8 +484,16 @@ class DIALSAgent:
         
         console.print(Panel(content, title=f"[bold]{title}[/bold]", border_style=style))
         
-        # Show next step suggestion if command was successful (skip in auto mode)
-        if result.success and not self.auto_mode:
+        # Show next step suggestion if command was successful (skip in auto mode).
+        # Also skip if the workflow was already complete before this command ran --
+        # e.g. resuming in a directory copied from a prior finished run to investigate
+        # something further (scaled.mtz etc. already present from the start). Without
+        # this, "🎉 Workflow Complete!" fires after every single command, including
+        # read-only diagnostic scripts that have nothing to do with finishing anything,
+        # which is confusing noise rather than useful signal. The explicit `next`
+        # command still shows it on request regardless -- this only suppresses the
+        # automatic, unsolicited repeat.
+        if result.success and not self.auto_mode and not self._workflow_was_complete_before_last_command:
             self.display_next_step_suggestion()
     
     def display_next_step_suggestion(self):
@@ -532,6 +550,10 @@ class DIALSAgent:
         
         console.print(table)
     
+    # stop_reason values meaning "cut off by the output token limit" -- "length" from
+    # OpenAI-compatible providers (CBORG/OpenAI/Gemini), "max_tokens" from native Anthropic.
+    _TRUNCATED_STOP_REASONS = ("length", "max_tokens")
+
     def chat(self, user_message: str) -> str:
         """
         Send a message to the agent, display token usage, and return the text.
@@ -544,7 +566,40 @@ class DIALSAgent:
         )
 
         self._display_token_usage(response.usage)
+        self._warn_if_response_truncated(response)
         return response.message
+
+    def _warn_if_response_truncated(self, response) -> None:
+        """
+        Surface a clear warning when a turn was cut off by MAX_TOKENS, instead of
+        silently showing nothing (or a silently-incomplete answer) with no indication
+        anything went wrong.
+
+        A real failure mode found live: a long, context-heavy analysis turn hit the
+        output token limit with no visible text and no tool call in the final round --
+        `response.stop_reason` is captured on every response but was never actually
+        checked anywhere, so the turn just silently did nothing (no "Agent" header, no
+        text, no next step) despite a full-price, maximum-length API call having just
+        run (visible only as a token-usage line with output tokens exactly equal to
+        the configured MAX_TOKENS).
+        """
+        if response.stop_reason not in self._TRUNCATED_STOP_REASONS:
+            return
+        if not (response.message or "").strip() and not response.tool_calls:
+            console.print(
+                "\n[bold red]⚠ Response cut off — no output[/bold red]\n"
+                "[red]The model hit the output token limit (MAX_TOKENS="
+                f"{self.settings.get_resolved_max_tokens()}) before producing any visible text or a "
+                "tool call this turn -- that's why nothing appeared above. This tends to "
+                "happen in long, context-heavy investigations. Try a more focused "
+                "follow-up (e.g. \"just tell me your conclusion so far\"), or raise "
+                "MAX_TOKENS in .env.[/red]"
+            )
+        else:
+            console.print(
+                f"\n[yellow]⚠ Note: this response was cut off by the output token limit "
+                f"(MAX_TOKENS={self.settings.get_resolved_max_tokens()}) -- it may be incomplete.[/yellow]"
+            )
 
     def _display_token_usage(self, usage) -> None:
         """Print a compact dim token-usage line after each turn."""

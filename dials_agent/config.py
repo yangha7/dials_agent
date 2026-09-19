@@ -31,6 +31,21 @@ DEFAULT_BASE_URLS = {
     "gemini": "https://generativelanguage.googleapis.com/v1beta/openai/",
 }
 
+# Default max output tokens per provider. These genuinely differ -- GPT-4o's actual
+# output-token ceiling is 16384 (raising it further would just error, not help), while
+# Claude Sonnet 4/4.5 (what "cborg"/"anthropic" resolve to here) support up to 64K on
+# the standard synchronous API, and newer Sonnet generations up to 128K. A single global
+# default can't be both "high enough for Claude" and "not exceed OpenAI's real ceiling",
+# which is why this is per-provider rather than one shared number. Found live: a long,
+# context-heavy analysis turn silently produced nothing after hitting the old 16384
+# global default mid-generation (see v2.7.3's stop_reason handling in cli.py).
+DEFAULT_MAX_TOKENS = {
+    "cborg": 64000,
+    "anthropic": 64000,
+    "openai": 16384,   # GPT-4o's actual ceiling -- do not raise this one
+    "gemini": 16384,   # conservative; Gemini 2.5 Pro may support more but unverified here
+}
+
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
@@ -82,8 +97,8 @@ class Settings(BaseSettings):
         description="Model to use (auto-selected per provider if empty)"
     )
     max_tokens: int = Field(
-        default=16384,
-        description="Maximum tokens in response"
+        default=0,
+        description="Maximum tokens in response (0 = use the per-provider default from DEFAULT_MAX_TOKENS; set explicitly to override)"
     )
     token_budget: int = Field(
         default=0,
@@ -198,6 +213,13 @@ class Settings(BaseSettings):
             return self.model
         provider = self.get_resolved_provider()
         return DEFAULT_MODELS.get(provider, "claude-sonnet-4-20250514")
+
+    def get_resolved_max_tokens(self) -> int:
+        """Get the max output tokens for the resolved provider (see DEFAULT_MAX_TOKENS)."""
+        if self.max_tokens:
+            return self.max_tokens
+        provider = self.get_resolved_provider()
+        return DEFAULT_MAX_TOKENS.get(provider, 16384)
     
     def get_api_type(self) -> str:
         """

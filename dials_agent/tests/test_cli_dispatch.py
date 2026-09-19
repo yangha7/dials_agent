@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from dials_agent.cli import DIALSAgent
 from dials_agent.config import Settings
-from dials_agent.core.claude_client import ToolCall
+from dials_agent.core.claude_client import ToolCall, AgentResponse
 
 
 def make_agent(working_directory: Path) -> DIALSAgent:
@@ -345,6 +345,63 @@ def test_workflow_status_table_handles_unset_data_directory(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "Data Directory" in out
     assert "(not configured)" in out
+
+
+# ---------------------------------------------------------------------------
+# Truncated (MAX_TOKENS-cut-off) responses get surfaced, not silently dropped.
+# Regression tests for a real bug found live: a long, context-heavy turn hit
+# the output token limit with no visible text and no tool call in the final
+# round -- response.stop_reason was captured on every response but never
+# actually checked anywhere, so the turn silently produced nothing (no
+# "Agent" header, no text) despite a full-price, maximum-length API call
+# having just run (visible only as output_tokens == the configured MAX_TOKENS
+# in the token-usage line).
+# ---------------------------------------------------------------------------
+
+def test_truncated_empty_response_shows_loud_warning(agent, capsys):
+    response = AgentResponse(message="", tool_calls=[], stop_reason="length")
+    agent._warn_if_response_truncated(response)
+    out = capsys.readouterr().out
+    assert "cut off" in out
+    assert "no output" in out.lower()
+    assert "MAX_TOKENS" in out
+
+
+def test_truncated_but_nonempty_response_shows_soft_note(agent, capsys):
+    response = AgentResponse(message="Partial analysis before it got cut off...", tool_calls=[], stop_reason="length")
+    agent._warn_if_response_truncated(response)
+    out = capsys.readouterr().out
+    assert "cut off" in out
+    assert "may be incomplete" in out
+
+
+def test_truncated_with_tool_call_but_no_text_shows_soft_note_not_loud_error(agent, capsys):
+    # A truncated round that still produced a tool call isn't the "silent
+    # nothing" failure mode -- something did happen -- so it gets the lighter note.
+    response = AgentResponse(
+        message="",
+        tool_calls=[ToolCall(id="1", name="suggest_dials_command", input={"command": "dials.refine ..."})],
+        stop_reason="length",
+    )
+    agent._warn_if_response_truncated(response)
+    out = capsys.readouterr().out
+    assert "cut off" in out
+    assert "no output" not in out.lower()
+
+
+def test_anthropic_native_max_tokens_stop_reason_also_detected(agent, capsys):
+    # Native Anthropic API uses "max_tokens" where OpenAI-compatible providers use "length".
+    response = AgentResponse(message="", tool_calls=[], stop_reason="max_tokens")
+    agent._warn_if_response_truncated(response)
+    out = capsys.readouterr().out
+    assert "cut off" in out
+
+
+def test_normal_completed_response_shows_no_warning(agent, capsys):
+    response = AgentResponse(message="Here's my analysis...", tool_calls=[], stop_reason="end_turn")
+    agent._warn_if_response_truncated(response)
+    out = capsys.readouterr().out
+    assert out == ""
 
 
 def test_cli_module_version_matches_package_version():

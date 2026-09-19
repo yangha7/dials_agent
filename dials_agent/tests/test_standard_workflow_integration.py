@@ -270,6 +270,50 @@ class TestStandardWorkflowIntegration:
         # this is display-only shortening, not a change to what actually runs.
         assert agent.command_timings[-1]["command"] == long_command
 
+    def test_workflow_complete_banner_shown_on_real_transition(self, tmp_path, capsys):
+        # A command that genuinely finishes the workflow (creates the first .mtz)
+        # should show the completion banner -- this is the case that matters.
+        agent = make_agent(tmp_path)
+        with patch.object(agent.executor, "execute", side_effect=make_mock_executor(agent)):
+            for command, *_ in STANDARD_WORKFLOW[:-1]:
+                agent.execute_command(command)
+            capsys.readouterr()
+            result = agent.execute_command(STANDARD_WORKFLOW[-1][0])  # dials.merge -> merged.mtz
+            agent.display_result(result)
+        assert "Workflow Complete" in capsys.readouterr().out
+
+    def test_workflow_complete_banner_suppressed_when_already_complete_before_resuming(self, tmp_path, capsys):
+        # Regression test for a real bug found live-testing: resuming in a directory
+        # copied from a prior finished run (scaled.mtz etc. already present from the
+        # start, as in the v2/v3 centring-investigation directories) made the
+        # "Workflow Complete!" banner fire after every single subsequent command --
+        # including read-only diagnostic scripts with nothing to do with finishing
+        # anything -- which is confusing noise, not a useful signal.
+        # WorkflowManager scans the directory at construction time, so the file must
+        # exist *before* the agent is created -- matching the real scenario (a
+        # directory copied from a prior finished run, complete before the agent
+        # process even starts), not a file appearing mid-session.
+        (tmp_path / "merged.mtz").touch()
+        agent = make_agent(tmp_path)
+
+        centring_check_command = STANDARD_WORKFLOW[7][0]  # a dials.python check, creates no files
+        with patch.object(agent.executor, "execute", side_effect=make_mock_executor(agent)):
+            capsys.readouterr()
+            result = agent.execute_command(centring_check_command)
+            agent.display_result(result)
+        out = capsys.readouterr().out
+        assert "Workflow Complete" not in out
+        assert "Command Successful" in out  # the actual result should still show
+
+    def test_explicit_next_command_still_shows_completion_regardless(self, tmp_path, capsys):
+        # The suppression above must NOT affect the explicit `next` command -- that's
+        # a deliberate query, not unsolicited noise after an unrelated command.
+        (tmp_path / "merged.mtz").touch()
+        agent = make_agent(tmp_path)
+        capsys.readouterr()
+        agent.display_next_step_suggestion()
+        assert "Workflow Complete" in capsys.readouterr().out
+
     def test_version_shown_in_startup_banner_text(self):
         import dials_agent
         from dials_agent import cli

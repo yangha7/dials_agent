@@ -348,7 +348,7 @@ class ClaudeClient:
         """
         return self.client.messages.create(
             model=self.model,
-            max_tokens=self.settings.max_tokens,
+            max_tokens=self.settings.get_resolved_max_tokens(),
             system=[
                 {
                     "type": "text",
@@ -474,7 +474,7 @@ class ClaudeClient:
         
         return self.client.chat.completions.create(
             model=self.model,
-            max_tokens=self.settings.max_tokens,
+            max_tokens=self.settings.get_resolved_max_tokens(),
             tools=self.openai_tools if self.openai_tools else None,
             messages=messages
         )

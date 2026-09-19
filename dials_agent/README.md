@@ -96,12 +96,14 @@ The agent **auto-detects** the provider from whichever API key is set. No need t
 
 ### LLM Provider Options
 
-| Provider | API Key Variable | Default Model | Notes |
-|----------|-----------------|---------------|-------|
-| **CBORG** | `CBORG_API_KEY` | `anthropic/claude-sonnet` | Recommended for LBL users |
-| **OpenAI** | `OPENAI_API_KEY` | `gpt-4o` | Direct OpenAI API |
-| **Google Gemini** | `GEMINI_API_KEY` | `gemini-2.5-pro` | Google's Gemini models |
-| **Anthropic** | `ANTHROPIC_API_KEY` | `claude-sonnet-4-20250514` | Direct Anthropic API |
+| Provider | API Key Variable | Default Model | Default Max Output Tokens | Notes |
+|----------|-----------------|---------------|---------------------------|-------|
+| **CBORG** | `CBORG_API_KEY` | `anthropic/claude-sonnet` | 64000 | Recommended for LBL users |
+| **OpenAI** | `OPENAI_API_KEY` | `gpt-4o` | 16384 | Direct OpenAI API — this is GPT-4o's actual ceiling, not a conservative choice |
+| **Google Gemini** | `GEMINI_API_KEY` | `gemini-2.5-pro` | 16384 | Google's Gemini models — conservative default, may support more |
+| **Anthropic** | `ANTHROPIC_API_KEY` | `claude-sonnet-4-20250514` | 64000 | Direct Anthropic API |
+
+Max output tokens genuinely differ by provider — GPT-4o can't go higher than 16384 regardless, while Claude Sonnet 4/4.5 support up to 64K on the standard synchronous API (newer Sonnet generations up to 128K). Set `MAX_TOKENS` explicitly in `.env` only to go lower, or if you've confirmed your specific model supports more.
 
 ### Directory Configuration
 
@@ -134,7 +136,7 @@ If DIALS is already on your PATH (e.g., after running `source dials_env.sh`), yo
 | `LLM_PROVIDER` | Force a specific provider (`cborg`/`openai`/`gemini`/`anthropic`) | Auto-detected |
 | `MODEL` | Override the default model | Per-provider default |
 | `LLM_BASE_URL` | Override the API base URL | Per-provider default |
-| `MAX_TOKENS` | Maximum response tokens | 4096 |
+| `MAX_TOKENS` | Maximum response tokens | Per-provider default (see below) |
 | `DIALS_PATH` | Path to DIALS `bin/` directory | System PATH |
 | `DATA_DIRECTORY` | Raw data directory | (none) |
 | `WORKING_DIRECTORY` | Output directory | `.` |
@@ -540,6 +542,22 @@ ruff check dials_agent/
 ## License
 
 This project is part of the DIALS software suite.
+
+### v2.7.4 — Per-Provider MAX_TOKENS Defaults (64K for Claude, Not a Shared Global 16384)
+- **Prompted directly by the v2.7.3 truncation bug**: raising the old single global default (16384, shared across all four providers) isn't safe to do blindly — GPT-4o's actual output-token ceiling genuinely IS 16384 (raising it further just causes API errors, doesn't help), while Claude Sonnet 4/4.5 (what `cborg`/`anthropic` resolve to here) support up to 64K on the standard synchronous API. One global number can't be both "high enough for Claude" and "not exceed OpenAI's real ceiling"
+- `config.py`'s `max_tokens` field now defaults to `0` (sentinel for "use the provider default"); new `DEFAULT_MAX_TOKENS` dict (matching the existing `DEFAULT_MODELS`/`DEFAULT_BASE_URLS` pattern) and `get_resolved_max_tokens()` resolve it per-provider: 64000 for cborg/anthropic, 16384 (unchanged) for openai/gemini. `MAX_TOKENS` in `.env` still overrides explicitly when set. Also fixed a stale discrepancy in the README/`.env.example` docs (previously claimed the default was 4096, when the code had already been at 16384)
+- No `.env` edit needed to pick this up for CBORG/Anthropic users — pulling the update alone raises the effective default from 16384 to 64000 automatically; only set `MAX_TOKENS` explicitly to go lower, or higher still if you've confirmed your specific model supports it (newer Claude Sonnet generations support up to 128K)
+- 7 new tests (`tests/test_config.py`) — 174 total, up from 167
+
+### v2.7.3 — Surface Silently-Truncated (MAX_TOKENS-Cut-Off) Turns
+- **Real bug, found live**: after a long, context-heavy turn, the CLI printed the token-usage line (`19,186 in / 16,384 out`) — output tokens exactly equal to the configured `MAX_TOKENS` — and then nothing else at all: no "Agent" header, no text, no next step, straight back to the `You:` prompt, despite a full-price, maximum-length API call having just run. `AgentResponse.stop_reason` was captured on every response (`"length"` for OpenAI-compatible providers, `"max_tokens"` for native Anthropic) but never actually checked anywhere in the codebase — a response cut off by the token limit with no visible text and no tool call in its final round just silently produced nothing, with no indication anything had gone wrong
+- Fixed: `DIALSAgent._warn_if_response_truncated()` now checks `stop_reason` after every turn (both interactive and auto mode, since both go through the same `chat()` method) and prints a clear warning — a loud one naming the actual cause when the turn produced nothing at all, a lighter note when it produced partial text/a tool call that may just be incomplete. No automatic retry (deliberately — an automatic retry loop could itself compound token costs unpredictably); the fix is making the failure visible and actionable, not silently invisible
+- 5 new tests — 167 total, up from 162
+
+### v2.7.2 — Stop Repeating "Workflow Complete!" After Every Unrelated Command
+- **Real bug, noticed live mid-session**: `display_result()` unconditionally shows the "🎉 Workflow Complete!" banner after every successful command, purely from checking whether a `.mtz` file exists anywhere in the working directory. That's correct the *first* time a run genuinely finishes, but confusing (and it was confusing) when resuming in a directory copied from a prior finished run for further investigation (e.g. the v2/v3 centring-investigation directories, which start with `scaled.mtz`/`merged.mtz` already present) — every single subsequent command, including read-only diagnostic scripts with nothing to do with finishing anything, re-announced "workflow complete"
+- Fixed narrowly: `execute_command()` now snapshots whether the workflow was already complete *before* the command ran; `display_result()` only shows the automatic completion banner if this specific command was the one that just finished it. The explicit `next` command (asked for directly) is untouched — it still reports completion on request regardless
+- 3 new tests — 162 total, up from 159
 
 ### v2.7.1 — End-to-End Standard-Workflow Integration Test + Two More Display Polish Fixes
 - **New `tests/test_standard_workflow_integration.py`**: drives the real `execute_command`/`display_result`/`display_command_suggestion`/`display_timing_summary`/`display_workflow_status` code and the real, file-based `WorkflowManager` stage detection through a full mocked import-through-merge pipeline (including both numeric checks invoked exactly as the base prompt tells the LLM to invoke them), with no real DIALS install or LLM calls needed. Exists specifically to catch the class of bug recent fixes were for — things only visible in the actual rendered text of a full run, not in isolated unit tests of individual functions
