@@ -23,6 +23,30 @@ DATA_FILE_EXTENSIONS = {
     ".osc",      # Oscillation images
 }
 
+# dxtbx/DIALS decompresses these transparently on read -- dials.import can be
+# pointed directly at e.g. `t1.0001.img.bz2`, no separate decompression step
+# needed. (This is distinct from an outer .tar *archive* bundling many such
+# files, which does need extracting first -- that's a packaging step, not a
+# per-image compression DIALS handles itself.)
+COMPRESSED_EXTENSIONS = {".bz2", ".gz"}
+
+
+def is_recognized_data_file(item: Path) -> bool:
+    """
+    True if `item` is a diffraction data file DIALS can import directly --
+    either matching DATA_FILE_EXTENSIONS itself, or one of those with a
+    trailing .bz2/.gz DIALS decompresses on the fly. Path.suffix only ever
+    returns the last dotted component, so a compressed file's real "type"
+    is the suffix *before* the compression extension (e.g. `.img` in
+    `t1.0001.img.bz2`).
+    """
+    suffix = item.suffix.lower()
+    if suffix in DATA_FILE_EXTENSIONS:
+        return True
+    if suffix in COMPRESSED_EXTENSIONS:
+        return item.with_suffix("").suffix.lower() in DATA_FILE_EXTENSIONS
+    return False
+
 
 def discover_data_files(
     working_directory: str = ".",
@@ -51,13 +75,18 @@ def discover_data_files(
             return
         seen.add(resolved)
         suffix = item.suffix.lower()
+        if suffix in COMPRESSED_EXTENSIONS:
+            inner_suffix = item.with_suffix("").suffix.lower()
+            type_label = f"{inner_suffix[1:].upper()}.{suffix[1:].upper()}"  # e.g. IMG.BZ2
+        else:
+            type_label = suffix[1:].upper()
         try:
             rel_path = item.relative_to(working_path)
         except ValueError:
             rel_path = os.path.relpath(item, working_path)
         data_files.append({
             "path": str(rel_path),
-            "type": suffix[1:].upper(),
+            "type": type_label,
             "name": item.name,
             "size_mb": round(item.stat().st_size / (1024 * 1024), 1),
         })
@@ -69,7 +98,7 @@ def discover_data_files(
             for item in sorted(directory.iterdir()):
                 if len(data_files) >= max_files:
                     return
-                if item.is_file() and item.suffix.lower() in DATA_FILE_EXTENSIONS:
+                if item.is_file() and is_recognized_data_file(item):
                     add_file(item)
                 elif item.is_dir() and not item.name.startswith("."):
                     scan_directory(item, current_depth + 1)
@@ -87,7 +116,7 @@ def discover_data_files(
             for item in sorted(parent.iterdir()):
                 if len(data_files) >= max_files:
                     break
-                if item.is_file() and item.suffix.lower() in DATA_FILE_EXTENSIONS:
+                if item.is_file() and is_recognized_data_file(item):
                     add_file(item)
         except PermissionError:
             pass

@@ -7,6 +7,16 @@ description: Importing raw diffraction images into DIALS format (dials.import)
 - Formats: CBF, HDF5/NeXus (.nxs, .h5), SMV, TIFF
 - Tip: for large datasets, offer `image_range=1,1200` to process a subset first
 - Use `lookup_phil_params` for full parameter list
+- **Compressed images (.bz2, .gz) need NO decompression step**: dxtbx/DIALS decompresses
+  these transparently on read. Point `dials.import` directly at the compressed files, e.g.
+  `dials.import t1.0*.img.bz2` — do NOT suggest `bunzip2`/`gunzip`/a shell loop to extract
+  them first, that's unnecessary work and (if it duplicates hundreds of large image files)
+  a real waste of disk space and time. This is distinct from an outer **.tar archive**
+  bundling many such files, which genuinely does need extracting first (`tar xvf archive.tar`)
+  — that's unpacking the container, not decompressing each image; if the individual
+  compressed image files already exist on disk (e.g. found in "Available diffraction data
+  files" with a `.bz2`/`.gz` type), the archive step is already done and only the
+  `dials.import` command is needed.
 
 ### Import Step Options
 When the user wants to import data (e.g., "analyze the insulin data", "work up my data"):

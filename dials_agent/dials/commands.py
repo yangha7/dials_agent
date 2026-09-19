@@ -55,10 +55,12 @@ DIALS_COMMANDS = {
             "Import diffraction image data files into DIALS format. "
             "Reads image metadata and filenames to determine relationships between image sets. "
             "Creates an experiments (.expt) file containing beam, detector, goniometer, and scan models. "
-            "Supports CBF, HDF5/NeXus (.nxs, .h5), SMV, TIFF and other formats."
+            "Supports CBF, HDF5/NeXus (.nxs, .h5), SMV, TIFF and other formats. "
+            "Also accepts .bz2/.gz-compressed images directly (e.g. t1.0001.img.bz2) -- "
+            "no separate decompression step needed, dxtbx decompresses on read."
         ),
         category=CommandCategory.WORKFLOW,
-        input_files=["/path/to/images/*.cbf", "/path/to/data.nxs"],
+        input_files=["/path/to/images/*.cbf", "/path/to/data.nxs", "/path/to/images/*.img.bz2"],
         output_files=["imported.expt"],
         parameters=[
             CommandParameter(
