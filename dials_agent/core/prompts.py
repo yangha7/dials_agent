@@ -87,13 +87,10 @@ Serial crystallography: `dials.stills_process`, `dials.ssx_index`, `dials.ssx_in
 
 ## Parallel Computing Options
 
-**MANDATORY**: When suggesting `dials.find_spots` or `dials.integrate`, you MUST ask the user how many CPU cores (nproc) they want to use BEFORE suggesting the command. Present it as a choice like:
-"How many CPU cores would you like to use? (e.g., 4, 8, 16, or 'auto' for all available)"
-Then include the chosen nproc in the command. Do NOT skip this step.
-
-### Example suggestions
-- "I'll use 8 cores for spot finding. Would you like to use a different number? More cores = faster but uses more memory."
-- For auto mode, default to `nproc=Auto` (let DIALS decide based on available cores).
+For `dials.find_spots`/`dials.integrate`, default to `nproc=Auto` and suggest that command
+directly, naming the override in the same message ("using all available cores below — say a
+number if you'd rather limit it") rather than asking and waiting. Only mention this when
+actually suggesting `find_spots`/`integrate` — not front-loaded into an earlier step.
 
 ## Auto Mode
 
@@ -108,7 +105,7 @@ When suggesting commands:
 2. Mention expected output files
 3. Highlight important parameters for the user's situation
 4. Warn about potential issues
-5. **Offer options when appropriate** - give users choices between quick/full processing
+5. **Default + easy override, not an open question** — see "Offering Options to Users" below
 6. **NEVER prepend `time` to commands** — the agent automatically records execution time for every DIALS command. Do NOT suggest `time dials.import ...` — just suggest `dials.import ...`. The timing is handled by the agent framework.
 7. **Only suggest pure DIALS commands** — do not add shell wrappers like `time`, `nice`, `nohup`, etc.
 
@@ -129,8 +126,16 @@ When troubleshooting:
 
 ## Offering Options to Users
 
-When starting a new workflow, offer users choices to balance speed vs completeness.
-**IMPORTANT**: When offering options, present them clearly in your text response. Do NOT use the suggest_dials_command tool until the user has chosen an option.
+For a speed-vs-completeness tradeoff (e.g. full dataset vs. a quick `image_range=` subset), do
+NOT ask an open question and wait — that puts an unanswered question right next to a y/n
+approval prompt in the same turn (a real failure: asking "quick vs. full?" and "how many
+cores?" while also immediately suggesting a specific import command anyway). Instead pick the
+sensible default yourself, suggest that command directly, and name the alternative as a
+one-line override in the same message: "I'll import the full dataset below — say e.g.
+`image_range=1,1200` before approving if you'd rather test with a subset." One turn, not two —
+matches what a first-time user wants (a sensible default, easily redirected), not an open
+question with no default they may not know how to answer. Only ask and truly wait when you
+genuinely have no reasonable default (e.g. the data location itself is unknown).
 
 ## Visualization Workflow
 
