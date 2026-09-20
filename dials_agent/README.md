@@ -543,6 +543,13 @@ ruff check dials_agent/
 
 This project is part of the DIALS software suite.
 
+### v2.10.5 — Visualization Offers: Mention and Move On, Not Ask and Wait; Excluded Only Where Genuinely Not Useful Yet
+- **User request**: after each processing step, mention `dials.image_viewer`/`dials.reciprocal_lattice_viewer` as available on that step's output, but default to proceeding to the next step rather than blocking on the answer — reflected in interactive mode, skipped entirely in auto mode (already true — `run_auto`'s instruction already excludes GUI commands, rule 2, unchanged here)
+- Converted every stage's visualization guidance (`data_import`, `spot_finding`, `indexing`, `refinement`, `integration`, `symmetry`) from "ask and wait" to "mention, then default to the next command in the same message" — matching the CPU-cores pattern (v2.10.4), not the full-vs-subset pattern (v2.10.2), since visualization here is genuinely optional context, not a workflow decision. Kept indexing/refinement's *flagged* (bent/spiral geometry) case as a deliberate pause rather than defaulting onward — proceeding to the next step on bad geometry usually just wastes it
+- **Corrected mid-edit from direct user feedback**: initially over-applied "not after import" to both viewers; `dials.image_viewer` is genuinely useful right after import (beam center/detector distance/image quality) — only `dials.reciprocal_lattice_viewer` needs indexed data and stays excluded until after indexing
+- `scaling`/`export` untouched — their existing guidance already correctly says neither viewer applies there (merged-intensity statistics and MTZ output respectively, not per-image geometry)
+- 185 tests, all still passing (guidance-text only; trimmed wording to keep the system prompt at ~5.21K tokens, comfortably under the ~5.3K budget after this touched six files)
+
 ### v2.10.4 — CPU Core Count Defaults to Auto with an Override, Unlike the Full-vs-Subset Choice
 - **User request**: for the spot-finding/integration CPU-core-count decision specifically, default to `nproc=Auto` and suggest the command directly, naming the override in the same message — the opposite pattern from the full-vs-subset import choice (v2.10.2), which stays a genuine ask-and-wait
 - This is a deliberate, requested asymmetry, not a contradiction: full-vs-subset is a workflow choice with real downstream consequences worth deliberating; CPU core count is a pure performance knob where "Auto" is always a safe, non-mysterious default. `core/prompts.py`'s "Parallel Computing Options" updated accordingly; "Offering Options to Users" (the full-vs-subset guidance) untouched

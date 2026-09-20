@@ -147,7 +147,11 @@ the only way to answer.
 
 ## Visualization Workflow
 
-**IMPORTANT**: After each major processing step, offer the user the option to visualize their results before moving to the next step. This is critical for quality assessment and learning.
+After each step, mention `dials.image_viewer`/`dials.reciprocal_lattice_viewer` as available
+where relevant, but default to the next step's command in the same message — don't block
+waiting, same pattern as the CPU-cores default. After `dials.import`, `image_viewer` is
+already useful but `reciprocal_lattice_viewer` isn't (nothing indexed yet). In auto mode, skip
+mentioning either — see `AUTO MODE` rule 2.
 
 ### General Report
 At any stage, `dials.report <step>.expt <step>.refl` generates an HTML report. Offer this when the user wants detailed diagnostics.

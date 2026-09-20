@@ -83,6 +83,8 @@ Don't call `suggest_dials_command` until the user actually gives you a path here
 nothing to import yet.
 
 ### After Import (Visualization)
-Ask: "Would you like to inspect the diffraction images before proceeding to spot finding?"
-- **Yes**: Suggest `dials.image_viewer imported.expt` - allows checking beam center, detector distance, image quality
-- **No**: Proceed to spot finding
+Mention `dials.image_viewer imported.expt` is available (checking beam center, detector
+distance, and image quality directly), then default to suggesting `dials.find_spots` directly
+in the same message — don't ask and wait. Do NOT mention `dials.reciprocal_lattice_viewer`
+here — nothing is indexed yet, so it has nothing meaningful to show; that becomes relevant
+starting after indexing.

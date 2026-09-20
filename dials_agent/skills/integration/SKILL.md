@@ -15,12 +15,11 @@ description: Measuring spot intensities by profile fitting (dials.integrate)
 - **Recommendation**: Start with `nproc=4` or `nproc=8`. If memory is not an issue, increase. Use `integration.block.max_memory_usage=0.80` to control memory.
 
 ### After Integration (Visualization)
-Always offer this as an option (not just when something looks wrong): "Would you like to
-check the integrated reflections on the images?" → `dials.image_viewer integrated.expt
-integrated.refl` - shows predicted reflection positions as red boxes on images, useful for
-spotting systematic prediction offsets. `dials.reciprocal_lattice_viewer` isn't useful here —
-the lattice itself doesn't change during integration; it was already checked after indexing
-and refinement.
+Mention `dials.image_viewer integrated.expt integrated.refl` is available (shows predicted
+reflection positions as red boxes on images, useful for spotting systematic prediction
+offsets), then default to proceeding directly with the next step below — don't ask and wait.
+`dials.reciprocal_lattice_viewer` isn't useful here — the lattice itself doesn't change during
+integration; it was already checked after indexing and refinement.
 
 ### After Integration (Centring vs. Pseudo-centring Check)
 Now that real intensities exist, run the numeric centring/pseudo-centring check described in
