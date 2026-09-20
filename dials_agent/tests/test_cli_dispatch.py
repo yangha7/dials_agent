@@ -635,28 +635,40 @@ def test_import_pause_asks_directly_and_tells_llm_user_wants_to_proceed(tmp_path
 # LLM's text having asked anything.
 # ---------------------------------------------------------------------------
 
+def _suggestion(command: str) -> dict:
+    return {"command": command, "explanation": "e", "expected_output": "o"}
+
+
 class TestConfirmCommandToRun:
-    def test_fresh_import_choice_1_runs_full_dataset_unchanged(self, tmp_path):
+    def test_fresh_import_choice_1_runs_full_dataset_unchanged(self, tmp_path, capsys):
         agent = make_agent(tmp_path)
         with patch("dials_agent.cli.Prompt.ask", return_value="1") as mock_prompt:
-            proceed, command = agent._confirm_command_to_run("dials.import data/*.h5")
+            proceed, suggestion = agent._confirm_command_to_run(_suggestion("dials.import data/*.h5"))
         assert mock_prompt.called
         assert proceed is True
-        assert command == "dials.import data/*.h5"
+        assert suggestion["command"] == "dials.import data/*.h5"
+        # The displayed panel must show the same command that will actually run.
+        assert "dials.import data/*.h5" in capsys.readouterr().out
 
-    def test_fresh_import_choice_2_appends_image_range(self, tmp_path):
+    def test_fresh_import_choice_2_appends_image_range_and_displays_it(self, tmp_path, capsys):
         agent = make_agent(tmp_path)
         with patch("dials_agent.cli.Prompt.ask", return_value="2"):
-            proceed, command = agent._confirm_command_to_run("dials.import data/*.h5")
+            proceed, suggestion = agent._confirm_command_to_run(_suggestion("dials.import data/*.h5"))
         assert proceed is True
-        assert command == "dials.import data/*.h5 image_range=1,1200"
+        assert suggestion["command"] == "dials.import data/*.h5 image_range=1,1200"
+        # Regression: the panel shown must match what actually executes --
+        # found live showing a plain full-dataset panel, then silently
+        # running a different (subset) command underneath it with no
+        # updated confirmation of what was really about to happen.
+        out = capsys.readouterr().out
+        assert "dials.import data/*.h5 image_range=1,1200" in out
 
     def test_fresh_import_choice_n_declines(self, tmp_path):
         agent = make_agent(tmp_path)
         with patch("dials_agent.cli.Prompt.ask", return_value="n"):
-            proceed, command = agent._confirm_command_to_run("dials.import data/*.h5")
+            proceed, suggestion = agent._confirm_command_to_run(_suggestion("dials.import data/*.h5"))
         assert proceed is False
-        assert command == "dials.import data/*.h5"
+        assert suggestion["command"] == "dials.import data/*.h5"
 
     def test_import_with_image_range_already_set_uses_plain_confirm(self, tmp_path):
         # The LLM already chose a subset itself (e.g. user asked for one
@@ -664,11 +676,11 @@ class TestConfirmCommandToRun:
         agent = make_agent(tmp_path)
         with patch("dials_agent.cli.Confirm.ask", return_value=True) as mock_confirm, \
              patch("dials_agent.cli.Prompt.ask") as mock_prompt:
-            proceed, command = agent._confirm_command_to_run("dials.import data/*.h5 image_range=1,50")
+            proceed, suggestion = agent._confirm_command_to_run(_suggestion("dials.import data/*.h5 image_range=1,50"))
         assert mock_confirm.called
         assert not mock_prompt.called
         assert proceed is True
-        assert command == "dials.import data/*.h5 image_range=1,50"
+        assert suggestion["command"] == "dials.import data/*.h5 image_range=1,50"
 
     def test_reimport_after_imported_expt_exists_uses_plain_confirm(self, tmp_path):
         # Not a "fresh" import (e.g. re-importing/switching datasets after
@@ -677,7 +689,7 @@ class TestConfirmCommandToRun:
         (agent.working_directory / "imported.expt").touch()
         with patch("dials_agent.cli.Confirm.ask", return_value=True) as mock_confirm, \
              patch("dials_agent.cli.Prompt.ask") as mock_prompt:
-            proceed, command = agent._confirm_command_to_run("dials.import data/*.h5")
+            proceed, suggestion = agent._confirm_command_to_run(_suggestion("dials.import data/*.h5"))
         assert mock_confirm.called
         assert not mock_prompt.called
         assert proceed is True
@@ -686,7 +698,7 @@ class TestConfirmCommandToRun:
         agent = make_agent(tmp_path)
         with patch("dials_agent.cli.Confirm.ask", return_value=True) as mock_confirm, \
              patch("dials_agent.cli.Prompt.ask") as mock_prompt:
-            proceed, command = agent._confirm_command_to_run("dials.find_spots imported.expt nproc=Auto")
+            proceed, suggestion = agent._confirm_command_to_run(_suggestion("dials.find_spots imported.expt nproc=Auto"))
         assert mock_confirm.called
         assert not mock_prompt.called
         assert proceed is True

@@ -453,26 +453,41 @@ class DIALSAgent:
         
         console.print(Panel(content, title="[bold]Suggested Command[/bold]", border_style="blue"))
 
-    def _confirm_command_to_run(self, command_to_run: str) -> "tuple[bool, str]":
+    def _confirm_command_to_run(self, suggestion: dict) -> "tuple[bool, dict]":
         """
-        Ask the user to approve `command_to_run`, returning (proceed, possibly-adjusted command).
+        Decide whether to run `suggestion`'s command, returning (proceed, the
+        suggestion to actually display and run -- unchanged, or adjusted to
+        match a choice made here). Also responsible for actually displaying
+        the suggestion, so callers should not display it separately.
 
-        For a fresh `dials.import` with no `image_range=` already set, this is a
-        structural safeguard, not just prompt wording: pure prompting repeatedly
-        failed live (three separate times) to reliably ask "quick subset vs full
-        dataset" before suggesting exactly this command, no matter how explicitly
-        the base prompt / data_import SKILL.md said to ask and wait first.
-        Enforcing the choice here, at the actual approval gate, doesn't depend on
-        the LLM's text having asked anything -- the user gets a real choice every
-        time, regardless of what the agent said.
+        For a fresh `dials.import` with no `image_range=` already set, this
+        asks BEFORE any "Suggested Command" panel is shown, then displays a
+        suggestion reflecting the real choice -- rather than showing a panel
+        describing the full dataset and then silently running something else
+        underneath it. Found live: the panel described a plain full-dataset
+        import, then a separate question offered a quick-subset alternative
+        -- if chosen, the command that actually ran (`... image_range=1,1200`)
+        never matched what had just been shown, with no updated confirmation
+        of what was really about to execute.
+
+        More generally, this is a structural safeguard, not just prompt
+        wording: pure prompting repeatedly failed live (three separate times)
+        to reliably ask "quick subset vs full dataset" before suggesting
+        exactly this command, no matter how explicitly the base prompt /
+        data_import SKILL.md said to ask and wait first. Enforcing the choice
+        here, at the actual approval gate, doesn't depend on the LLM's text
+        having asked anything -- the user gets a real choice every time,
+        regardless of what the agent said.
         """
+        command_to_run = suggestion["command"]
         is_fresh_import = (
             command_to_run.startswith("dials.import")
             and "image_range=" not in command_to_run
             and not (self.working_directory / "imported.expt").exists()
         )
         if not is_fresh_import:
-            return Confirm.ask("Execute this command?", default=True), command_to_run
+            self.display_command_suggestion(suggestion)
+            return Confirm.ask("Execute this command?", default=True), suggestion
 
         console.print(
             "\n[dim]Full dataset is the default. A quick subset processes fewer images "
@@ -484,10 +499,11 @@ class DIALSAgent:
             choices=["1", "2", "n"], default="1",
         )
         if choice == "n":
-            return False, command_to_run
+            return False, suggestion
         if choice == "2":
-            return True, f"{command_to_run} image_range=1,1200"
-        return True, command_to_run
+            suggestion = {**suggestion, "command": f"{command_to_run} image_range=1,1200"}
+        self.display_command_suggestion(suggestion)
+        return True, suggestion
 
     def display_result(self, result: CommandResult):
         """Display command execution result."""
@@ -1177,11 +1193,10 @@ class DIALSAgent:
                 # the nested call regardless of what it just set.
                 while self.pending_command:
                     suggestion = self.pending_command
-                    command_to_run = suggestion["command"]
                     self.pending_command = None
-                    self.display_command_suggestion(suggestion)
 
-                    proceed, command_to_run = self._confirm_command_to_run(command_to_run)
+                    proceed, suggestion = self._confirm_command_to_run(suggestion)
+                    command_to_run = suggestion["command"]
                     if proceed:
                         result = self.execute_command(command_to_run)
                         self.display_result(result)

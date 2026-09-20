@@ -543,6 +543,11 @@ ruff check dials_agent/
 
 This project is part of the DIALS software suite.
 
+### v2.12.1 — Ask the Full-vs-Subset Question Before Showing the Command Panel, Not After
+- **User caught a real mismatch**: the "Suggested Command" panel was shown first (always describing the plain, full-dataset import), then the full-vs-subset question (v2.11.2) fired *after* — so picking the quick-subset option silently ran a *different* command (`... image_range=1,1200`) than the one just displayed in detail, with no updated confirmation of what was actually about to execute
+- Reordered: `_confirm_command_to_run` now takes the full suggestion dict, asks the full-vs-subset question *before* displaying anything for a fresh import, and only then displays a "Suggested Command" panel reflecting the actual choice — one panel, always accurate, instead of one panel for a hypothetical command followed by a different one silently executing
+- 195 tests, all still passing (7 updated for the new dict-based signature, including a new explicit assertion that the displayed panel contains the actual command about to run)
+
 ### v2.12.0 — Structurally Enforce a Real Pause After Import: View Images First, or Go Straight to Spot Finding?
 - **Explicit, repeated user request**: "add a conversation to let me select whether to open image viewer, or simply jump into spot finding" — twice now, after v2.10.5's "mention the viewer, then default onward" pattern didn't give a real pause at this specific decision point
 - Enforced directly in code rather than reworded in prompt again, matching the same escalation already applied to the full-vs-quick-subset import choice (v2.11.2): right after a successful `dials.import`, `run_interactive()` now asks `Confirm.ask("Would you like to open dials.image_viewer to inspect the images before spot finding?")` directly, and hands the LLM the user's actual answer as part of the result-analysis message ("The user wants to inspect the images first — suggest `dials.image_viewer imported.expt` now" / "...wants to proceed directly to spot finding — suggest `dials.find_spots` now"). The LLM's job is now to follow that instruction, not decide whether to ask
