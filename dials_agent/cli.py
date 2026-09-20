@@ -452,7 +452,42 @@ class DIALSAgent:
             content.append(warnings, style="yellow")
         
         console.print(Panel(content, title="[bold]Suggested Command[/bold]", border_style="blue"))
-    
+
+    def _confirm_command_to_run(self, command_to_run: str) -> "tuple[bool, str]":
+        """
+        Ask the user to approve `command_to_run`, returning (proceed, possibly-adjusted command).
+
+        For a fresh `dials.import` with no `image_range=` already set, this is a
+        structural safeguard, not just prompt wording: pure prompting repeatedly
+        failed live (three separate times) to reliably ask "quick subset vs full
+        dataset" before suggesting exactly this command, no matter how explicitly
+        the base prompt / data_import SKILL.md said to ask and wait first.
+        Enforcing the choice here, at the actual approval gate, doesn't depend on
+        the LLM's text having asked anything -- the user gets a real choice every
+        time, regardless of what the agent said.
+        """
+        is_fresh_import = (
+            command_to_run.startswith("dials.import")
+            and "image_range=" not in command_to_run
+            and not (self.working_directory / "imported.expt").exists()
+        )
+        if not is_fresh_import:
+            return Confirm.ask("Execute this command?", default=True), command_to_run
+
+        console.print(
+            "\n[dim]This imports the full dataset. A quick subset processes fewer "
+            "images first -- faster, good for a first look or learning.[/dim]"
+        )
+        choice = Prompt.ask(
+            "Run [1] full dataset, [2] quick subset (image_range=1,1200), or [n] cancel",
+            choices=["1", "2", "n"], default="1",
+        )
+        if choice == "n":
+            return False, command_to_run
+        if choice == "2":
+            return True, f"{command_to_run} image_range=1,1200"
+        return True, command_to_run
+
     def display_result(self, result: CommandResult):
         """Display command execution result."""
         parsed = self.parser.parse(result)
@@ -1145,7 +1180,8 @@ class DIALSAgent:
                     self.pending_command = None
                     self.display_command_suggestion(suggestion)
 
-                    if Confirm.ask("Execute this command?", default=True):
+                    proceed, command_to_run = self._confirm_command_to_run(command_to_run)
+                    if proceed:
                         result = self.execute_command(command_to_run)
                         self.display_result(result)
 

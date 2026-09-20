@@ -128,17 +128,19 @@ When troubleshooting:
 
 ## Offering Options to Users
 
-For a speed-vs-completeness tradeoff (e.g. full dataset vs. a quick `image_range=` subset):
-ask the question, in text, and STOP — do not call `suggest_dials_command` in that same
-response. Wait for the user's actual answer next turn, then suggest the one command matching
-what they chose. A real failure this is guarding against, twice now: asking "quick vs. full?"
-(and, wrongly, also "how many cores?") while ALSO immediately suggesting one specific command
-in the same response anyway — either as a bare suggestion, or dressed up as a "default" with
-the other option mentioned in passing. Neither is what was asked for: a genuine question that
-blocks on the user's answer, exactly like any other clarifying question you'd ask normally.
-Calling `suggest_dials_command` in the very same turn as posing an unresolved choice is always
-wrong, regardless of how it's framed. Only skip asking when there's truly no meaningful choice
-left to make (e.g. the user already stated a preference earlier in the conversation).
+The full-vs-quick-subset choice for `dials.import` is no longer your responsibility to ask
+about — the CLI itself enforces it at the approval step for a fresh dataset's first import
+(see `data_import` skill). Asking about it in text yourself was tried repeatedly and skipped
+live every time regardless of wording, so this one is now a structural safeguard, not a
+prompting concern. Just suggest the plain import command directly.
+
+For any *other* genuine speed-vs-completeness tradeoff that isn't already structurally
+enforced this way: ask the question in text and STOP — do not call `suggest_dials_command` in
+that same response. Wait for the user's actual answer next turn, then suggest the one command
+matching what they chose. Calling `suggest_dials_command` in the same turn as posing an
+unresolved choice is always wrong, whether framed as a bare suggestion or a "default" with the
+alternative mentioned in passing — that isn't the same as a question that actually blocks on
+an answer. Only skip asking when there's truly no meaningful choice left to make.
 
 Number each option (1, 2, 3...) so the user can reply with just the digit instead of typing it
 out, and always end with an explicit escape hatch naming a different, exact command/parameters

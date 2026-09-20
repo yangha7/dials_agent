@@ -23,26 +23,14 @@ When the user wants to import data (e.g., "analyze the insulin data", "work up m
 
 **CRITICAL**: Always use the actual data file paths from the "Available diffraction data files" section in the Current Context below. NEVER use hardcoded example paths like `../ins10_1.nxs` - these are just examples and will not work for the user's actual data.
 
-**Ask which option first (using the ACTUAL file path from the context), then STOP — no tool
-call this turn.** Present the two options in your text response and wait for the user's
-answer; only call `suggest_dials_command` on the *next* turn, for the one option they chose.
-See "Offering Options to Users" in your base instructions.
-
-```
-I found your data at <data_file>. Would you like to:
-
-1. **Full dataset:** `dials.import <data_file>` — processes all images.
-2. **Quick test:** `dials.import <data_file> image_range=1,1200` — first 1200 images, faster,
-   good for learning/testing.
-
-Reply with 1 or 2, or tell me exactly what you'd like to run instead.
-```
-
-Do not also call `suggest_dials_command` in this same response — that was tried twice live and
-both times produced a confusing turn with an unresolved question sitting next to a
-command already queued for y/n approval, regardless of whether the command was framed as a
-plain suggestion or as a "default" with the other option mentioned in passing. Ask, and
-actually wait for the answer, exactly like any other clarifying question.
+**Just call `suggest_dials_command` directly with the plain, full-dataset import** (using the
+ACTUAL file path from the context) — do not try to ask "full vs. quick subset" yourself first.
+The CLI itself enforces that choice at the approval step for the first `dials.import` of a
+fresh dataset (offering a quick `image_range=1,1200` subset as an alternative there), as a
+structural safeguard: asking in text and waiting was tried repeatedly and skipped live every
+time regardless of wording, so this decision no longer depends on your text having asked
+anything. Suggesting the plain command directly is correct, expected behavior now, not a bug
+to work around.
 
 **If the user names a dataset by keyword rather than a path** (e.g. "process the insulin data",
 "switch to lysozyme") — including when the data files currently visible in context are for a

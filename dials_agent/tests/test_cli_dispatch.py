@@ -545,3 +545,72 @@ def test_run_interactive_picks_up_command_chained_during_result_analysis(tmp_pat
     assert "dials.index imported.expt strong.refl" in out
     assert chat_calls["n"] == 3
     assert agent.pending_command is None
+
+
+# ---------------------------------------------------------------------------
+# _confirm_command_to_run: structural safeguard for "quick subset vs full
+# dataset" on the first dials.import of a fresh dataset.
+#
+# Real failure this exists to fix: pure prompt wording (base prompt +
+# data_import/SKILL.md, both saying to ask and wait before suggesting a
+# command) was skipped by the LLM three separate times live, each producing
+# a straight-to-full-dataset suggestion with no choice offered at all.
+# Enforcing the choice at the actual approval gate doesn't depend on the
+# LLM's text having asked anything.
+# ---------------------------------------------------------------------------
+
+class TestConfirmCommandToRun:
+    def test_fresh_import_choice_1_runs_full_dataset_unchanged(self, tmp_path):
+        agent = make_agent(tmp_path)
+        with patch("dials_agent.cli.Prompt.ask", return_value="1") as mock_prompt:
+            proceed, command = agent._confirm_command_to_run("dials.import data/*.h5")
+        assert mock_prompt.called
+        assert proceed is True
+        assert command == "dials.import data/*.h5"
+
+    def test_fresh_import_choice_2_appends_image_range(self, tmp_path):
+        agent = make_agent(tmp_path)
+        with patch("dials_agent.cli.Prompt.ask", return_value="2"):
+            proceed, command = agent._confirm_command_to_run("dials.import data/*.h5")
+        assert proceed is True
+        assert command == "dials.import data/*.h5 image_range=1,1200"
+
+    def test_fresh_import_choice_n_declines(self, tmp_path):
+        agent = make_agent(tmp_path)
+        with patch("dials_agent.cli.Prompt.ask", return_value="n"):
+            proceed, command = agent._confirm_command_to_run("dials.import data/*.h5")
+        assert proceed is False
+        assert command == "dials.import data/*.h5"
+
+    def test_import_with_image_range_already_set_uses_plain_confirm(self, tmp_path):
+        # The LLM already chose a subset itself (e.g. user asked for one
+        # explicitly) -- nothing to structurally enforce, plain y/n is fine.
+        agent = make_agent(tmp_path)
+        with patch("dials_agent.cli.Confirm.ask", return_value=True) as mock_confirm, \
+             patch("dials_agent.cli.Prompt.ask") as mock_prompt:
+            proceed, command = agent._confirm_command_to_run("dials.import data/*.h5 image_range=1,50")
+        assert mock_confirm.called
+        assert not mock_prompt.called
+        assert proceed is True
+        assert command == "dials.import data/*.h5 image_range=1,50"
+
+    def test_reimport_after_imported_expt_exists_uses_plain_confirm(self, tmp_path):
+        # Not a "fresh" import (e.g. re-importing/switching datasets after
+        # already having one) -- don't force the choice a second time.
+        agent = make_agent(tmp_path)
+        (agent.working_directory / "imported.expt").touch()
+        with patch("dials_agent.cli.Confirm.ask", return_value=True) as mock_confirm, \
+             patch("dials_agent.cli.Prompt.ask") as mock_prompt:
+            proceed, command = agent._confirm_command_to_run("dials.import data/*.h5")
+        assert mock_confirm.called
+        assert not mock_prompt.called
+        assert proceed is True
+
+    def test_unrelated_command_uses_plain_confirm(self, tmp_path):
+        agent = make_agent(tmp_path)
+        with patch("dials_agent.cli.Confirm.ask", return_value=True) as mock_confirm, \
+             patch("dials_agent.cli.Prompt.ask") as mock_prompt:
+            proceed, command = agent._confirm_command_to_run("dials.find_spots imported.expt nproc=Auto")
+        assert mock_confirm.called
+        assert not mock_prompt.called
+        assert proceed is True
