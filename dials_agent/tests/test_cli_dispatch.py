@@ -462,3 +462,86 @@ def test_timing_summary_never_truncates_long_commands(agent, capsys):
     # And the old bug's symptom is gone: the un-shortened absolute path
     # should NOT appear (it's been reduced to the basename).
     assert "workshop_dials_agent" not in out
+
+
+# ---------------------------------------------------------------------------
+# run_interactive: a chained pending_command must survive the current one's
+# result-analysis step, not get silently wiped.
+#
+# Real bug found live: run_interactive's "if self.pending_command:" block ran
+# the newly-approved command, then fed its output back to the LLM via a
+# NESTED self.chat() call for analysis. If that analysis itself proactively
+# called suggest_dials_command for the next step (exactly what the agent is
+# generally encouraged to do), self.pending_command got set to the new
+# suggestion -- and then unconditionally overwritten back to None right
+# after the block, regardless of what the nested call had just set. The
+# user saw the agent's text ("ready to run when you are") with no actual
+# command queued to approve, and typing "y" just went to the LLM as an
+# ordinary chat message instead of a confirmation, since nothing was
+# actually pending. Fixed by consuming (clearing) the command immediately
+# before acting on it, so a freshly re-set one survives to the next
+# `while self.pending_command:` check instead of being wiped afterward.
+# ---------------------------------------------------------------------------
+
+def test_run_interactive_picks_up_command_chained_during_result_analysis(tmp_path, capsys):
+    from dials_agent.dials.executor import CommandResult
+
+    agent = make_agent(tmp_path)
+
+    find_spots_result = CommandResult(
+        command="dials.find_spots imported.expt nproc=Auto",
+        return_code=0, stdout="56403 spots found\n", stderr="",
+        duration=12.3, success=True,
+        working_directory=str(agent.working_directory),
+        output_files=["strong.refl"],
+    )
+    index_result = CommandResult(
+        command="dials.index imported.expt strong.refl",
+        return_code=0, stdout="Indexing...\n95% indexed\n", stderr="",
+        duration=8.0, success=True,
+        working_directory=str(agent.working_directory),
+        output_files=["indexed.expt", "indexed.refl"],
+    )
+
+    def fake_execute(command_str, **kwargs):
+        (agent.working_directory / "strong.refl").touch()
+        (agent.working_directory / "indexed.expt").touch()
+        (agent.working_directory / "indexed.refl").touch()
+        return find_spots_result if "find_spots" in command_str else index_result
+
+    chat_calls = {"n": 0}
+
+    def fake_chat(message):
+        chat_calls["n"] += 1
+        if chat_calls["n"] == 1:
+            # Initial user message -> LLM suggests find_spots.
+            agent.pending_command = {
+                "command": "dials.find_spots imported.expt nproc=Auto",
+                "explanation": "find spots", "expected_output": "strong.refl",
+            }
+            return "Suggesting spot finding."
+        elif chat_calls["n"] == 2:
+            # Analysis of find_spots' result -> LLM chains straight into
+            # suggesting dials.index, exactly the scenario that got dropped.
+            agent.pending_command = {
+                "command": "dials.index imported.expt strong.refl",
+                "explanation": "index", "expected_output": "indexed.expt",
+            }
+            return "Found 56403 spots. Suggesting indexing next."
+        else:
+            # Analysis of dials.index's result -> nothing further to chain.
+            return "Indexing looks good."
+
+    with patch.object(agent.executor, "execute", side_effect=fake_execute), \
+         patch.object(agent, "chat", side_effect=fake_chat), \
+         patch("dials_agent.cli.Confirm.ask", return_value=True), \
+         patch("builtins.input", side_effect=["please process my data", "quit"]):
+        agent.run_interactive()
+
+    out = capsys.readouterr().out
+    # Both commands must have actually been suggested/displayed and executed --
+    # not just the first one, with the second silently dropped.
+    assert "dials.find_spots imported.expt nproc=Auto" in out
+    assert "dials.index imported.expt strong.refl" in out
+    assert chat_calls["n"] == 3
+    assert agent.pending_command is None

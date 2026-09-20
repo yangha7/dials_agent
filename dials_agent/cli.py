@@ -1125,23 +1125,39 @@ class DIALSAgent:
                     console.print(f"\n[bold green]Agent[/bold green]")
                     console.print(Markdown(response))
                 
-                # Handle pending command
-                if self.pending_command:
-                    self.display_command_suggestion(self.pending_command)
-                    
+                # Handle pending command(s). A `while`, not an `if`: the nested
+                # "analyze results" chat() call below can itself set a NEW
+                # self.pending_command (the LLM proactively suggesting the next
+                # step right after analyzing this one's result) -- a real bug,
+                # found live, unconditionally cleared that fresh suggestion right
+                # after this block, silently discarding it. The agent's own text
+                # would say something like "ready to run when you are" with
+                # nothing actually pending to approve -- confusing, and 'y' typed
+                # in response just went to the LLM as an ordinary message, not a
+                # confirmation, since no prompt was actually waiting. Consuming
+                # the command immediately (clearing before acting on it) means a
+                # freshly-chained suggestion survives to be picked up by the next
+                # loop check, instead of being wiped by a clear that runs after
+                # the nested call regardless of what it just set.
+                while self.pending_command:
+                    suggestion = self.pending_command
+                    command_to_run = suggestion["command"]
+                    self.pending_command = None
+                    self.display_command_suggestion(suggestion)
+
                     if Confirm.ask("Execute this command?", default=True):
-                        result = self.execute_command(self.pending_command["command"])
+                        result = self.execute_command(command_to_run)
                         self.display_result(result)
-                        
+
                         # Send result back to Claude for analysis
                         if result.stdout or result.stderr:
                             # Use more output for scaling/symmetry commands that have important statistics
-                            cmd_name = self.pending_command["command"].split()[0] if self.pending_command["command"] else ""
+                            cmd_name = command_to_run.split()[0] if command_to_run else ""
                             if cmd_name in ("dials.scale", "dials.symmetry", "dials.cosym", "dials.merge", "dials.index"):
                                 max_output = 8000  # More output for commands with important statistics
                             else:
                                 max_output = 3000
-                            
+
                             output_text = result.stdout if result.stdout else result.stderr
                             # For long output, include both the beginning and end (statistics are often at the end)
                             if len(output_text) > max_output:
@@ -1150,7 +1166,7 @@ class DIALSAgent:
                                 output_summary = f"{head}\n\n[... output truncated ...]\n\n{tail}"
                             else:
                                 output_summary = output_text
-                            
+
                             # Also instruct Claude to read the log file for full details
                             log_hint = ""
                             if cmd_name == "dials.scale":
@@ -1161,7 +1177,7 @@ class DIALSAgent:
                                 log_hint = "\n\nIMPORTANT: Please read dials.index.log to get the full indexing results including unit cell, space group, and indexed percentage."
                             elif cmd_name == "dials.integrate":
                                 log_hint = "\n\nIMPORTANT: Please read dials.integrate.log to get the integration statistics."
-                            
+
                             with console.status("[bold green]Analyzing results...") as status:
                                 self._active_status = status
                                 analysis = self.chat(
@@ -1174,8 +1190,6 @@ class DIALSAgent:
                                 console.print(Markdown(analysis))
                     else:
                         console.print("[yellow]Command skipped.[/yellow]")
-                    
-                    self.pending_command = None
                 
             except KeyboardInterrupt:
                 console.print("\n[yellow]Use 'quit' to exit.[/yellow]")
