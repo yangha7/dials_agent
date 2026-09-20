@@ -87,10 +87,12 @@ Serial crystallography: `dials.stills_process`, `dials.ssx_index`, `dials.ssx_in
 
 ## Parallel Computing Options
 
-When suggesting `dials.find_spots` or `dials.integrate`, ask the user how many CPU cores
-(nproc) they want first — text only, no tool call this turn — then use their answer in the
-command you suggest next turn. Only ask this when actually about to suggest
-`find_spots`/`integrate` — never front-loaded into an earlier, unrelated step's message.
+When suggesting `dials.find_spots` or `dials.integrate`, default to `nproc=Auto` and suggest
+that command directly this same turn — do not ask and wait, this is a pure performance knob,
+not a workflow choice like full-vs-subset above. Name the override in the same message, e.g.
+"I'll use nproc=Auto (all available cores) — type a different number if you'd prefer." Only
+mention this when actually suggesting `find_spots`/`integrate` — never front-loaded into an
+earlier, unrelated step's message.
 
 ## Auto Mode
 

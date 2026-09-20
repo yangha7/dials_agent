@@ -543,6 +543,11 @@ ruff check dials_agent/
 
 This project is part of the DIALS software suite.
 
+### v2.10.4 — CPU Core Count Defaults to Auto with an Override, Unlike the Full-vs-Subset Choice
+- **User request**: for the spot-finding/integration CPU-core-count decision specifically, default to `nproc=Auto` and suggest the command directly, naming the override in the same message — the opposite pattern from the full-vs-subset import choice (v2.10.2), which stays a genuine ask-and-wait
+- This is a deliberate, requested asymmetry, not a contradiction: full-vs-subset is a workflow choice with real downstream consequences worth deliberating; CPU core count is a pure performance knob where "Auto" is always a safe, non-mysterious default. `core/prompts.py`'s "Parallel Computing Options" updated accordingly; "Offering Options to Users" (the full-vs-subset guidance) untouched
+- 185 tests, all still passing (guidance-text only; system prompt ~5.16K tokens, within the ~5.3K budget)
+
 ### v2.10.3 — Number Options for Fast Reply, Always Keep a Custom-Command Escape Hatch
 - **User request**: when offering multiple-choice options (e.g. full vs. quick import), number them so the user can reply with just a digit instead of retyping the choice — a small but real friction reducer for the workshop's non-technical attendees — while always keeping an explicit way to type an exact custom command instead of picking from the list
 - Added to `core/prompts.py`'s "Offering Options to Users" (general rule, applies to any options the agent presents, not just import) and updated `data_import/SKILL.md`'s worked example to `1. .../2. ...` with "Reply with 1 or 2, or tell me exactly what you'd like to run instead."
