@@ -543,6 +543,13 @@ ruff check dials_agent/
 
 This project is part of the DIALS software suite.
 
+### v2.14.1 — Wire the Pixel-Quality Check into Reactive Troubleshooting; Add an Explicit Full-Scan Mode
+- **User request, extending v2.14.0**: when a later step (indexing, refinement) shows a problem, the agent should be able to suggest going back and checking the raw images — not just leave that to manual inspection, which is impractical across thousands of images. Also: default to a quick sample, but support checking the full dataset if the user asks
+- Added an explicit full-scan mode to `image_pixel_quality_check.py`: pass `all` instead of a sample count to scan every image rather than the default bounded sample (`pick_sample_indices(n, max_samples=None)` now means no cap); the result JSON now reports `full_scan: true/false` so the agent's own narration can state clearly which mode was used
+- Wired the check into `troubleshooting/__init__.py`'s `multiple_lattices` and `refinement_failed` entries as an escalation step, after `dials.check_indexing_symmetry`/`dials.search_beam_position` don't fully resolve the symptom — matching the DPF3 tutorial's own "the problem was really in the raw data" pattern, now with a genuine tool for large datasets instead of only "go look yourself"
+- Updated `core/prompts.py`'s note to cover both legitimate opt-in moments (right after import, and as this later-stage escalation) and the new full-scan option
+- 217 tests (1 new for the full-scan mode)
+
 ### v2.14.0 — New Numeric Check: Pixel-Content Image Quality (Option 2, Opt-In Only, Not in the Default Workflow)
 - **Building Option 2 from the earlier raw-image-checking discussion** (Option 1, header/geometry only, shipped as `import_geometry_check.py` in v2.11.0): actually reads image pixel data, so its cost genuinely scales with dataset size unless sampled. Per explicit instruction: **not** wired into the automatic post-import checks or the default workflow — offered only as an opt-in option, with an explicit runtime warning, and only run if the user actually asks for it
 - New `dials/scripts/image_pixel_quality_check.py`: samples up to 12 evenly-spaced images by default (not a full scan) and checks, per panel: fraction of pixels outside the trusted range (saturation/masked regions), mean/median background among trusted pixels, max value, and a cross-image hot/dead-pixel heuristic (pixels untrusted on *every* sampled image — real diffraction spots move across images as the crystal rotates, so a pixel that's always extreme regardless of which image is more likely a detector defect)

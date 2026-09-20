@@ -23,6 +23,12 @@ class TestPickSampleIndices:
     def test_fewer_images_than_max_returns_all(self):
         assert pq.pick_sample_indices(5, max_samples=12) == [0, 1, 2, 3, 4]
 
+    def test_max_samples_none_means_full_scan(self):
+        # The explicit "all" / full-scan mode: escalation for a later-stage
+        # problem a quick sample couldn't explain, or a user request for a
+        # thorough check -- not the default.
+        assert pq.pick_sample_indices(1000, max_samples=None) == list(range(1000))
+
     def test_more_images_than_max_samples_evenly_including_ends(self):
         indices = pq.pick_sample_indices(1000, max_samples=10)
         assert len(indices) <= 10

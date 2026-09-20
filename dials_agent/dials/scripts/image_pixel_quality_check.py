@@ -6,15 +6,23 @@ unlike Option 1 its cost genuinely scales with how many images are read.
 
 Deliberately NOT wired into the automatic post-import checks, and
 deliberately NOT part of the main suggested workflow -- this is an opt-in,
-user-requested check only, offered as an option after import with an
-explicit runtime warning (see data_import SKILL.md). Sampled by default
-(not a full scan) to keep typical runtime bounded, but for a large dataset
-or slow/networked storage this can still take real time -- there is no way
-to know that in advance without actually reading some images.
+user-requested check only. Offered two ways: (1) as an option right after
+import, with an explicit runtime warning (see data_import SKILL.md); (2)
+as an escalation when a LATER step (indexing, refinement, ...) shows a
+problem that a quick numeric check can't fully explain -- going back to
+look at the raw images directly, which is exactly what a human would do
+for a small dataset but becomes impractical to do by eye across thousands
+of images (see troubleshooting skill). Sampled by default (not a full
+scan) to keep typical runtime bounded, but for a large dataset or slow/
+networked storage this can still take real time even sampled -- there is
+no way to know that in advance without actually reading some images. Pass
+'all' instead of a sample count for an explicit full scan (every image,
+not a sample) if a quick sample wasn't conclusive -- this is the slow
+case the sampling exists to avoid by default, so only do this if asked.
 
 Run with DIALS's own Python:
 
-    dials.python image_pixel_quality_check.py imported.expt [max_images]
+    dials.python image_pixel_quality_check.py imported.expt [max_images | all]
 
 Prints a single JSON object to stdout.
 
@@ -53,11 +61,18 @@ HOT_PIXEL_MIN_IMAGES = 3  # need at least this many sampled images for "always e
 SATURATION_FRACTION_WARN = 0.01  # 1% of a panel's pixels saturated on a single image is already a lot
 
 
-def pick_sample_indices(n_images: int, max_samples: int = DEFAULT_MAX_IMAGES_SAMPLED) -> list:
-    """Evenly-spaced sample of 0-based image indices, including the first and last."""
+def pick_sample_indices(n_images: int, max_samples: "int | None" = DEFAULT_MAX_IMAGES_SAMPLED) -> list:
+    """
+    Evenly-spaced sample of 0-based image indices, including the first and
+    last. max_samples=None means no cap -- every image, for an explicit full
+    scan (e.g. re-checking raw data after a later-stage problem showed up
+    and a quick sample wasn't conclusive). This is deliberately opt-in, not
+    the default, since it's the one case where runtime genuinely scales with
+    the full dataset size.
+    """
     if n_images <= 0:
         return []
-    if n_images <= max_samples:
+    if max_samples is None or n_images <= max_samples:
         return list(range(n_images))
     return sorted(set(np.linspace(0, n_images - 1, max_samples).round().astype(int).tolist()))
 
@@ -124,7 +139,7 @@ def summarize_panel(panel_id: int, per_image_stats: list, hot_pixel_result: dict
     return " ".join(parts)
 
 
-def main(expt_path: str, max_images: int = DEFAULT_MAX_IMAGES_SAMPLED) -> dict:
+def main(expt_path: str, max_images: "int | None" = DEFAULT_MAX_IMAGES_SAMPLED) -> dict:
     from dxtbx.model.experiment_list import ExperimentListFactory
 
     # check_format=True (unlike the header-only checks in this file's
@@ -164,6 +179,7 @@ def main(expt_path: str, max_images: int = DEFAULT_MAX_IMAGES_SAMPLED) -> dict:
         results_by_experiment[str(exp_idx)] = {
             "n_images_total": n_images,
             "n_images_sampled": len(sample_indices),
+            "full_scan": len(sample_indices) == n_images,
             "sampled_image_indices": sample_indices,
             "panels": panels_result,
         }
@@ -174,8 +190,16 @@ def main(expt_path: str, max_images: int = DEFAULT_MAX_IMAGES_SAMPLED) -> dict:
 if __name__ == "__main__":
     if len(sys.argv) not in (2, 3):
         print(json.dumps({
-            "error": "usage: image_pixel_quality_check.py <imported.expt> [max_images_to_sample]"
+            "error": (
+                "usage: image_pixel_quality_check.py <imported.expt> "
+                "[max_images_to_sample | 'all' for a full scan]"
+            )
         }))
         sys.exit(1)
-    max_images = int(sys.argv[2]) if len(sys.argv) == 3 else DEFAULT_MAX_IMAGES_SAMPLED
+    if len(sys.argv) == 3 and sys.argv[2].lower() == "all":
+        max_images = None
+    elif len(sys.argv) == 3:
+        max_images = int(sys.argv[2])
+    else:
+        max_images = DEFAULT_MAX_IMAGES_SAMPLED
     print(json.dumps(main(sys.argv[1], max_images), indent=2))

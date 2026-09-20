@@ -212,15 +212,16 @@ def _get_image_pixel_quality_check_note() -> str:
     )
     return (
         "\n## Optional Pixel-Quality Check (reads real image data — NOT automatic)\n\n"
-        "A deeper check than the geometry one above: actually reads a sample of image pixel "
-        "data (saturation, hot/dead pixels, background level), so unlike that one its cost "
-        "scales with dataset size — it samples a bounded number of images by default (not a "
-        "full scan), but can still take real time on a large dataset or slow storage:\n\n"
+        "Deeper than the geometry check above: actually reads a sample of image pixel data "
+        "(saturation, hot/dead pixels, background), so cost scales with dataset size — sampled "
+        "by default, still can take real time on a large/slow dataset:\n\n"
         f"`dials.python {script_path} imported.expt`\n\n"
-        "**Do NOT run this automatically or add it to the default workflow.** Only mention it "
-        "as an available, opt-in option (e.g. once, after reporting the geometry check) — "
-        "explicitly warn it may take a while before running it, and only run it if the user "
-        "actually asks for it."
+        "**Never run automatically or add to the default workflow.** Only mention as opt-in: "
+        "(1) once after the import geometry check, with a runtime warning; (2) as an "
+        "escalation when a later step's problem isn't explained by check_indexing_symmetry/"
+        "search_beam_position — checking thousands of images by eye isn't practical, this is "
+        "the alternative (see `troubleshooting` skill). Pass `all` for an explicit full scan "
+        "only if a sample wasn't conclusive."
     )
 
 

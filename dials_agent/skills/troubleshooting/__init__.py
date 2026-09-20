@@ -220,6 +220,21 @@ PROBLEM_SOLUTIONS = {
                 "params": ["joint=false"],
                 "explanation": "Index each sweep independently when crystals differ."
             },
+            {
+                "action": "If the above don't resolve it, go back and check the raw images themselves",
+                "params": [],
+                "explanation": (
+                    "check_indexing_symmetry/search_beam_position rule out a bad beam centre, "
+                    "but not detector-level problems (hot/dead pixels, saturation, an intermittent "
+                    "defect) that could also produce this exact symptom pattern. For a real dataset "
+                    "with thousands of images, checking those by eye one at a time isn't practical -- "
+                    "run dials.python .../image_pixel_quality_check.py imported.expt (see your base "
+                    "instructions) instead. Default is a quick sample of the images, which is usually "
+                    "enough; if the problem persists and a sample doesn't explain it, re-run with "
+                    "'all' instead of a sample count for a full scan of every image -- slower, so only "
+                    "do this if the sampled check wasn't conclusive."
+                )
+            },
         ]
     },
 
@@ -267,6 +282,18 @@ PROBLEM_SOLUTIONS = {
                 "action": "Change outlier rejection algorithm",
                 "params": ["refinement.reflections.outlier.algorithm=tukey"],
                 "explanation": "Try tukey or mcd instead of auto for better outlier handling."
+            },
+            {
+                "action": "If the above don't resolve it, go back and check the raw images themselves",
+                "params": [],
+                "explanation": (
+                    "check_indexing_symmetry/search_beam_position rule out a bad beam centre, "
+                    "but not detector-level problems (hot/dead pixels, saturation) that could "
+                    "also produce unstable refinement. Checking thousands of images by eye isn't "
+                    "practical -- run dials.python .../image_pixel_quality_check.py imported.expt "
+                    "(see your base instructions) instead. Default is a quick sample; re-run with "
+                    "'all' for a full scan only if a sample doesn't explain the problem."
+                )
             },
         ]
     },
