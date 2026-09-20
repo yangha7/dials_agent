@@ -25,7 +25,7 @@ from rich.text import Text
 from . import __version__
 from .config import Settings, get_settings, configure_from_env_file
 from .core.claude_client import ClaudeClient, ToolCall, create_client
-from .core.tools import DATA_FILE_EXTENSIONS
+from .core.tools import is_recognized_data_file
 from .skills import SkillContext
 from .dials.compare import (
     compare_runs,
@@ -639,7 +639,7 @@ class DIALSAgent:
                 return False
             try:
                 for item in d.iterdir():
-                    if item.is_file() and item.suffix.lower() in DATA_FILE_EXTENSIONS:
+                    if item.is_file() and is_recognized_data_file(item):
                         return True
                     if item.is_dir() and not item.name.startswith("."):
                         if scan(item, depth + 1):

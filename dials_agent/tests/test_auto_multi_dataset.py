@@ -65,6 +65,23 @@ class TestDirectoryHasDataFiles:
         d.mkdir()
         assert agent._directory_has_data_files(d) is False
 
+    def test_finds_compressed_image_file(self, agent, tmp_path):
+        """Regression test: a real live-testing bug had this diverge from
+        core.tools.is_recognized_data_file, which already handled .bz2/.gz
+        (v2.5.2) -- _directory_has_data_files checked item.suffix directly
+        against DATA_FILE_EXTENSIONS, which only ever sees the LAST dotted
+        component ('.bz2' for 't1.0001.img.bz2', not '.img'), so a directory
+        containing only compressed images was invisible to multi-dataset
+        discovery. Confirmed live: a real data directory with two
+        subdirectories of .img.bz2 files silently discovered zero datasets,
+        falling back to single-dataset mode and leaving the LLM to guess at
+        paths with no directory-listing tool grounding it -- it then
+        suggested a completely fabricated import path.
+        """
+        d = tmp_path / "ds5"
+        touch(d / "t1.0001.img.bz2")
+        assert agent._directory_has_data_files(d) is True
+
 
 class TestDiscoverDatasetSubdirectories:
     def test_no_data_directory_configured(self, tmp_path):
@@ -85,6 +102,21 @@ class TestDiscoverDatasetSubdirectories:
         agent = make_agent(tmp_path / "out", data_directory=str(data_root))
         found = agent._discover_dataset_subdirectories()
         assert sorted(d.name for d in found) == ["insulin", "lysozyme"]
+
+    def test_multiple_dataset_subdirectories_with_compressed_images(self, tmp_path):
+        """Regression test for the real DPF3 + Insulin case: both
+        subdirectories contain only .img.bz2 files. Before the fix, this
+        found zero datasets (see test_finds_compressed_image_file), silently
+        falling back to single-dataset mode instead of the intended
+        multi-dataset loop."""
+        data_root = tmp_path / "data"
+        for i in range(1, 4):
+            touch(data_root / "DPF3" / f"t1.{i:04d}.img.bz2")
+        for i in range(1, 4):
+            touch(data_root / "Insulin" / f"ins_{i:04d}.img.bz2")
+        agent = make_agent(tmp_path / "out", data_directory=str(data_root))
+        found = agent._discover_dataset_subdirectories()
+        assert sorted(d.name for d in found) == ["DPF3", "Insulin"]
 
     def test_ignores_subdirectory_without_data_files(self, tmp_path):
         data_root = tmp_path / "data"
