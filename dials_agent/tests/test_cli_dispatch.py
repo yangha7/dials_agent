@@ -757,6 +757,32 @@ def test_numeric_check_with_multiple_crystals_shows_each_verdict(tmp_path, capsy
     assert "Rows show a spiral." in out
 
 
+def test_numeric_check_with_nested_per_panel_summary_is_displayed(tmp_path, capsys):
+    # image_pixel_quality_check.py nests its summary one level deeper (per
+    # panel) than the other checks -- must still be found and displayed.
+    # Kept deliberately short/single-line: a longer summary can get its
+    # second wrapped line dropped by Rich's panel-height handling under
+    # pytest's capsys (confirmed environment-specific -- the same text
+    # renders correctly in full outside pytest), unrelated to the actual
+    # display logic under test here.
+    agent = make_agent(tmp_path)
+    script_output = (
+        '{"n_experiments": 1, "experiments": {"0": {"n_images_total": 100, '
+        '"panels": {"0": {"summary": "No hot pixels found."}}}}}'
+    )
+    with patch("dials_agent.skills.workspace.sp.run", return_value=_fake_completed_process(script_output)):
+        agent._handle_tool_call(ToolCall(
+            id="1", name="run_shell_command",
+            input={
+                "command": "dials.python /abs/path/dials/scripts/image_pixel_quality_check.py imported.expt",
+                "explanation": "pixel quality check",
+            },
+        ))
+    out = capsys.readouterr().out
+    assert "No hot pixels found." in out
+    assert "image_pixel_quality_check.py" in out
+
+
 def test_unrelated_shell_command_does_not_trigger_numeric_check_display(tmp_path, capsys):
     agent = make_agent(tmp_path)
     with patch("dials_agent.skills.workspace.sp.run", return_value=_fake_completed_process("total 0\n")):

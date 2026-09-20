@@ -194,8 +194,33 @@ def _get_import_geometry_check_note() -> str:
         " — don't wait to be asked. Clean: note briefly, move on. Flagged (e.g. beam centre "
         "off-detector): explain plainly and propose `dials.search_beam_position` before spot "
         "finding, rather than letting indexing fail first. Header/geometry only — does not "
-        "read actual pixel data (saturation, hot pixels, background); that's a separate, "
-        "not-yet-built follow-up, not implied by a clean result here."
+        "read actual pixel data (saturation, hot pixels, background); see the separate pixel "
+        "quality check below for that, which is opt-in, not automatic."
+    )
+
+
+def _get_image_pixel_quality_check_note() -> str:
+    """
+    Resolve the absolute path to the bundled pixel-content quality check
+    (Option 2 of the raw-image-checking discussion) and describe how to
+    offer it. Deliberately NOT phrased as "run automatically" -- see the
+    body text for why.
+    """
+    from pathlib import Path
+    script_path = (
+        Path(__file__).resolve().parent.parent / "dials" / "scripts" / "image_pixel_quality_check.py"
+    )
+    return (
+        "\n## Optional Pixel-Quality Check (reads real image data — NOT automatic)\n\n"
+        "A deeper check than the geometry one above: actually reads a sample of image pixel "
+        "data (saturation, hot/dead pixels, background level), so unlike that one its cost "
+        "scales with dataset size — it samples a bounded number of images by default (not a "
+        "full scan), but can still take real time on a large dataset or slow storage:\n\n"
+        f"`dials.python {script_path} imported.expt`\n\n"
+        "**Do NOT run this automatically or add it to the default workflow.** Only mention it "
+        "as an available, opt-in option (e.g. once, after reporting the geometry check) — "
+        "explicitly warn it may take a while before running it, and only run it if the user "
+        "actually asks for it."
     )
 
 
@@ -381,6 +406,7 @@ def get_system_prompt(registry=None) -> str:
     return (
         BASE_PROMPT + "\n\n" + skills_prompt
         + "\n" + _get_import_geometry_check_note()
+        + "\n" + _get_image_pixel_quality_check_note()
         + "\n" + _get_reciprocal_lattice_linearity_note()
         + "\n" + _get_centring_vs_pseudocentring_note()
     )

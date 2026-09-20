@@ -55,6 +55,7 @@ NUMERIC_CHECK_SCRIPTS = (
     "reciprocal_lattice_linearity.py",
     "centring_vs_pseudocentring_check.py",
     "import_geometry_check.py",
+    "image_pixel_quality_check.py",
 )
 
 
@@ -161,6 +162,17 @@ class DIALSAgent:
             text = entry.get("verdict") or entry.get("summary")
             if isinstance(text, str) and text:
                 findings.append(f"[bold]#{key}:[/bold] {text}" if len(entries) > 1 else text)
+                continue
+            # image_pixel_quality_check.py nests its summary one level deeper,
+            # per panel, rather than directly on the experiment entry.
+            panels = entry.get("panels")
+            if isinstance(panels, dict):
+                for panel_key, panel_entry in panels.items():
+                    if not isinstance(panel_entry, dict):
+                        continue
+                    panel_text = panel_entry.get("summary")
+                    if isinstance(panel_text, str) and panel_text:
+                        findings.append(panel_text)
         if not findings:
             return
 

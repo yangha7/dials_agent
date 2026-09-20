@@ -89,6 +89,9 @@ meaningful to show; that becomes relevant starting after indexing.
   don't need to repeat it verbatim) — briefly say what it means in plain language, then follow
   the viewer instruction above. Don't skip this: silently running the check without explaining
   what it found is no better than not running it at all for someone watching the session live.
+  Mention, once, that a deeper pixel-quality check (see your base instructions) is available if
+  they want it — explicitly note it reads real image data and can take a while, and only run it
+  if they actually ask. Do NOT run it yourself or make it part of the default next steps.
 - **Flagged** (e.g. beam centre off-detector): explain plainly and propose
   `dials.search_beam_position` before spot finding — worth pausing on rather than letting
   indexing fail first and diagnosing it after the fact; this overrides the viewer instruction
