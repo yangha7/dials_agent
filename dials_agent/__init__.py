@@ -5,5 +5,5 @@ This package provides an AI-powered assistant that helps users process
 crystallography data using DIALS through natural language interactions.
 """
 
-__version__ = "2.14.1"
+__version__ = "2.15.0"
 __author__ = "DIALS Team"

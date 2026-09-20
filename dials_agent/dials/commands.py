@@ -2188,22 +2188,34 @@ def get_workflow_commands() -> list[str]:
     ]
 
 
+# Python interpreter wrappers used as fallbacks to run dials_agent's own
+# bundled numeric-check scripts (dials/scripts/*.py) on installations that
+# don't ship `dials.python` -- see core/prompts.py's documented fallback
+# order (dials.python -> libtbx.python -> cctbx.python). Without this,
+# the fallback the agent is explicitly told to try gets rejected here
+# before it can even be attempted.
+PYTHON_INTERPRETER_FALLBACKS = {"libtbx.python", "cctbx.python"}
+
+
 def validate_command(command_str: str) -> tuple[bool, str]:
     """
     Validate a DIALS command string.
-    
+
     Args:
         command_str: The command string to validate
-        
+
     Returns:
         Tuple of (is_valid, error_message)
     """
     parts = command_str.strip().split()
     if not parts:
         return False, "Empty command"
-    
+
     cmd_name = parts[0]
-    
+
+    if cmd_name in PYTHON_INTERPRETER_FALLBACKS:
+        return True, ""
+
     # Check if it's a known DIALS command
     if not cmd_name.startswith("dials."):
         return False, f"Not a DIALS command: {cmd_name}"
