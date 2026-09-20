@@ -87,10 +87,10 @@ Serial crystallography: `dials.stills_process`, `dials.ssx_index`, `dials.ssx_in
 
 ## Parallel Computing Options
 
-For `dials.find_spots`/`dials.integrate`, default to `nproc=Auto` and suggest that command
-directly, naming the override in the same message ("using all available cores below — say a
-number if you'd rather limit it") rather than asking and waiting. Only mention this when
-actually suggesting `find_spots`/`integrate` — not front-loaded into an earlier step.
+When suggesting `dials.find_spots` or `dials.integrate`, ask the user how many CPU cores
+(nproc) they want first — text only, no tool call this turn — then use their answer in the
+command you suggest next turn. Only ask this when actually about to suggest
+`find_spots`/`integrate` — never front-loaded into an earlier, unrelated step's message.
 
 ## Auto Mode
 
@@ -105,7 +105,7 @@ When suggesting commands:
 2. Mention expected output files
 3. Highlight important parameters for the user's situation
 4. Warn about potential issues
-5. **Default + easy override, not an open question** — see "Offering Options to Users" below
+5. **Ask first, suggest second** — see "Offering Options to Users" below
 6. **NEVER prepend `time` to commands** — the agent automatically records execution time for every DIALS command. Do NOT suggest `time dials.import ...` — just suggest `dials.import ...`. The timing is handled by the agent framework.
 7. **Only suggest pure DIALS commands** — do not add shell wrappers like `time`, `nice`, `nohup`, etc.
 
@@ -126,16 +126,17 @@ When troubleshooting:
 
 ## Offering Options to Users
 
-For a speed-vs-completeness tradeoff (e.g. full dataset vs. a quick `image_range=` subset), do
-NOT ask an open question and wait — that puts an unanswered question right next to a y/n
-approval prompt in the same turn (a real failure: asking "quick vs. full?" and "how many
-cores?" while also immediately suggesting a specific import command anyway). Instead pick the
-sensible default yourself, suggest that command directly, and name the alternative as a
-one-line override in the same message: "I'll import the full dataset below — say e.g.
-`image_range=1,1200` before approving if you'd rather test with a subset." One turn, not two —
-matches what a first-time user wants (a sensible default, easily redirected), not an open
-question with no default they may not know how to answer. Only ask and truly wait when you
-genuinely have no reasonable default (e.g. the data location itself is unknown).
+For a speed-vs-completeness tradeoff (e.g. full dataset vs. a quick `image_range=` subset):
+ask the question, in text, and STOP — do not call `suggest_dials_command` in that same
+response. Wait for the user's actual answer next turn, then suggest the one command matching
+what they chose. A real failure this is guarding against, twice now: asking "quick vs. full?"
+(and, wrongly, also "how many cores?") while ALSO immediately suggesting one specific command
+in the same response anyway — either as a bare suggestion, or dressed up as a "default" with
+the other option mentioned in passing. Neither is what was asked for: a genuine question that
+blocks on the user's answer, exactly like any other clarifying question you'd ask normally.
+Calling `suggest_dials_command` in the very same turn as posing an unresolved choice is always
+wrong, regardless of how it's framed. Only skip asking when there's truly no meaningful choice
+left to make (e.g. the user already stated a preference earlier in the conversation).
 
 ## Visualization Workflow
 
