@@ -543,6 +543,11 @@ ruff check dials_agent/
 
 This project is part of the DIALS software suite.
 
+### v2.11.3 — Import-Choice Wording Made Dataset-Neutral, Not Tutorial-Flavored
+- **User clarified**: the full-vs-subset choice (v2.11.2) must default to full for real (non-tutorial) datasets too, with the quick-subset option still available. It already did — the check is purely "is this a fresh import," with no dependency on dataset name/type, and `default="1"` already means full dataset on a bare Enter
+- Only the wording needed adjusting: "good for a first look or learning" read as tutorial-specific. Changed to "useful for a quick sanity check before committing to the full run" — equally natural whether processing a tutorial dataset or a real one — and made the default explicit in the prompt text itself ("[1] full dataset (default)")
+- 192 tests, all still passing (wording-only change, no logic touched)
+
 ### v2.11.2 — Structurally Enforce Full-vs-Quick-Subset Import Choice; Stop Asking the LLM to Ask
 - **Third live occurrence of the same skip**: v2.10.2 restored genuine ask-and-wait for full-vs-quick-subset on `dials.import`, v2.10.3 reinforced it with numbered options — and the agent skipped it entirely a third time, jumping straight to suggesting the full-dataset command with no options presented at all, despite the guidance text being correct and unambiguous both times it was checked. Pure prompting has now failed at this specific decision three separate times regardless of wording; continuing to reword it wasn't a credible fourth fix
 - **Moved enforcement from prompt to code**: new `DIALSAgent._confirm_command_to_run()` intercepts the approval step in `run_interactive()` specifically for a fresh dataset's first `dials.import` (no `imported.expt` yet, no `image_range=` already in the suggested command) and asks the user directly — full dataset, quick subset (appends `image_range=1,1200`), or cancel — regardless of what the LLM's own text said. Falls through to the normal plain y/n `Confirm.ask` for every other command, a re-import, or one that already specifies its own `image_range=`

@@ -475,11 +475,12 @@ class DIALSAgent:
             return Confirm.ask("Execute this command?", default=True), command_to_run
 
         console.print(
-            "\n[dim]This imports the full dataset. A quick subset processes fewer "
-            "images first -- faster, good for a first look or learning.[/dim]"
+            "\n[dim]Full dataset is the default. A quick subset processes fewer images "
+            "first -- faster, useful for a quick sanity check before committing to the "
+            "full run.[/dim]"
         )
         choice = Prompt.ask(
-            "Run [1] full dataset, [2] quick subset (image_range=1,1200), or [n] cancel",
+            "Run [1] full dataset (default), [2] quick subset (image_range=1,1200), or [n] cancel",
             choices=["1", "2", "n"], default="1",
         )
         if choice == "n":
