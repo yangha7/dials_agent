@@ -72,12 +72,22 @@ nothing to import yet.
 
 ### After Import (Geometry Check + Visualization)
 Run the numeric import geometry check (see your base instructions) automatically right after
-`dials.import` succeeds — don't wait to be asked. Mention `dials.image_viewer imported.expt`
-is available (checking beam center, detector distance, and image quality directly), then
-default to suggesting `dials.find_spots` directly in the same message — don't ask and wait.
-Do NOT mention `dials.reciprocal_lattice_viewer` here — nothing is indexed yet, so it has
-nothing meaningful to show; that becomes relevant starting after indexing.
-- **Clean result**: note briefly and proceed as above.
+`dials.import` succeeds — don't wait to be asked.
+
+Whether to view the images first is no longer your call to make: the CLI itself pauses with a
+real, direct question ("Would you like to open dials.image_viewer... ?") right after a
+successful `dials.import`, and tells you the user's actual answer in the same message as the
+command output — asked (and reworded) twice already for you to pause here yourself, and it
+kept being skipped live regardless of wording, so this is now enforced structurally. You will
+be told either "The user wants to inspect the images first — suggest `dials.image_viewer
+imported.expt` now" or "The user wants to proceed directly to spot finding — suggest
+`dials.find_spots` now, do not also offer the image viewer again." Follow that instruction
+directly rather than deciding for yourself whether to mention the viewer. Do NOT mention
+`dials.reciprocal_lattice_viewer` here regardless — nothing is indexed yet, so it has nothing
+meaningful to show; that becomes relevant starting after indexing.
+- **Clean geometry-check result**: note briefly, then follow the viewer instruction above.
 - **Flagged** (e.g. beam centre off-detector): explain plainly and propose
   `dials.search_beam_position` before spot finding — worth pausing on rather than letting
-  indexing fail first and diagnosing it after the fact.
+  indexing fail first and diagnosing it after the fact; this overrides the viewer instruction
+  above, since fixing the geometry problem matters more right now than either viewing images
+  or finding spots.

@@ -1214,6 +1214,31 @@ class DIALSAgent:
                                 log_hint = "\n\nIMPORTANT: Please read dials.index.log to get the full indexing results including unit cell, space group, and indexed percentage."
                             elif cmd_name == "dials.integrate":
                                 log_hint = "\n\nIMPORTANT: Please read dials.integrate.log to get the integration statistics."
+                            elif cmd_name == "dials.import" and result.success:
+                                # Structural pause, not a prompt-wording request: asked
+                                # (and reworded) twice already to have the LLM itself pause
+                                # here for a real answer before suggesting find_spots, and
+                                # it kept going straight to find_spots regardless. Ask
+                                # directly in code and hand the LLM the real answer, so its
+                                # next suggestion is grounded in what the user actually
+                                # chose rather than its own guess about whether to ask.
+                                wants_viewer = Confirm.ask(
+                                    "\nWould you like to open dials.image_viewer to inspect "
+                                    "the images before spot finding?",
+                                    default=False,
+                                )
+                                if wants_viewer:
+                                    log_hint = (
+                                        "\n\nThe user wants to inspect the images first. "
+                                        "Suggest `dials.image_viewer imported.expt` now "
+                                        "(not dials.find_spots yet)."
+                                    )
+                                else:
+                                    log_hint = (
+                                        "\n\nThe user wants to proceed directly to spot "
+                                        "finding -- suggest dials.find_spots now, do not "
+                                        "also offer the image viewer again."
+                                    )
 
                             with console.status("[bold green]Analyzing results...") as status:
                                 self._active_status = status

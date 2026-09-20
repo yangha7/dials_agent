@@ -543,6 +543,13 @@ ruff check dials_agent/
 
 This project is part of the DIALS software suite.
 
+### v2.12.0 — Structurally Enforce a Real Pause After Import: View Images First, or Go Straight to Spot Finding?
+- **Explicit, repeated user request**: "add a conversation to let me select whether to open image viewer, or simply jump into spot finding" — twice now, after v2.10.5's "mention the viewer, then default onward" pattern didn't give a real pause at this specific decision point
+- Enforced directly in code rather than reworded in prompt again, matching the same escalation already applied to the full-vs-quick-subset import choice (v2.11.2): right after a successful `dials.import`, `run_interactive()` now asks `Confirm.ask("Would you like to open dials.image_viewer to inspect the images before spot finding?")` directly, and hands the LLM the user's actual answer as part of the result-analysis message ("The user wants to inspect the images first — suggest `dials.image_viewer imported.expt` now" / "...wants to proceed directly to spot finding — suggest `dials.find_spots` now"). The LLM's job is now to follow that instruction, not decide whether to ask
+- Updated `data_import/SKILL.md` and `core/prompts.py`'s "Visualization Workflow" to describe the new hint and explicitly note the flagged-geometry-check case still overrides it (fixing a real problem takes priority over either viewing images or finding spots)
+- Auto mode unaffected — this lives entirely in `run_interactive()`'s pending-command loop, which `run_auto()` doesn't share
+- 195 tests (2 new, covering both the "yes, view images" and "no, proceed" branches, confirming the correct hint reaches the LLM either way)
+
 ### v2.11.4 — Fix the "Next Step" Panel Suggesting a GUI Viewer as the Required Next Workflow Step
 - **Found live**: after `dials.import`, the CLI's own display-only "Next Step (12% complete)" panel suggested `dials.image_viewer imported.expt` as the next command — while the LLM's own separate, actually-actionable suggestion (in a different panel below it) correctly suggested `dials.find_spots`. Two panels both titled like "the next step," disagreeing with each other, with the viewer one having no way to interact with it at all (this panel is purely informational, computed locally, never sent to the LLM)
 - **Root cause**: `dials/workflow.py`'s `WORKFLOW_SUGGESTIONS["import"]` had `next_command` set to `dials.image_viewer imported.expt` — a GUI tool that doesn't advance the workflow — with the real next step (`dials.find_spots`) buried in `optional_commands`. Every other stage's entry correctly lists a real workflow-advancing command as `next_command` and viewers/optional tools separately; only "import" had this backwards

@@ -548,6 +548,82 @@ def test_run_interactive_picks_up_command_chained_during_result_analysis(tmp_pat
 
 
 # ---------------------------------------------------------------------------
+# A real, structural pause after dials.import: asked (and reworded) twice
+# already for the LLM itself to pause and ask "view images first, or go
+# straight to spot finding?" -- it kept skipping straight to suggesting
+# find_spots regardless. Enforced as a real Confirm.ask in code instead,
+# with the user's actual answer handed to the LLM so its next suggestion is
+# grounded in what was chosen, not its own guess about whether to ask.
+# ---------------------------------------------------------------------------
+
+def _make_import_pause_agent(tmp_path, confirm_answer: bool):
+    from dials_agent.dials.executor import CommandResult
+
+    agent = make_agent(tmp_path)
+    import_result = CommandResult(
+        command="dials.import data/*.cbf",
+        return_code=0, stdout="Successfully imported 1 sequence(s)\n", stderr="",
+        duration=5.0, success=True,
+        working_directory=str(agent.working_directory),
+        output_files=["imported.expt"],
+    )
+
+    def fake_execute(command_str, **kwargs):
+        (agent.working_directory / "imported.expt").touch()
+        return import_result
+
+    captured_messages = []
+
+    def fake_chat(message):
+        captured_messages.append(message)
+        return "OK."
+
+    confirm_calls = []
+
+    def fake_confirm(prompt_text, **kwargs):
+        confirm_calls.append(prompt_text)
+        return confirm_answer
+
+    patches = [
+        patch.object(agent.executor, "execute", side_effect=fake_execute),
+        patch.object(agent, "chat", side_effect=fake_chat),
+        patch("dials_agent.cli.Confirm.ask", side_effect=fake_confirm),
+        # The command already contains no image_range=, and imported.expt
+        # doesn't exist yet, so _confirm_command_to_run's own full-vs-subset
+        # gate (v2.11.2) also fires here -- give it "1" (full) so it doesn't
+        # block on a real prompt.
+        patch("dials_agent.cli.Prompt.ask", return_value="1"),
+        patch("builtins.input", side_effect=["please import my data", "quit"]),
+    ]
+    for p in patches:
+        p.start()
+    try:
+        agent.pending_command = {
+            "command": "dials.import data/*.cbf",
+            "explanation": "import", "expected_output": "imported.expt",
+        }
+        # Bypass the initial user-message chat() call by pre-seeding
+        # pending_command directly and driving run_interactive once.
+        agent.run_interactive()
+    finally:
+        for p in patches:
+            p.stop()
+    return captured_messages, confirm_calls
+
+
+def test_import_pause_asks_directly_and_tells_llm_user_wants_viewer(tmp_path):
+    messages, confirm_calls = _make_import_pause_agent(tmp_path, confirm_answer=True)
+    assert any("image_viewer" in c.lower() for c in confirm_calls)
+    assert any("dials.image_viewer imported.expt" in m for m in messages)
+
+
+def test_import_pause_asks_directly_and_tells_llm_user_wants_to_proceed(tmp_path):
+    messages, confirm_calls = _make_import_pause_agent(tmp_path, confirm_answer=False)
+    assert any("image_viewer" in c.lower() for c in confirm_calls)
+    assert any("proceed directly to spot finding" in m for m in messages)
+
+
+# ---------------------------------------------------------------------------
 # _confirm_command_to_run: structural safeguard for "quick subset vs full
 # dataset" on the first dials.import of a fresh dataset.
 #

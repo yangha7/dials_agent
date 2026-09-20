@@ -151,9 +151,10 @@ the only way to answer.
 
 After each step, mention `dials.image_viewer`/`dials.reciprocal_lattice_viewer` as available
 where relevant, but default to the next step's command in the same message — don't block
-waiting, same pattern as the CPU-cores default. After `dials.import`, `image_viewer` is
-already useful but `reciprocal_lattice_viewer` isn't (nothing indexed yet). In auto mode, skip
-mentioning either — see `AUTO MODE` rule 2.
+waiting, same pattern as the CPU-cores default. In auto mode, skip mentioning either — see
+`AUTO MODE` rule 2. **Exception: right after `dials.import`**, whether to view images first is
+enforced by the CLI itself with a real question, not left to you — see the `data_import`
+skill for what to do with the answer you're given.
 
 ### General Report
 At any stage, `dials.report <step>.expt <step>.refl` generates an HTML report. Offer this when the user wants detailed diagnostics.
