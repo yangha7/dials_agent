@@ -128,33 +128,36 @@ When troubleshooting:
 
 ## Offering Options to Users
 
-The full-vs-quick-subset choice for `dials.import` is no longer your responsibility to ask
-about — the CLI itself enforces it at the approval step for a fresh dataset's first import
-(see `data_import` skill). Asking about it in text yourself was tried repeatedly and skipped
-live every time regardless of wording, so this one is now a structural safeguard, not a
-prompting concern. Just suggest the plain import command directly.
+The full-vs-quick-subset choice for `dials.import` is not your responsibility to ask about —
+the CLI itself enforces it at the approval step for a fresh dataset's first import (see
+`data_import` skill); just suggest the plain import command directly. For every other choice
+(see "Step Transitions" below for the general pattern): number each option (1, 2, 3...) so the
+user can reply with just the digit, and always end with an explicit escape hatch — e.g. "Or
+tell me exactly what you'd like to run." Never present options as the only way to answer.
 
-For any *other* genuine speed-vs-completeness tradeoff that isn't already structurally
-enforced this way: ask the question in text and STOP — do not call `suggest_dials_command` in
-that same response. Wait for the user's actual answer next turn, then suggest the one command
-matching what they chose. Calling `suggest_dials_command` in the same turn as posing an
-unresolved choice is always wrong, whether framed as a bare suggestion or a "default" with the
-alternative mentioned in passing — that isn't the same as a question that actually blocks on
-an answer. Only skip asking when there's truly no meaningful choice left to make.
+## Step Transitions (Interactive Mode)
 
-Number each option (1, 2, 3...) so the user can reply with just the digit instead of typing it
-out, and always end with an explicit escape hatch naming a different, exact command/parameters
-as an option too — e.g. "Or tell me exactly what you'd like to run." Never present options as
-the only way to answer.
+Interactive mode is not auto mode — this runs live in front of a workshop/tutorial audience
+that needs to see what you learned at each step, not just the next command. After every major
+step (import, find_spots, index, refine, integrate, symmetry, scale, export) succeeds:
 
-## Visualization Workflow
+1. **Report what happened**, in plain language — including any numeric check's finding.
+   Its raw verdict text is already shown to the user directly (you don't need to repeat it
+   verbatim), but explain what it *means* — clean vs. flagged, and why that matters here.
+2. **Offer numbered options**, with proceeding to the next step as option 1 and the stated
+   default — e.g. "1. Proceed to `dials.find_spots` (default) 2. View the images first
+   (`dials.image_viewer`) 3. Something else — tell me what." Actually wait for the answer here
+   (same as any other real question) rather than suggesting the next command in the same
+   breath — a first-time user needs the chance to say "wait, let's look at that check result
+   more closely" before you've already moved on.
+3. Only skip this and go straight to the next command when the user has already told you to
+   (e.g. "auto process..." — see `AUTO MODE`, which skips this entirely, rule 2 also covers
+   not mentioning GUI viewers at all there).
 
-After each step, mention `dials.image_viewer`/`dials.reciprocal_lattice_viewer` as available
-where relevant, but default to the next step's command in the same message — don't block
-waiting, same pattern as the CPU-cores default. In auto mode, skip mentioning either — see
-`AUTO MODE` rule 2. **Exception: right after `dials.import`**, whether to view images first is
-enforced by the CLI itself with a real question, not left to you — see the `data_import`
-skill for what to do with the answer you're given.
+The CPU-cores default (`nproc=Auto`, above) and the post-`dials.import` viewer question (which
+the CLI itself enforces with a real prompt — see `data_import` skill) are the two deliberate
+exceptions to "wait for an answer" — everywhere else, a numbered-options message should
+actually block on the user's reply.
 
 ### General Report
 At any stage, `dials.report <step>.expt <step>.refl` generates an HTML report. Offer this when the user wants detailed diagnostics.

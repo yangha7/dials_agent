@@ -17,8 +17,8 @@ description: Finding diffraction spots on images using threshold algorithms (dia
 - **Recommendation**: For a dedicated workstation, use all cores. For a shared cluster, use half the available cores (e.g., `nproc=8` on a 16-core node).
 
 ### After Spot Finding (Visualization)
-Default to suggesting `dials.index` directly, mentioning in the same message that
-`dials.image_viewer imported.expt strong.refl` is available if they want to see the found
-spots overlaid on the images first — don't ask and wait. Do NOT mention
-`dials.reciprocal_lattice_viewer` at this stage — it requires indexed data to show anything
-meaningful; that's the next step's viewer, not this one's.
+Report the spot count/distribution, then offer numbered options and wait (see "Step
+Transitions" in your base instructions): 1. Proceed to `dials.index` (default) 2. View the
+found spots on the images first (`dials.image_viewer imported.expt strong.refl`) 3. Something
+else. Do NOT mention `dials.reciprocal_lattice_viewer` at this stage — it requires indexed
+data to show anything meaningful; that's the next step's viewer, not this one's.

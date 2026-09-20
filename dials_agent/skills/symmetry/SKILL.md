@@ -82,11 +82,12 @@ description: Determining space group and resolving indexing ambiguity (dials.sym
     (keyword: "statistical weight" / "zero variance") for the same guidance.
 
 ### After Symmetry (Visualization)
-- **After `dials.cosym`** (multi-crystal case): mention `dials.reciprocal_lattice_viewer` with
-  the reindexed experiment/reflection files together is available to confirm all datasets are
-  now consistently indexed (inconsistent ones show as misaligned reciprocal lattices rather
-  than overlapping cleanly), then default to proceeding with the next step directly — don't
-  ask and wait.
+- **After `dials.cosym`** (multi-crystal case): report the result, then offer numbered options
+  and wait (see "Step Transitions" in your base instructions): 1. Proceed to the next step
+  (default) 2. Confirm all datasets are now consistently indexed first
+  (`dials.reciprocal_lattice_viewer` with the reindexed experiment/reflection files together —
+  inconsistent ones show as misaligned reciprocal lattices rather than overlapping cleanly)
+  3. Something else.
 - **After `dials.symmetry`** (single crystal): no image/reciprocal-lattice viewer needed here
   — the lattice geometry was already checked after indexing/refinement, and symmetry
   determination doesn't change it. Look at the symmetry log / HTML report if generated

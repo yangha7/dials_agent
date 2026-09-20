@@ -22,9 +22,10 @@ Run the reciprocal-lattice linearity check (see your base instructions) again on
 `refined.expt`/`refined.refl` right after `dials.refine` succeeds — don't wait to be asked,
 and don't skip it just because it already looked fine after indexing (refinement can reveal
 or introduce drift that wasn't visible before).
-- **Clean result**: note briefly, mention `dials.reciprocal_lattice_viewer refined.expt
-  refined.refl` is available if they want to look themselves, and default to suggesting
-  `dials.integrate` directly in the same message — don't ask and wait.
+- **Clean result**: report the finding, then offer numbered options and wait (see "Step
+  Transitions" in your base instructions): 1. Proceed to `dials.integrate` (default) 2. View
+  the refined reflections in reciprocal space first (`dials.reciprocal_lattice_viewer
+  refined.expt refined.refl`) 3. Something else.
 - **Flagged**: explain the finding, actively point the user at
   `dials.reciprocal_lattice_viewer refined.expt refined.refl` to confirm visually themselves,
   and propose the specific fix (e.g. `dials.search_beam_position`, then re-index/re-refine)

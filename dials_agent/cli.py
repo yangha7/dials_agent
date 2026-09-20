@@ -6,6 +6,7 @@ to interact with the DIALS AI agent using natural language.
 """
 
 import argparse
+import json
 import logging
 import os
 import readline
@@ -42,6 +43,19 @@ logger = logging.getLogger(__name__)
 
 # Rich console for formatted output
 console = Console()
+
+# dials_agent's own bundled numeric checks (dials/scripts/*.py) -- run via
+# run_shell_command's dials.python invocation. Their JSON output is guaranteed
+# displayed directly (see _maybe_display_numeric_check_result below),
+# independent of whether the LLM's own narration mentions the finding: found
+# live that the agent ran these but sometimes never told the user what they
+# found, which for an interactive/workshop session is as good as not running
+# them at all.
+NUMERIC_CHECK_SCRIPTS = (
+    "reciprocal_lattice_linearity.py",
+    "centring_vs_pseudocentring_check.py",
+    "import_geometry_check.py",
+)
 
 
 class DIALSAgent:
@@ -115,6 +129,46 @@ class DIALSAgent:
         """Print any CLI-only display messages a skill handler attached, then drop them."""
         for line in result.pop("_cli_print", None) or []:
             console.print(line)
+
+    @staticmethod
+    def _maybe_display_numeric_check_result(command: str, result: dict) -> None:
+        """
+        If `command` ran one of dials_agent's own bundled numeric checks
+        (see NUMERIC_CHECK_SCRIPTS) and it succeeded, print its verdict/
+        summary text directly -- guaranteed, regardless of whether the
+        LLM's own response ends up narrating it. Silently running a check
+        and never surfacing what it found is indistinguishable, to an
+        interactive/workshop user, from not running it at all.
+        """
+        if result.get("status") != "success":
+            return
+        script_name = next((s for s in NUMERIC_CHECK_SCRIPTS if s in command), None)
+        if script_name is None:
+            return
+
+        try:
+            parsed = json.loads(result.get("output", ""))
+        except (ValueError, TypeError):
+            return
+        if not isinstance(parsed, dict):
+            return
+
+        entries = parsed.get("crystals") or parsed.get("experiments") or {}
+        findings = []
+        for key, entry in entries.items():
+            if not isinstance(entry, dict):
+                continue
+            text = entry.get("verdict") or entry.get("summary")
+            if isinstance(text, str) and text:
+                findings.append(f"[bold]#{key}:[/bold] {text}" if len(entries) > 1 else text)
+        if not findings:
+            return
+
+        console.print(Panel(
+            "\n\n".join(findings),
+            title=f"[bold]Numeric Check Result — {script_name}[/bold]",
+            border_style="cyan",
+        ))
 
     @staticmethod
     def _strip_host_keys(result: dict) -> dict:
@@ -266,6 +320,7 @@ class DIALSAgent:
                     existing_files=self.workflow.get_available_files()
                 )
 
+            self._maybe_display_numeric_check_result(tool_call.input.get("command", ""), result)
             self._emit_cli_print(result)
             return self._strip_host_keys(result)
 

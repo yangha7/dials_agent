@@ -85,7 +85,10 @@ imported.expt` now" or "The user wants to proceed directly to spot finding — s
 directly rather than deciding for yourself whether to mention the viewer. Do NOT mention
 `dials.reciprocal_lattice_viewer` here regardless — nothing is indexed yet, so it has nothing
 meaningful to show; that becomes relevant starting after indexing.
-- **Clean geometry-check result**: note briefly, then follow the viewer instruction above.
+- **Clean geometry-check result**: its raw verdict is already shown to the user directly (you
+  don't need to repeat it verbatim) — briefly say what it means in plain language, then follow
+  the viewer instruction above. Don't skip this: silently running the check without explaining
+  what it found is no better than not running it at all for someone watching the session live.
 - **Flagged** (e.g. beam centre off-detector): explain plainly and propose
   `dials.search_beam_position` before spot finding — worth pausing on rather than letting
   indexing fail first and diagnosing it after the fact; this overrides the viewer instruction

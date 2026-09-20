@@ -20,10 +20,11 @@ description: Assigning Miller indices and determining the unit cell (dials.index
 ### After Indexing (Geometry Check + Visualization)
 Run the reciprocal-lattice linearity check (see the numeric check described in your base
 instructions) automatically right after `dials.index` succeeds — don't wait to be asked.
-- **Clean result**: briefly note geometry checks out, mention `dials.reciprocal_lattice_viewer
-  indexed.expt indexed.refl` is available (colored by lattice; switch to "crystal frame" to
-  see the reciprocal lattice directly) if they want to look themselves, and default to
-  suggesting `dials.refine` directly in the same message — don't ask and wait.
+- **Clean result**: report the finding, then offer numbered options and wait (see "Step
+  Transitions" in your base instructions): 1. Proceed to `dials.refine` (default) 2. View the
+  indexed reflections in reciprocal space first (`dials.reciprocal_lattice_viewer indexed.expt
+  indexed.refl` — colored by lattice; switch to "crystal frame" to see the reciprocal lattice
+  directly) 3. Something else.
 - **Flagged (bent/spiral)**: explain the finding, actively suggest (not just mention) the user
   visually confirm with `dials.reciprocal_lattice_viewer indexed.expt indexed.refl` since you
   can't view it yourself, and propose the specific troubleshooting command(s) (e.g.

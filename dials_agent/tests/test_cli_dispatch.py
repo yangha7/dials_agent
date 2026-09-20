@@ -702,3 +702,85 @@ class TestConfirmCommandToRun:
         assert mock_confirm.called
         assert not mock_prompt.called
         assert proceed is True
+
+
+# ---------------------------------------------------------------------------
+# A numeric check's own finding must be displayed regardless of whether the
+# LLM's narration mentions it. Real gap found live: the agent ran the import
+# geometry / reciprocal-lattice / centring checks via run_shell_command, but
+# in an interactive/workshop session, silently running a check without
+# reporting what it found is indistinguishable from not running it at all.
+# ---------------------------------------------------------------------------
+
+def _fake_completed_process(stdout: str):
+    import subprocess as sp
+    return sp.CompletedProcess(args=[], returncode=0, stdout=stdout, stderr="")
+
+
+def test_numeric_check_verdict_is_displayed_even_if_llm_says_nothing(tmp_path, capsys):
+    agent = make_agent(tmp_path)
+    script_output = (
+        '{"n_experiments": 1, "experiments": {"0": '
+        '{"summary": "Geometry looks sane: beam centre on-detector."}}}'
+    )
+    with patch("dials_agent.skills.workspace.sp.run", return_value=_fake_completed_process(script_output)):
+        agent._handle_tool_call(ToolCall(
+            id="1", name="run_shell_command",
+            input={
+                "command": "dials.python /abs/path/dials/scripts/import_geometry_check.py imported.expt",
+                "explanation": "geometry check",
+            },
+        ))
+    out = capsys.readouterr().out
+    assert "Geometry looks sane: beam centre on-detector." in out
+    assert "import_geometry_check.py" in out
+
+
+def test_numeric_check_with_multiple_crystals_shows_each_verdict(tmp_path, capsys):
+    agent = make_agent(tmp_path)
+    script_output = (
+        '{"n_crystals": 2, "crystals": {'
+        '"0": {"verdict": "Rows are straight."}, '
+        '"1": {"verdict": "Rows show a spiral."}'
+        '}}'
+    )
+    with patch("dials_agent.skills.workspace.sp.run", return_value=_fake_completed_process(script_output)):
+        agent._handle_tool_call(ToolCall(
+            id="1", name="run_shell_command",
+            input={
+                "command": "dials.python /abs/path/dials/scripts/reciprocal_lattice_linearity.py indexed.expt indexed.refl",
+                "explanation": "geometry check",
+            },
+        ))
+    out = capsys.readouterr().out
+    assert "Rows are straight." in out
+    assert "Rows show a spiral." in out
+
+
+def test_unrelated_shell_command_does_not_trigger_numeric_check_display(tmp_path, capsys):
+    agent = make_agent(tmp_path)
+    with patch("dials_agent.skills.workspace.sp.run", return_value=_fake_completed_process("total 0\n")):
+        agent._handle_tool_call(ToolCall(
+            id="1", name="run_shell_command",
+            input={"command": "ls -la", "explanation": "list files"},
+        ))
+    out = capsys.readouterr().out
+    assert "Numeric Check Result" not in out
+
+
+def test_numeric_check_failure_does_not_crash_display(tmp_path, capsys):
+    # A failed run (non-JSON stderr, non-zero return code) must not raise --
+    # this path just quietly skips the guaranteed display, the normal error
+    # reporting elsewhere still applies.
+    agent = make_agent(tmp_path)
+    import subprocess as sp
+    failure = sp.CompletedProcess(args=[], returncode=1, stdout="", stderr="Traceback...\n")
+    with patch("dials_agent.skills.workspace.sp.run", return_value=failure):
+        result = agent._handle_tool_call(ToolCall(
+            id="1", name="run_shell_command",
+            input={
+                "command": "dials.python /abs/path/dials/scripts/import_geometry_check.py imported.expt",
+                "explanation": "geometry check",
+            },
+        ))
+    assert result["status"] == "error"
