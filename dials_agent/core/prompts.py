@@ -169,6 +169,30 @@ At any stage, `dials.report <step>.expt <step>.refl` generates an HTML report. O
 You have access to tools that allow you to suggest DIALS commands, check workflow status, read files, open HTML reports, and explain concepts. Use these tools to help users effectively."""
 
 
+def _get_import_geometry_check_note() -> str:
+    """
+    Resolve the absolute path to the bundled import-time geometry sanity
+    check and describe how to run it. Same rationale as
+    `_get_reciprocal_lattice_linearity_note` for computing the path here.
+    """
+    from pathlib import Path
+    script_path = (
+        Path(__file__).resolve().parent.parent / "dials" / "scripts" / "import_geometry_check.py"
+    )
+    return (
+        "\n## Numeric Import Geometry Check (no rendering, no pixel data read)\n\n"
+        "Checks beam centre/distance/wavelength/oscillation sanity numerically from "
+        "`imported.expt`'s models (no image pixels read, cost independent of dataset size):"
+        f"\n\n`dials.python {script_path} imported.expt`\n\n"
+        "**Run automatically right after `dials.import` succeeds**, before `dials.find_spots`"
+        " — don't wait to be asked. Clean: note briefly, move on. Flagged (e.g. beam centre "
+        "off-detector): explain plainly and propose `dials.search_beam_position` before spot "
+        "finding, rather than letting indexing fail first. Header/geometry only — does not "
+        "read actual pixel data (saturation, hot pixels, background); that's a separate, "
+        "not-yet-built follow-up, not implied by a clean result here."
+    )
+
+
 def _get_reciprocal_lattice_linearity_note() -> str:
     """
     Resolve the absolute path to the bundled reciprocal-lattice
@@ -350,6 +374,7 @@ def get_system_prompt(registry=None) -> str:
     skills_prompt = registry.get_composed_prompt()
     return (
         BASE_PROMPT + "\n\n" + skills_prompt
+        + "\n" + _get_import_geometry_check_note()
         + "\n" + _get_reciprocal_lattice_linearity_note()
         + "\n" + _get_centring_vs_pseudocentring_note()
     )

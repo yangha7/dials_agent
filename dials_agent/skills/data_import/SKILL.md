@@ -82,9 +82,14 @@ Example: "I don't see any diffraction data files in the current data directory. 
 Don't call `suggest_dials_command` until the user actually gives you a path here — there's
 nothing to import yet.
 
-### After Import (Visualization)
-Mention `dials.image_viewer imported.expt` is available (checking beam center, detector
-distance, and image quality directly), then default to suggesting `dials.find_spots` directly
-in the same message — don't ask and wait. Do NOT mention `dials.reciprocal_lattice_viewer`
-here — nothing is indexed yet, so it has nothing meaningful to show; that becomes relevant
-starting after indexing.
+### After Import (Geometry Check + Visualization)
+Run the numeric import geometry check (see your base instructions) automatically right after
+`dials.import` succeeds — don't wait to be asked. Mention `dials.image_viewer imported.expt`
+is available (checking beam center, detector distance, and image quality directly), then
+default to suggesting `dials.find_spots` directly in the same message — don't ask and wait.
+Do NOT mention `dials.reciprocal_lattice_viewer` here — nothing is indexed yet, so it has
+nothing meaningful to show; that becomes relevant starting after indexing.
+- **Clean result**: note briefly and proceed as above.
+- **Flagged** (e.g. beam centre off-detector): explain plainly and propose
+  `dials.search_beam_position` before spot finding — worth pausing on rather than letting
+  indexing fail first and diagnosing it after the fact.

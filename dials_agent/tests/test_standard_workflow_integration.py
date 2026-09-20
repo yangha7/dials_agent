@@ -41,11 +41,11 @@ def make_agent(working_directory: Path, data_directory: str = "/shared/data/exam
 
 
 # A standard, successful pipeline: (command, files_to_create, stdout, output_files).
-# Mirrors a real run's shape, including both numeric checks invoked exactly the way
-# the base prompt tells the LLM to invoke them (via dials.python with an absolute
-# script path) at the points they're meant to run (after index, after refine, after
-# integrate) -- this is the main thing worth exercising end-to-end, since that's
-# precisely the display path the truncation bug hid in.
+# Mirrors a real run's shape, including all three numeric checks invoked exactly the
+# way the base prompt tells the LLM to invoke them (via dials.python with an absolute
+# script path) at the points they're meant to run (after import, after index, after
+# refine, after integrate) -- this is the main thing worth exercising end-to-end, since
+# that's precisely the display path the truncation bug hid in.
 SCRIPT_DIR = "/shared/home/yangha/workshop_dials_agent/dials_agent/dials/scripts"
 
 STANDARD_WORKFLOW = [
@@ -54,6 +54,12 @@ STANDARD_WORKFLOW = [
         ["imported.expt"],
         "Importing data...\nAutomatically determined image format.\n",
         ["imported.expt"],
+    ),
+    (
+        f"dials.python {SCRIPT_DIR}/import_geometry_check.py imported.expt",
+        [],
+        '{"n_experiments": 1, "experiments": {"0": {"summary": "Geometry looks sane: beam centre on-detector, wavelength/distance/oscillation all within normal ranges."}}}\n',
+        [],
     ),
     (
         "dials.find_spots imported.expt nproc=Auto",
@@ -160,7 +166,8 @@ class TestStandardWorkflowIntegration:
     def test_workflow_stage_progresses_correctly_after_each_step(self, tmp_path):
         agent = make_agent(tmp_path)
         expected_stage_after = [
-            "Images imported", "Spots found", "Data indexed", "Data indexed",  # check doesn't advance stage
+            "Images imported", "Images imported",  # check doesn't advance stage
+            "Spots found", "Data indexed", "Data indexed",  # check doesn't advance stage
             "Models refined", "Models refined", "Data integrated", "Data integrated",
             "Symmetry determined", "Data scaled", "Data exported",
         ]
@@ -197,13 +204,13 @@ class TestStandardWorkflowIntegration:
         # And the absolute installation path should NOT appear -- it's shortened to the basename.
         assert SCRIPT_DIR not in out
 
-        # Total row present and the 11-step total looks sane.
+        # Total row present and the 12-step total looks sane.
         assert "Total" in out
 
     def test_workflow_status_table_shows_version_data_dir_and_progress(self, tmp_path, capsys):
         agent = make_agent(tmp_path, data_directory="/shared/data/example")
         with patch.object(agent.executor, "execute", side_effect=make_mock_executor(agent)):
-            for command, *_ in STANDARD_WORKFLOW[:3]:  # partway through: import, find_spots, index
+            for command, *_ in STANDARD_WORKFLOW[:4]:  # partway through: import, geometry check, find_spots, index
                 agent.execute_command(command)
 
         capsys.readouterr()
@@ -214,7 +221,8 @@ class TestStandardWorkflowIntegration:
         assert "Working Directory" in out
         assert "Data indexed" in out
         # 3 completed stages (imported, spots_found, indexed) out of 8 steps in
-        # STAGE_ORDER -> 3/8 = 37.5%, rounds to 38%.
+        # STAGE_ORDER -> 3/8 = 37.5%, rounds to 38%. The geometry check in between
+        # creates no files, so it doesn't add a stage of its own.
         assert "38%" in out
 
     def test_normal_single_suggestion_per_turn_flow_still_works_after_pending_command_fix(self, tmp_path):
@@ -223,7 +231,7 @@ class TestStandardWorkflowIntegration:
         # execute, clear, suggest again for the next step.
         agent = make_agent(tmp_path)
         with patch.object(agent.executor, "execute", side_effect=make_mock_executor(agent)):
-            for command, *_ in STANDARD_WORKFLOW[:3]:
+            for command, *_ in STANDARD_WORKFLOW[:4]:
                 result = agent._handle_tool_call(ToolCall(
                     id="x", name="suggest_dials_command",
                     input={"command": command, "explanation": "e", "expected_output": "o"},
@@ -296,7 +304,7 @@ class TestStandardWorkflowIntegration:
         (tmp_path / "merged.mtz").touch()
         agent = make_agent(tmp_path)
 
-        centring_check_command = STANDARD_WORKFLOW[7][0]  # a dials.python check, creates no files
+        centring_check_command = STANDARD_WORKFLOW[8][0]  # a dials.python check, creates no files
         with patch.object(agent.executor, "execute", side_effect=make_mock_executor(agent)):
             capsys.readouterr()
             result = agent.execute_command(centring_check_command)
