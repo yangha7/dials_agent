@@ -543,6 +543,12 @@ ruff check dials_agent/
 
 This project is part of the DIALS software suite.
 
+### v2.11.4 — Fix the "Next Step" Panel Suggesting a GUI Viewer as the Required Next Workflow Step
+- **Found live**: after `dials.import`, the CLI's own display-only "Next Step (12% complete)" panel suggested `dials.image_viewer imported.expt` as the next command — while the LLM's own separate, actually-actionable suggestion (in a different panel below it) correctly suggested `dials.find_spots`. Two panels both titled like "the next step," disagreeing with each other, with the viewer one having no way to interact with it at all (this panel is purely informational, computed locally, never sent to the LLM)
+- **Root cause**: `dials/workflow.py`'s `WORKFLOW_SUGGESTIONS["import"]` had `next_command` set to `dials.image_viewer imported.expt` — a GUI tool that doesn't advance the workflow — with the real next step (`dials.find_spots`) buried in `optional_commands`. Every other stage's entry correctly lists a real workflow-advancing command as `next_command` and viewers/optional tools separately; only "import" had this backwards
+- Fixed: swapped them — `next_command` is now `dials.find_spots imported.expt`, with `dials.image_viewer` (and `dials.show`) listed as optional. Both "next step" panels now agree
+- 193 tests (1 new, `test_next_step_after_import_is_find_spots_not_image_viewer` — a real coverage gap; nothing previously tested this dict's content directly)
+
 ### v2.11.3 — Import-Choice Wording Made Dataset-Neutral, Not Tutorial-Flavored
 - **User clarified**: the full-vs-subset choice (v2.11.2) must default to full for real (non-tutorial) datasets too, with the quick-subset option still available. It already did — the check is purely "is this a fresh import," with no dependency on dataset name/type, and `default="1"` already means full dataset on a bare Enter
 - Only the wording needed adjusting: "good for a first look or learning" read as tutorial-specific. Changed to "useful for a quick sanity check before committing to the full run" — equally natural whether processing a tutorial dataset or a real one — and made the default explicit in the prompt text itself ("[1] full dataset (default)")

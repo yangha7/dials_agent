@@ -23,10 +23,10 @@ logger = logging.getLogger(__name__)
 # Based on DIALS tutorial: https://dials.github.io/documentation/tutorials/processing_in_detail_betalactamase.html
 WORKFLOW_SUGGESTIONS = {
     "import": {
-        "next_command": "dials.image_viewer imported.expt",
-        "explanation": "Now that the images are imported, the next step is to visualize the data using the image viewer. This allows you to inspect the diffraction images, check for any issues, and get familiar with your data before proceeding.",
-        "tip": "Use the image viewer to check image quality, look for ice rings, and verify the beam center. Adjust the brightness slider until spots are clearly visible.",
-        "optional_commands": ["dials.show imported.expt", "dials.find_spots imported.expt"]
+        "next_command": "dials.find_spots imported.expt",
+        "explanation": "Images are imported. Next, find strong diffraction spots on the images -- this is the first step that inspects actual pixel data, and its output feeds into indexing.",
+        "tip": "Use the image viewer (dials.image_viewer imported.expt) first if you'd like to inspect image quality, ice rings, or the beam centre before spot finding.",
+        "optional_commands": ["dials.show imported.expt", "dials.image_viewer imported.expt"]
     },
     "find_spots": {
         "next_command": "dials.index imported.expt strong.refl",

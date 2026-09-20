@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dials-agent"
-version = "2.11.3"
+version = "2.11.4"
 description = "Natural language interface for DIALS crystallography data processing"
 readme = "README.md"
 requires-python = ">=3.10"
