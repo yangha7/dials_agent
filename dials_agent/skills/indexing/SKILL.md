@@ -30,4 +30,19 @@ instructions) automatically right after `dials.index` succeeds — don't wait to
   can't view it yourself, and propose the specific troubleshooting command(s) (e.g.
   `dials.search_beam_position`) — see `Indexing Quality Indicators` above and the
   `troubleshooting` skill. This is the one case worth pausing on rather than defaulting
-  onward, since proceeding to refinement on bad geometry usually just wastes the next step.
+  onward, since proceeding to refinement on bad geometry usually just wastes the next step —
+  but this is specifically about a genuine geometry/beam-centre problem, not any flagged bend.
+- **A small static bend explainable by indexing's own P1 default is NOT a geometry problem —
+  don't escalate to `dials.refine_bravais_settings` as if it were required.** `dials.index`
+  deliberately starts from the lowest-symmetry (often P1) model before any higher symmetry is
+  known or applied; a real crystal with higher true symmetry (e.g. cubic) will generically show
+  a small residual bend under that unconstrained model — this is expected, not a defect.
+  `dials.refine_bravais_settings` is **explicitly optional** per DIALS's own tutorial
+  (dials.github.io "Correcting Poor Initial Geometry" / CCP4-APS workflow docs): "in most cases
+  it is absolutely fine to proceed without worrying about the crystal symmetry at this stage" —
+  the tutorial's own minimal/TL;DR path skips it entirely, going straight from `dials.index` to
+  `dials.refine`. `dials.symmetry` (run later, after integration, using both positions and
+  intensities) is the step that actually determines symmetry properly. If the bend is small and
+  plausibly explained this way (not correlated with rotation angle, no beam-centre signature),
+  keep `dials.refine` as the default option — offer `dials.refine_bravais_settings` as a named,
+  optional alternative for an early look, not as a required gate before refinement.

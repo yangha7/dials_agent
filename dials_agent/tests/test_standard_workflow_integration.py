@@ -290,6 +290,36 @@ class TestStandardWorkflowIntegration:
             agent.display_result(result)
         assert "Workflow Complete" in capsys.readouterr().out
 
+    def test_in_progress_next_step_preview_suppressed_from_display_result(self, tmp_path, capsys):
+        # Real ordering bug found live: display_result's automatic call used to
+        # show the static "Next Step: <command>" preview immediately, BEFORE the
+        # LLM's own analysis of what the just-completed command's result actually
+        # meant -- the user saw "here's what to do next" before "here's what we
+        # learned", backwards from the "Step Transitions" policy (report, then
+        # offer options). The preview should now stay silent when the workflow
+        # isn't actually complete; the explicit `next` command still shows it
+        # (test_explicit_next_command_still_shows_completion_regardless plus the
+        # analogous in-progress case below cover that).
+        agent = make_agent(tmp_path)
+        with patch.object(agent.executor, "execute", side_effect=make_mock_executor(agent)):
+            capsys.readouterr()
+            result = agent.execute_command(STANDARD_WORKFLOW[0][0])  # dials.import
+            agent.display_result(result)
+        out = capsys.readouterr().out
+        assert "Command Successful" in out
+        assert "Next Step" not in out
+        assert "Suggested command" not in out
+
+    def test_explicit_next_command_still_shows_in_progress_preview(self, tmp_path, capsys):
+        agent = make_agent(tmp_path)
+        with patch.object(agent.executor, "execute", side_effect=make_mock_executor(agent)):
+            agent.execute_command(STANDARD_WORKFLOW[0][0])  # dials.import
+        capsys.readouterr()
+        agent.display_next_step_suggestion()
+        out = capsys.readouterr().out
+        assert "Next Step" in out
+        assert "Suggested command" in out
+
     def test_workflow_complete_banner_suppressed_when_already_complete_before_resuming(self, tmp_path, capsys):
         # Regression test for a real bug found live-testing: resuming in a directory
         # copied from a prior finished run (scaled.mtz etc. already present from the

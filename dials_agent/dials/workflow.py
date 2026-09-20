@@ -42,13 +42,15 @@ WORKFLOW_SUGGESTIONS = {
         "next_command": "dials.refine indexed.expt indexed.refl",
         "explanation": (
             "Indexing is complete. Now we refine the crystal and detector models to improve accuracy. "
-            "You can optionally run dials.refine_bravais_settings first to determine the correct "
-            "Bravais lattice — this is recommended if you don't already know the space group."
+            "dials.refine_bravais_settings (an early, optional look at the Bravais lattice) is not "
+            "needed to proceed — per DIALS's own tutorials, it's fine in most cases to move straight "
+            "to refinement without worrying about crystal symmetry yet; dials.symmetry (after "
+            "integration) is what actually determines it."
         ),
         "tip": (
-            "If you run refine_bravais_settings, choose the highest symmetry solution with good metric fit "
-            "and low RMSD. Then use dials.reindex if the change_of_basis_op is not a,b,c. "
-            "Example: dials.reindex indexed.refl change_of_basis_op=a+b,-a+b,c"
+            "If you do run refine_bravais_settings out of curiosity, choose the highest symmetry "
+            "solution with good metric fit and low RMSD, then dials.reindex if the change_of_basis_op "
+            "is not a,b,c. Example: dials.reindex indexed.refl change_of_basis_op=a+b,-a+b,c"
         ),
         "optional_commands": [
             "dials.refine_bravais_settings indexed.expt indexed.refl",

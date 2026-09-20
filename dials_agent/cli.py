@@ -610,14 +610,29 @@ class DIALSAgent:
         # which is confusing noise rather than useful signal. The explicit `next`
         # command still shows it on request regardless -- this only suppresses the
         # automatic, unsolicited repeat.
+        #
+        # only_if_complete=True here: found live, this static "Suggested command"
+        # preview fired immediately, before the LLM's own analysis of what this
+        # command's result actually meant -- the user saw "next step: X" BEFORE
+        # seeing why, backwards from the "Step Transitions" policy (report findings,
+        # then offer options) the base prompt now asks the LLM to follow itself.
+        # The finished-workflow banner is still worth showing unconditionally, so
+        # only the in-progress preview is suppressed here, not the whole method.
         if result.success and not self.auto_mode and not self._workflow_was_complete_before_last_command:
-            self.display_next_step_suggestion()
-    
-    def display_next_step_suggestion(self):
-        """Display the suggested next step in the workflow."""
+            self.display_next_step_suggestion(only_if_complete=True)
+
+    def display_next_step_suggestion(self, only_if_complete: bool = False):
+        """
+        Display the suggested next step in the workflow.
+
+        only_if_complete: when True, stay silent unless the workflow has
+        actually just finished -- see the call from display_result above for
+        why. The explicit `next` command (and any other direct caller) should
+        leave this False, so it always shows something on request.
+        """
         self.workflow.refresh()
         suggestion = self.workflow.get_next_step_suggestion()
-        
+
         if suggestion["next_command"] is None:
             # Workflow complete
             console.print(Panel(
@@ -627,20 +642,20 @@ class DIALSAgent:
                 title="[bold]Next Step[/bold]",
                 border_style="green"
             ))
-        else:
+        elif not only_if_complete:
             content = Text()
             content.append("Suggested command:\n", style="bold")
             content.append(f"  {suggestion['next_command']}\n\n", style="cyan")
             content.append(f"{suggestion['explanation']}\n\n")
-            
+
             if suggestion.get("tip"):
                 content.append("💡 Tip: ", style="bold")
                 content.append(f"{suggestion['tip']}\n", style="dim")
-            
+
             if suggestion.get("is_multi_crystal"):
                 content.append("\n📊 ", style="bold")
                 content.append("Multi-crystal mode detected", style="magenta")
-            
+
             console.print(Panel(
                 content,
                 title=f"[bold]Next Step ({suggestion['progress']} complete)[/bold]",
