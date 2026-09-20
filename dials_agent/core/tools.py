@@ -48,6 +48,54 @@ def is_recognized_data_file(item: Path) -> bool:
     return False
 
 
+def directory_has_data_files(directory: Path, max_depth: int = 2) -> bool:
+    """Shallow recursive check for any recognized diffraction data file under `directory`."""
+    def scan(d: Path, depth: int) -> bool:
+        if depth > max_depth:
+            return False
+        try:
+            for item in d.iterdir():
+                if item.is_file() and is_recognized_data_file(item):
+                    return True
+                if item.is_dir() and not item.name.startswith("."):
+                    if scan(item, depth + 1):
+                        return True
+        except PermissionError:
+            pass
+        return False
+    return scan(directory, 0)
+
+
+def discover_dataset_subdirectories(data_directory: str, max_depth: int = 2) -> list[Path]:
+    """
+    Find immediate subdirectories of `data_directory` that themselves contain
+    a recognized diffraction data file (directly or nested up to max_depth).
+
+    This is the single, shared implementation behind two different callers
+    that must never diverge again: auto mode's multi-dataset processing
+    (`cli.py`'s `run_auto`) and the `select_dataset` tool used in normal
+    conversation when a user names a dataset by keyword rather than a path.
+    An earlier version of this check lived duplicated in cli.py and was
+    never updated when compressed-image support (.bz2/.gz) was added to
+    `is_recognized_data_file` here, so a directory of only .img.bz2 files
+    was invisible to multi-dataset discovery -- a real bug found live.
+    """
+    if not data_directory:
+        return []
+    base = Path(data_directory)
+    if not base.is_dir():
+        return []
+
+    found = []
+    try:
+        for entry in sorted(base.iterdir()):
+            if entry.is_dir() and not entry.name.startswith(".") and directory_has_data_files(entry, max_depth):
+                found.append(entry)
+    except PermissionError:
+        pass
+    return found
+
+
 def discover_data_files(
     working_directory: str = ".",
     search_parent: bool = True,

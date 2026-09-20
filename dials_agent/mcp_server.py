@@ -126,6 +126,8 @@ class DIALSMCPHost:
             self.executor = create_executor(str(new_path))
         elif tool_name == "change_data_directory" and result.get("status") == "success":
             self.settings.data_directory = result["data_directory"]
+        elif tool_name == "select_dataset" and result.get("status") == "selected":
+            self.settings.data_directory = result["data_directory"]
 
         return self._strip_host_keys(result)
 
@@ -208,7 +210,7 @@ def build_server(host: DIALSMCPHost) -> MCPServer:
 
     exposed = set(all_schemas) - _EXCLUDED_TOOLS
     missing = exposed - {
-        "analyze_dials_output", "change_data_directory", "diagnose_problem",
+        "analyze_dials_output", "change_data_directory", "select_dataset", "diagnose_problem",
         "check_workflow_status", "list_available_commands", "read_file", "open_file",
         "change_working_directory", "calculate", "get_timing_report",
         "create_markdown_file", "create_html_file", "lookup_phil_params", "load_skill",
@@ -245,6 +247,10 @@ def build_server(host: DIALSMCPHost) -> MCPServer:
     @server.tool(description=descriptions["change_data_directory"])
     def change_data_directory(path: str) -> dict[str, Any]:
         return host.dispatch("change_data_directory", {"path": path})
+
+    @server.tool(description=descriptions["select_dataset"])
+    def select_dataset(name_hint: str = "") -> dict[str, Any]:
+        return host.dispatch("select_dataset", {"name_hint": name_hint})
 
     @server.tool(description=descriptions["diagnose_problem"])
     def diagnose_problem(problem: str, current_stage: str = "", context: str = "") -> dict[str, Any]:

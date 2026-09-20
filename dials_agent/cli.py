@@ -25,7 +25,7 @@ from rich.text import Text
 from . import __version__
 from .config import Settings, get_settings, configure_from_env_file
 from .core.claude_client import ClaudeClient, ToolCall, create_client
-from .core.tools import is_recognized_data_file
+from .core.tools import discover_dataset_subdirectories, directory_has_data_files
 from .skills import SkillContext
 from .dials.compare import (
     compare_runs,
@@ -218,6 +218,16 @@ class DIALSAgent:
         if tool_call.name == "change_data_directory":
             result = registry.handle_tool_call(tool_call.name, tool_call.input, context)
             if result.get("status") == "success":
+                self.settings.data_directory = result["data_directory"]
+                self.claude.update_context(
+                    existing_files=self.workflow.get_available_files()
+                )
+            self._emit_cli_print(result)
+            return self._strip_host_keys(result)
+
+        if tool_call.name == "select_dataset":
+            result = registry.handle_tool_call(tool_call.name, tool_call.input, context)
+            if result.get("status") == "selected":
                 self.settings.data_directory = result["data_directory"]
                 self.claude.update_context(
                     existing_files=self.workflow.get_available_files()
@@ -633,21 +643,15 @@ class DIALSAgent:
         console.print(f"[dim]↳ {' | '.join(parts)}[/dim]")
     
     def _directory_has_data_files(self, directory: Path, max_depth: int = 2) -> bool:
-        """Shallow check for any recognized diffraction data file under `directory`."""
-        def scan(d: Path, depth: int) -> bool:
-            if depth > max_depth:
-                return False
-            try:
-                for item in d.iterdir():
-                    if item.is_file() and is_recognized_data_file(item):
-                        return True
-                    if item.is_dir() and not item.name.startswith("."):
-                        if scan(item, depth + 1):
-                            return True
-            except PermissionError:
-                pass
-            return False
-        return scan(directory, 0)
+        """Shallow check for any recognized diffraction data file under `directory`.
+
+        Thin wrapper kept for test compatibility -- the real implementation
+        lives in core/tools.py so it's shared with the select_dataset tool
+        used in normal (non-auto-mode) conversation, and can never again
+        silently diverge the way this method's inline copy once did (see
+        core.tools.discover_dataset_subdirectories's docstring).
+        """
+        return directory_has_data_files(directory, max_depth)
 
     def _discover_dataset_subdirectories(self) -> list[Path]:
         """
@@ -659,21 +663,7 @@ class DIALSAgent:
         (unchanged default behavior) or loop over several, each into its
         own output subdirectory.
         """
-        data_dir = self.settings.data_directory
-        if not data_dir:
-            return []
-        base = Path(data_dir)
-        if not base.is_dir():
-            return []
-
-        found = []
-        try:
-            for entry in sorted(base.iterdir()):
-                if entry.is_dir() and not entry.name.startswith(".") and self._directory_has_data_files(entry):
-                    found.append(entry)
-        except PermissionError:
-            pass
-        return found
+        return discover_dataset_subdirectories(self.settings.data_directory)
 
     def _switch_to_dataset(self, dataset_dir: Path, output_dir: Path):
         """

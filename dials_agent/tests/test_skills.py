@@ -29,7 +29,7 @@ EXPECTED_SKILL_NAMES = {
 }
 
 EXPECTED_TOOL_NAMES = {
-    "change_data_directory", "suggest_troubleshooting", "diagnose_problem",
+    "change_data_directory", "select_dataset", "suggest_troubleshooting", "diagnose_problem",
     "check_workflow_status", "list_available_commands", "read_file",
     "open_file", "change_working_directory", "calculate", "get_timing_report",
     "get_token_usage", "run_shell_command", "create_markdown_file",
@@ -313,6 +313,82 @@ def test_change_data_directory_rejects_missing_path(registry, tmp_path):
         make_context(tmp_path),
     )
     assert "error" in result
+
+
+def _touch(path: Path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.touch()
+
+
+class TestSelectDataset:
+    def test_no_data_directory_configured(self, registry, tmp_path):
+        result = registry.handle_tool_call(
+            "select_dataset", {}, make_context(tmp_path, data_directory="")
+        )
+        assert "error" in result
+
+    def test_finds_unique_match_and_selects_it(self, registry, tmp_path):
+        """Regression test for the real live-testing failure: a data
+        directory with sibling DPF3/ and Insulin/ subdirectories, both
+        containing only compressed .img.bz2 files -- asking for 'insulin'
+        must find and switch to the Insulin subdirectory directly, not
+        report it as unavailable."""
+        data_root = tmp_path / "data"
+        _touch(data_root / "DPF3" / "t1.0001.img.bz2")
+        _touch(data_root / "Insulin" / "ins_0001.img.bz2")
+        result = registry.handle_tool_call(
+            "select_dataset",
+            {"name_hint": "insulin"},
+            make_context(tmp_path / "out", data_directory=str(data_root)),
+        )
+        assert result["status"] == "selected"
+        assert result["data_directory"] == str(data_root / "Insulin")
+        assert result["data_files_found"] == 1
+
+    def test_no_match_reports_available_datasets_instead_of_bare_not_found(self, registry, tmp_path):
+        data_root = tmp_path / "data"
+        _touch(data_root / "DPF3" / "t1.0001.img.bz2")
+        _touch(data_root / "Insulin" / "ins_0001.img.bz2")
+        result = registry.handle_tool_call(
+            "select_dataset",
+            {"name_hint": "lysozyme"},
+            make_context(tmp_path / "out", data_directory=str(data_root)),
+        )
+        assert result["status"] == "no_match"
+        assert sorted(result["datasets"]) == ["DPF3", "Insulin"]
+
+    def test_ambiguous_match_lists_all_matches(self, registry, tmp_path):
+        data_root = tmp_path / "data"
+        _touch(data_root / "insulin_2023" / "img_0001.cbf")
+        _touch(data_root / "insulin_2024" / "img_0001.cbf")
+        result = registry.handle_tool_call(
+            "select_dataset",
+            {"name_hint": "insulin"},
+            make_context(tmp_path / "out", data_directory=str(data_root)),
+        )
+        assert result["status"] == "ambiguous"
+        assert sorted(result["datasets"]) == ["insulin_2023", "insulin_2024"]
+
+    def test_no_name_hint_lists_everything(self, registry, tmp_path):
+        data_root = tmp_path / "data"
+        _touch(data_root / "DPF3" / "t1.0001.img.bz2")
+        _touch(data_root / "Insulin" / "ins_0001.img.bz2")
+        result = registry.handle_tool_call(
+            "select_dataset", {}, make_context(tmp_path / "out", data_directory=str(data_root))
+        )
+        assert result["status"] == "listed"
+        assert sorted(result["datasets"]) == ["DPF3", "Insulin"]
+
+    def test_none_found_when_no_subdirectory_has_data(self, registry, tmp_path):
+        data_root = tmp_path / "data"
+        (data_root / "notes").mkdir(parents=True)
+        (data_root / "notes" / "readme.txt").touch()
+        result = registry.handle_tool_call(
+            "select_dataset",
+            {"name_hint": "insulin"},
+            make_context(tmp_path / "out", data_directory=str(data_root)),
+        )
+        assert result["status"] == "none_found"
 
 
 def test_create_markdown_file_writes_file(registry, tmp_path):

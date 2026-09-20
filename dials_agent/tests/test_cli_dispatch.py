@@ -51,7 +51,7 @@ def agent(tmp_path) -> DIALSAgent:
 # ---------------------------------------------------------------------------
 
 def test_agent_wires_all_skills_and_tools(agent):
-    assert len(agent.claude.tools) == 19
+    assert len(agent.claude.tools) == 20
     tool_names = {t["name"] for t in agent.claude.tools}
     assert "suggest_dials_command" in tool_names  # base tool
     assert "calculate" in tool_names  # skill tool

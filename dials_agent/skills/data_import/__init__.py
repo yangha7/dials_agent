@@ -21,6 +21,29 @@ TOOLS: list[dict] = [
             "required": ["path"]
         }
     },
+    {
+        "name": "select_dataset",
+        "description": (
+            "Find a dataset by name/keyword among the subdirectories of the configured data "
+            "directory, and switch to it automatically if there's exactly one match. Use this "
+            "FIRST whenever the user refers to a dataset by name (e.g. 'process the insulin "
+            "data', 'switch to lysozyme') rather than by an exact path -- do NOT reach for "
+            "run_shell_command/find to search for it yourself; this tool does a direct, "
+            "reliable filesystem check (not a shell search that can be affected by directory "
+            "caching) and is the tested way to do this. Omit name_hint to just list every "
+            "dataset subdirectory found, e.g. when the user asks what data is available."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name_hint": {
+                    "type": "string",
+                    "description": "A dataset name or keyword the user mentioned (e.g. 'insulin'), matched case-insensitively as a substring against subdirectory names. Omit to just list all datasets found."
+                }
+            },
+            "required": []
+        }
+    },
 ]
 
 
@@ -41,9 +64,11 @@ class DataImportSkill(BaseSkill):
         return TOOLS
 
     def handle_tool_call(self, tool_name: str, tool_input: dict, context: SkillContext) -> dict:
-        if tool_name != "change_data_directory":
-            raise KeyError(f"data_import skill does not handle tool '{tool_name}'")
-        return self._handle_change_data_directory(tool_input, context)
+        if tool_name == "change_data_directory":
+            return self._handle_change_data_directory(tool_input, context)
+        if tool_name == "select_dataset":
+            return self._handle_select_dataset(tool_input, context)
+        raise KeyError(f"data_import skill does not handle tool '{tool_name}'")
 
     def _handle_change_data_directory(self, tool_input: dict, context: SkillContext) -> dict:
         from ...core.tools import discover_data_files
@@ -73,4 +98,61 @@ class DataImportSkill(BaseSkill):
             "sample_files": file_summary,
             "message": f"Data directory changed to {data_path}. Found {len(data_files)} data file(s).",
             "_cli_print": [f"[green]📂 Data directory changed to: {data_path}[/green]"],
+        }
+
+    def _handle_select_dataset(self, tool_input: dict, context: SkillContext) -> dict:
+        from ...core.tools import discover_data_files, discover_dataset_subdirectories
+
+        name_hint = tool_input.get("name_hint", "").strip()
+        data_dir = context.data_directory
+        if not data_dir:
+            return {"error": "No data directory is currently configured."}
+
+        candidates = discover_dataset_subdirectories(data_dir)
+        if not candidates:
+            return {
+                "status": "none_found",
+                "data_directory": data_dir,
+                "message": (
+                    f"No dataset subdirectories with recognized diffraction data files were "
+                    f"found under {data_dir}. If you're sure the data is there, it may be "
+                    f"nested deeper than 2 levels, or use an unrecognized file extension."
+                ),
+            }
+
+        names = [d.name for d in candidates]
+        if not name_hint:
+            return {
+                "status": "listed",
+                "data_directory": data_dir,
+                "datasets": names,
+                "message": f"Found {len(names)} dataset(s) under {data_dir}: {', '.join(names)}.",
+            }
+
+        matches = [d for d in candidates if name_hint.lower() in d.name.lower()]
+        if len(matches) == 1:
+            chosen = matches[0]
+            data_files = discover_data_files(context.working_directory, data_directory=str(chosen))
+            return {
+                "status": "selected",
+                "data_directory": str(chosen),
+                "data_files_found": len(data_files),
+                "message": (
+                    f"Found and switched to dataset '{chosen.name}' at {chosen} "
+                    f"({len(data_files)} data file(s))."
+                ),
+                "_cli_print": [f"[green]📂 Data directory changed to: {chosen}[/green]"],
+            }
+        if len(matches) > 1:
+            return {
+                "status": "ambiguous",
+                "data_directory": data_dir,
+                "datasets": [d.name for d in matches],
+                "message": f"Multiple datasets match '{name_hint}': {', '.join(d.name for d in matches)}. Which one did you mean?",
+            }
+        return {
+            "status": "no_match",
+            "data_directory": data_dir,
+            "datasets": names,
+            "message": f"No dataset matching '{name_hint}' found under {data_dir}. Available datasets: {', '.join(names)}.",
         }

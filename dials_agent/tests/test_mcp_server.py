@@ -19,7 +19,7 @@ from dials_agent.mcp_server import DIALSMCPHost, build_server, _EXCLUDED_TOOLS
 
 EXPECTED_MCP_TOOL_NAMES = {
     "execute_dials_command", "analyze_dials_output", "change_data_directory",
-    "diagnose_problem", "check_workflow_status", "list_available_commands",
+    "select_dataset", "diagnose_problem", "check_workflow_status", "list_available_commands",
     "read_file", "open_file", "change_working_directory", "calculate",
     "get_timing_report", "create_markdown_file", "create_html_file",
     "lookup_phil_params", "load_skill",

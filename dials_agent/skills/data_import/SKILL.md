@@ -44,7 +44,30 @@ This processes only the first 1200 images, which is much faster and good for tes
 Which option would you prefer?
 ```
 
-**If no data files are found in the context**, do NOT abort or give up. Instead:
+**If the user names a dataset by keyword rather than a path** (e.g. "process the insulin data",
+"switch to lysozyme") — including when the data files currently visible in context are for a
+*different* dataset than the one named — **call `select_dataset` with that keyword as
+`name_hint` first, before anything else.** Do NOT reach for `run_shell_command`/`find` to
+search for it yourself, and do NOT conclude "no X data available" just because the *currently
+configured* data directory's visible files are for something else — the named dataset may be
+a sibling subdirectory `select_dataset` can find directly. A real live-testing failure this is
+guarding against: the data directory had two sibling subdirectories (e.g. `DPF3/` and
+`Insulin/`, both containing only compressed `.img.bz2` images); asked to process "the insulin
+data", the agent ran its own hand-written `find ... -iname "*ins*"` shell command, which came
+back empty for reasons unrelated to whether the data existed (shell searches over a live
+filesystem can be affected by directory-listing caching in ways a direct path check isn't),
+and it then wrongly told the user no insulin data was available. `select_dataset` does a
+direct, tested filesystem check instead of a shell search, and reports back either the single
+match (switching to it automatically) or the full list of what it actually found — never a
+bare "not found" when other datasets are sitting right there unmatched.
+- If it returns `status: "selected"`: confirm the switch and proceed with the import options below.
+- If `status: "ambiguous"` or `"no_match"`: it already lists the real dataset names found —
+  read that list back to the user rather than guessing or re-searching yourself.
+- If `status: "none_found"`: only now is it fair to say no recognized data was found under the
+  configured data directory, and ask the user where their data actually is.
+
+**If no data files are found in the context and the user hasn't named anything to search
+for**, do NOT abort or give up. Instead:
 1. Ask the user where their data is located
 2. When the user provides a path, **immediately use the `change_data_directory` tool** to switch to it
 3. After switching, confirm the data was found and proceed with the import
