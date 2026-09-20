@@ -23,8 +23,22 @@ description: Determining space group and resolving indexing ambiguity (dials.sym
   settings — that comparison, plus a direct check of the actual systematic-absence intensity
   ratio (see below), is the decisive test, not the I/sigma(I) reading of the weak reflections
   on their own (real systematic absences are rarely perfectly zero in practice, so even
-  clearly-nonzero I/sigma(I) does not rule out true centring by itself). Two more real mistakes
-  found live-testing this exact sequence, worth avoiding:
+  clearly-nonzero I/sigma(I) does not rule out true centring by itself).
+- **The same trap applies when the check finds NOTHING, not just when it flags an axis.** A
+  clean/unflagged result from the centring_vs_pseudocentring_check on the as-indexed data is
+  NOT evidence of "no centring" -- it has the identical blind spot as
+  `dials.refine_bravais_settings`: both can only see a centering condition that is already a
+  simple parity rule in the CURRENT h,k,l labeling. A live-testing instance of getting this
+  wrong: the check found no alternation on any of the three axis families on unreindexed
+  integrated data, and this was (incorrectly) treated as deciding the question -- concluding
+  "genuinely primitive P2₁2₁2₁, no centring" for this exact DPF3 dataset, whose real answer is
+  C222₁ centred. Before accepting "not centred": check whether the point group `dials.symmetry`
+  found (any orthorhombic, monoclinic, tetragonal, etc. point group admits a centred subgroup)
+  is even compatible with additional centering, and if so, actively reindex toward at least one
+  plausible centred hypothesis (a real transforming `change_of_basis_op=`) and re-run the check
+  plus `--verify-centering` on THAT result before concluding primitive. A clean check on data
+  you never reindexed is uninformative, not reassuring. Two more real mistakes found
+  live-testing this exact sequence, worth avoiding:
   - **`dials.reindex ... space_group="C 2 2 21"` with no change-of-basis operator (or
     `change_of_basis_op=a,b,c`, the identity) only relabels the space group symbol — it does
     NOT transform the Miller indices.** Testing centring on data reindexed this way just
