@@ -25,11 +25,11 @@ description: Determining space group and resolving indexing ambiguity (dials.sym
   on their own (real systematic absences are rarely perfectly zero in practice, so even
   clearly-nonzero I/sigma(I) does not rule out true centring by itself).
 - **The same trap applies when the check finds NOTHING, not just when it flags an axis.** A
-  clean/unflagged result from the centring_vs_pseudocentring_check on the as-indexed data is
-  NOT evidence of "no centring" -- it has the identical blind spot as
+  clean/unflagged result from the (non-`--verify-centering`) base check on the as-indexed data
+  is NOT evidence of "no centring" -- it has the identical blind spot as
   `dials.refine_bravais_settings`: both can only see a centering condition that is already a
   simple parity rule in the CURRENT h,k,l labeling. A live-testing instance of getting this
-  wrong: the check found no alternation on any of the three axis families on unreindexed
+  wrong: the base check found no alternation on any of the three axis families on unreindexed
   integrated data, and this was (incorrectly) treated as deciding the question -- concluding
   "genuinely primitive P2₁2₁2₁, no centring" for this exact DPF3 dataset, whose real answer is
   C222₁ centred. Before accepting "not centred": check whether the point group `dials.symmetry`
@@ -37,8 +37,25 @@ description: Determining space group and resolving indexing ambiguity (dials.sym
   is even compatible with additional centering, and if so, actively reindex toward at least one
   plausible centred hypothesis (a real transforming `change_of_basis_op=`) and re-run the check
   plus `--verify-centering` on THAT result before concluding primitive. A clean check on data
-  you never reindexed is uninformative, not reassuring. Two more real mistakes found
-  live-testing this exact sequence, worth avoiding:
+  you never reindexed is uninformative, not reassuring.
+- **Always run `--verify-centering` directly, even before any reindexing, and even when the
+  base check found nothing.** Confirmed live on the same dataset above: after the base check's
+  clean result, `--verify-centering` on that SAME as-indexed data immediately found a massive,
+  unambiguous signal for the 'A' condition (425,004 forbidden reflections, mean I/sigma(I) =
+  0.15 -- as clean as a true systematic absence gets, same quality as dials.symmetry's own
+  screw-axis absences). Reproduced synthetically (twice, including with realistic per-reflection
+  noise matching that exact I/sigma(I)) to confirm the base check's algorithm isn't simply
+  buggy -- it correctly detects a comparable planted signal in both tests, so real datasets can
+  apparently have geometry (resolution-sphere-bounded coverage, uneven sampling under the
+  row-selection cap) that genuinely suppresses the base check's row-level power even when the
+  direct, pooled-by-parity named test finds an obvious answer. Practical takeaway: don't treat
+  `--verify-centering` as a secondary confirmation step reserved for after reindexing or after
+  the base check flags something -- run it every time, unconditionally, right alongside the
+  base check. And when it finds a large, clean result like the example above (near-zero I/
+  sigma(I) across a big, ~50/50-split population), treat that as real, decisive evidence on its
+  own -- you don't need a `dials.refine_bravais_settings` centred candidate to already exist,
+  and you don't need to have reindexed first, for a result this clean to count. Two more real
+  mistakes found live-testing this exact sequence, worth avoiding:
   - **`dials.reindex ... space_group="C 2 2 21"` with no change-of-basis operator (or
     `change_of_basis_op=a,b,c`, the identity) only relabels the space group symbol — it does
     NOT transform the Miller indices.** Testing centring on data reindexed this way just
