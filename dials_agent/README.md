@@ -543,6 +543,11 @@ ruff check dials_agent/
 
 This project is part of the DIALS software suite.
 
+### v2.10.3 — Number Options for Fast Reply, Always Keep a Custom-Command Escape Hatch
+- **User request**: when offering multiple-choice options (e.g. full vs. quick import), number them so the user can reply with just a digit instead of retyping the choice — a small but real friction reducer for the workshop's non-technical attendees — while always keeping an explicit way to type an exact custom command instead of picking from the list
+- Added to `core/prompts.py`'s "Offering Options to Users" (general rule, applies to any options the agent presents, not just import) and updated `data_import/SKILL.md`'s worked example to `1. .../2. ...` with "Reply with 1 or 2, or tell me exactly what you'd like to run instead."
+- 185 tests, all still passing (guidance-text only; system prompt ~5.1K tokens, within the ~5.3K budget)
+
 ### v2.10.2 — Revert v2.10.1: the User Wanted the Real Two-Turn Ask-Then-Suggest Back
 - **Direct user correction, twice**: v2.10.1's "default + one-line override in the same message" redesign was a misread of the actual request. The user explicitly wants the older, genuine two-turn behavior — ask "quick or full?" as a real question, wait, then suggest the one command matching the answer — not a command suggested immediately with the alternative mentioned as a footnote
 - Root cause of the *original* bug (asking AND suggesting a specific command in the same turn) turned out to be self-inflicted: v2.10.1's own `data_import/SKILL.md` text explicitly told the model "call `suggest_dials_command` ... in this same response — don't split ... across two separate turns", so the observed behavior after that fix was the model correctly following the (wrong) instruction just written, not a reliability failure

@@ -31,12 +31,11 @@ See "Offering Options to Users" in your base instructions.
 ```
 I found your data at <data_file>. Would you like to:
 
-**Option 1 - Full dataset:** `dials.import <data_file>` — processes all images.
+1. **Full dataset:** `dials.import <data_file>` — processes all images.
+2. **Quick test:** `dials.import <data_file> image_range=1,1200` — first 1200 images, faster,
+   good for learning/testing.
 
-**Option 2 - Quick test:** `dials.import <data_file> image_range=1,1200` — first 1200 images,
-faster, good for learning/testing.
-
-Which would you prefer?
+Reply with 1 or 2, or tell me exactly what you'd like to run instead.
 ```
 
 Do not also call `suggest_dials_command` in this same response — that was tried twice live and

@@ -138,6 +138,11 @@ Calling `suggest_dials_command` in the very same turn as posing an unresolved ch
 wrong, regardless of how it's framed. Only skip asking when there's truly no meaningful choice
 left to make (e.g. the user already stated a preference earlier in the conversation).
 
+Number each option (1, 2, 3...) so the user can reply with just the digit instead of typing it
+out, and always end with an explicit escape hatch naming a different, exact command/parameters
+as an option too — e.g. "Or tell me exactly what you'd like to run." Never present options as
+the only way to answer.
+
 ## Visualization Workflow
 
 **IMPORTANT**: After each major processing step, offer the user the option to visualize their results before moving to the next step. This is critical for quality assessment and learning.
