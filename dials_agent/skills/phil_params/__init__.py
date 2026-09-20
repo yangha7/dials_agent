@@ -28,8 +28,11 @@ TOOLS: list[dict] = [
     },
 ]
 
-# Directories to search for command documentation, in priority order
-_DOCS_ROOT = Path(__file__).parent.parent.parent.parent / "docs"
+# Directories to search for command documentation, in priority order.
+# These live inside the dials_agent package itself (dials_agent/docs/...) so
+# they ship with both a `git clone` of the repo and a plain rsync of the
+# dials_agent/ folder -- see sync_to_remote.sh, which only syncs that subtree.
+_DOCS_ROOT = Path(__file__).parent.parent.parent / "docs"
 _PHIL_PARAMS_DIR = _DOCS_ROOT / "phil_params"   # machine-generated PHIL dumps
 _PROGRAMS_DIR = _DOCS_ROOT / "programs"          # human-readable markdown docs
 
@@ -39,8 +42,8 @@ def lookup_phil_params(command: str, search_term: str = "") -> str:
     Look up documentation for a DIALS command.
 
     Checks (in order):
-      1. docs/phil_params/<command>.txt  — machine-generated PHIL dump
-      2. docs/programs/<command>.md      — human-readable markdown
+      1. dials_agent/docs/phil_params/<command>.txt  — machine-generated PHIL dump
+      2. dials_agent/docs/programs/<command>.md      — human-readable markdown
 
     Args:
         command: DIALS command name (e.g., 'dials.index')

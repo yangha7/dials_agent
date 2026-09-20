@@ -1,0 +1,38 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+threshold = 5000
+  .help = "Threshold value for the clustering"
+  .type = float(value_min=0, allow_none=True)
+linkage = *single ward
+  .help = "The type of linkage to use for hierarchical clustering"
+  .type = choice
+plot {
+  show = False
+    .type = bool
+  name = 'cluster_unit_cell.png'
+    .type = path
+  log = False
+    .help = "Display the dendrogram with a log scale"
+    .type = bool
+}
+output {
+  clusters = False
+    .help = "If True, clusters will be split at the threshold value and a pair"
+            "of output files will be created for each cluster"
+    .type = bool
+  log = dials.cluster_unit_cell.log
+    .type = str
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

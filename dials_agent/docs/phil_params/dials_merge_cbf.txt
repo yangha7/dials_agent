@@ -1,0 +1,73 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+merge_n_images = 2
+  .help = "Number of input images to average into a single output image"
+  .type = int(value_min=1, allow_none=True)
+get_raw_data_from_imageset = True
+  .help = "By default the raw data is read via the imageset. This limits use"
+          "to single panel detectors where the format class does not make"
+          "modifications to the array size in the file. Set this option to"
+          "false in order to bypass the imageset and read the data as-is from"
+          "the CBF file"
+  .type = bool
+  .expert_level = 2
+output {
+  image_prefix = sum_
+    .type = path
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  tolerance
+    .help = "Tolerances used to determine shared models"
+    .expert_level = 2
+  {
+    beam {
+      wavelength = 1e-6
+        .help = "The wavelength tolerance"
+        .type = float(value_min=0, allow_none=True)
+      direction = 1e-6
+        .help = "The direction tolerance"
+        .type = float(value_min=0, allow_none=True)
+      polarization_normal = 1e-6
+        .help = "The polarization normal tolerance"
+        .type = float(value_min=0, allow_none=True)
+      polarization_fraction = 1e-6
+        .help = "The polarization fraction tolerance"
+        .type = float(value_min=0, allow_none=True)
+    }
+    detector {
+      fast_axis = 1e-6
+        .help = "The fast axis tolerance"
+        .type = float(value_min=0, allow_none=True)
+      slow_axis = 1e-6
+        .help = "The slow axis tolerance"
+        .type = float(value_min=0, allow_none=True)
+      origin = 5e-2
+        .help = "The origin tolerance"
+        .type = float(value_min=0, allow_none=True)
+    }
+    goniometer {
+      rotation_axis = 1e-6
+        .help = "The rotation axis tolerance"
+        .type = float(value_min=0, allow_none=True)
+      fixed_rotation = 1e-6
+        .help = "The fixed rotation tolerance"
+        .type = float(value_min=0, allow_none=True)
+      setting_rotation = 1e-6
+        .help = "The setting rotation tolerance"
+        .type = float(value_min=0, allow_none=True)
+    }
+    scan {
+      oscillation = 0.03
+        .help = "The oscillation tolerance for the scan, as a fraction of the"
+                "image width"
+        .type = float(value_min=0, allow_none=True)
+    }
+  }
+}
+

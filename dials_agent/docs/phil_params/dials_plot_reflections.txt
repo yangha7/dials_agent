@@ -1,0 +1,37 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+scan_range = None
+  .help = "The range of images to use in indexing. Number of arguments must be"
+          "a factor of two. Specifying  0 0\" will use all images\" by"
+          "default. The given range follows C conventions (e.g. j0 <= j < j1)."
+  .type = ints(size=2)
+  .multiple = True
+first_n_reflections = None
+  .type = int(value_min=0, allow_none=True)
+crystal_id = None
+  .type = int(allow_none=True)
+output {
+  file_name = centroids.png
+    .type = path
+  show_plot = False
+    .type = bool
+  dpi = 300
+    .type = int(value_min=0, allow_none=True)
+  size_inches = 10,10
+    .type = floats(size=2, value_min=0)
+  marker_size = 10
+    .type = float(value_min=0, allow_none=True)
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

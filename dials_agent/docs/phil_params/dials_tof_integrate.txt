@@ -1,0 +1,430 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+output {
+  experiments = 'integrated.expt'
+    .help = "The experiments output filename"
+    .type = str
+  reflections = 'integrated.refl'
+    .help = "The integrated output filename"
+    .type = str
+  phil = 'dials.simple_integrate.phil'
+    .help = "The output phil file"
+    .type = str
+  log = 'tof_integrate.log'
+    .help = "The log filename"
+    .type = str
+}
+integration_type = *observed calculated
+  .help = "observed integrates only reflections observed during spot finding"
+          "calculated integrates all reflections out to calculated.dmin"
+  .type = choice
+background_model = constant2d constant3d linear2d *linear3d
+  .help = "Model used to calculate the background of each reflection"
+  .type = choice
+calculated {
+  dmin = none
+    .help = "The resolution spots are integrated to when using"
+            "integration_type.calculated"
+    .type = float(value_min=0.5, allow_none=True)
+}
+method = *summation profile1d profile3d
+  .help = "Integration method:  summation: shoebox summation profile1d:"
+          "https://doi.org/10.1038/srep36628  profile3d:"
+          "https://doi.org/10.1016/j.nima.2016.12.026"
+  .type = choice
+mask = *ellipse seed_skewness
+  .help = "Foreground/background mask method:  seed_skewness:"
+          "https://doi.org/10.1107/S0021889803021939"
+  .type = choice
+corrections {
+  incident_run = None
+    .help = "Path to incident run to normalize intensities (e.g. Vanadium)."
+    .type = str
+  empty_run = None
+    .help = "Path to empty run to correct empty counts."
+    .type = str
+  lorentz = False
+    .help = "Apply the Lorentz correction to target spectrum."
+    .type = bool
+  absorption {
+    incident_spectrum {
+      sample_number_density = 0.0722
+        .help = "Sample number density for incident run. Default is Vanadium"
+                "used at SXD"
+        .type = float(allow_none=True)
+      sample_radius = 0.03
+        .help = "Sample radius incident run. Default is Vanadium used at SXD"
+        .type = float(allow_none=True)
+      scattering_x_section = 5.158
+        .help = "Sample scattering cross section used for incident run."
+                "Default is Vanadium used at SXD"
+        .type = float(allow_none=True)
+      absorption_x_section = 4.4883
+        .help = "Sample absorption cross section for incident run. Default is"
+                "Vanadium used at SXD"
+        .type = float(allow_none=True)
+    }
+    target_spectrum {
+      sample_number_density = None
+        .help = "Sample number density for target run."
+        .type = float(allow_none=True)
+      sample_radius = None
+        .help = "Sample radius target run."
+        .type = float(allow_none=True)
+      scattering_x_section = None
+        .help = "Sample scattering cross section used for target run."
+        .type = float(allow_none=True)
+      absorption_x_section = None
+        .help = "Sample absorption cross section for target run."
+        .type = float(allow_none=True)
+    }
+  }
+}
+profile1d {
+  init_alpha = 0.03
+    .help = "Initial alpha value before optimization"
+    .type = float(allow_none=True)
+  init_beta = 0.03
+    .help = "Initial beta value before optimization"
+    .type = float(allow_none=True)
+  min_alpha = 0.02
+    .help = "Min alpha value for optimization"
+    .type = float(allow_none=True)
+  max_alpha = 1.0
+    .help = "Max alpha value for optimization"
+    .type = float(allow_none=True)
+  min_beta = 0.0
+    .help = "Min beta value for optimization"
+    .type = float(allow_none=True)
+  max_beta = 1.0
+    .help = "Max beta value for optimization"
+    .type = float(allow_none=True)
+  n_restarts = 8
+    .help = "If fit fails, number of additional attempts with perturbed params"
+    .type = int(value_min=0, allow_none=True)
+}
+profile3d {
+  init_alpha = 1.0
+    .help = "Initial alpha value before optimization"
+    .type = float(allow_none=True)
+  init_beta = 0.1
+    .help = "Initial beta value before optimization"
+    .type = float(allow_none=True)
+  min_alpha = 0.5
+    .help = "Min alpha value for optimization"
+    .type = float(allow_none=True)
+  max_alpha = 20.
+    .help = "Max alpha value for optimization"
+    .type = float(allow_none=True)
+  min_beta = 1e-7
+    .help = "Min beta value for optimization"
+    .type = float(allow_none=True)
+  max_beta = 5.0
+    .help = "Max beta value for optimization"
+    .type = float(allow_none=True)
+  n_restarts = 8
+    .help = "If fit fails, number of additional attempts with perturbed params"
+    .type = int(value_min=0, allow_none=True)
+  gradient_method = *forward_difference central_difference
+    .help = "Method used to calculate gradients"
+    .type = choice
+}
+mp {
+  nproc = auto
+    .help = "Number of processors to use during parallelized steps. If set to"
+            "auto DIALS will choose automatically."
+    .type = int(value_min=1, allow_none=True)
+}
+bbox_tof_padding = 2
+  .help = "Additional ToF frames added to calculated bounding boxes"
+  .type = int(allow_none=True)
+bbox_xy_padding = 1
+  .help = "Additional pixels added to calculated bounding boxes"
+  .type = int(allow_none=True)
+keep_shoeboxes = False
+  .help = "Retain shoeboxes in output reflection table"
+  .type = bool
+integration {
+  lookup
+    .help = "Parameters specifying lookup file path"
+  {
+    mask = None
+      .help = "The path to the mask file."
+      .type = str
+  }
+  block {
+    size = auto
+      .help = "The block size in rotation angle (degrees)."
+      .type = float(allow_none=True)
+    units = *degrees radians frames
+      .help = "The units of the block size"
+      .type = choice
+    threshold = 0.95
+      .help = "For block size auto the block size is calculated by sorting"
+              "reflections by the number of frames they cover and then"
+              "selecting the block size to be 2*nframes[threshold] such that"
+              "100*threshold % of reflections are guaranteed to be fully"
+              "contained in 1 block"
+      .type = float(value_min=0, value_max=1, allow_none=True)
+    force = False
+      .help = "If the number of processors is 1 and force is False, then the"
+              "number of blocks may be set to 1. If force is True then the"
+              "block size is always calculated."
+      .type = bool
+    max_memory_usage = 0.90
+      .help = "The maximum percentage of available memory to use for"
+              "allocating shoebox arrays."
+      .type = float(value_min=0, value_max=1, allow_none=True)
+  }
+  use_dynamic_mask = True
+    .help = "Use dynamic mask if available"
+    .type = bool
+  debug {
+    reference {
+      filename = "reference_profiles.refl"
+        .help = "The filename for the reference profiles"
+        .type = str
+      output = False
+        .help = "Save the reference profiles"
+        .type = bool
+    }
+    during = modelling *integration
+      .help = "Do debugging during modelling or integration"
+      .type = choice
+    output = False
+      .help = "Save shoeboxes after each processing task."
+      .type = bool
+    separate_files = True
+      .help = "If this is true, the shoeboxes are saved in separate files from"
+              "the output integrated.refl file. This is necessary in most"
+              "cases since the amount of memory used by the shoeboxes is"
+              "typically greater than the available system memory. If,"
+              "however, you know that memory is not an issue, you can saved"
+              "the shoeboxes in the integrated.refl file by setting this"
+              "option to False. This only works if the debug output is during"
+              "integrated and not modelling."
+      .type = bool
+    delete_shoeboxes = False
+      .help = "Delete shoeboxes immediately before saving files. This option"
+              "in combination with debug.output=True enables intermediate"
+              "processing steps to make use of shoeboxes."
+      .type = bool
+    select = None
+      .help = "A string specifying the selection. The string should be of the"
+              "form: select=${COLUMN}[<|<=|==|!=|>=|>]${VALUE}. In addition to"
+              "the items in the reflection table, the following implicit"
+              "columns are defined if the necessary data is there: "
+              "intensity.sum.i_over_sigma  intensity.prf.i_over_sigma"
+      .type = reflection_table_selector
+    split_experiments = True
+      .help = "Split shoeboxes into different files"
+      .type = bool
+  }
+  profile {
+    fitting = True
+      .help = "Use profile fitting if available"
+      .type = bool
+    valid_foreground_threshold = 0.75
+      .help = "The minimum fraction of foreground pixels that must be valid in"
+              "order for a reflection to be integrated by profile fitting."
+      .type = float(value_min=0, value_max=1, allow_none=True)
+      .expert_level = 2
+    validation {
+      number_of_partitions = 1
+        .help = "The number of subsamples to take from the reference spots. If"
+                "the value is 1, then no validation is performed."
+        .type = int(value_min=1, allow_none=True)
+      min_partition_size = 100
+        .help = "The minimum number of spots to use in each subsample."
+        .type = int(value_min=1, allow_none=True)
+    }
+  }
+  filter
+    .expert_level = 1
+  {
+    min_zeta = 0.05
+      .help = "Filter the reflections by the value of zeta. A value of less"
+              "than or equal to zero indicates that this will not be used. A"
+              "positive value is used as the minimum permissible value."
+      .type = float(value_min=0, value_max=1, allow_none=True)
+    ice_rings = False
+      .help = "Set the ice ring flags"
+      .type = bool
+  }
+  overlaps_filter {
+    foreground_foreground {
+      enable = False
+        .help = "Remove all spots in which neighbors' foreground impinges on"
+                "the spot's foreground"
+        .type = bool
+    }
+    foreground_background {
+      enable = False
+        .help = "Remove all spots in which neighbors' foreground impinges on"
+                "the spot's background"
+        .type = bool
+    }
+  }
+  mp {
+    method = *multiprocessing drmaa sge lsf pbs
+      .help = "The multiprocessing method to use"
+      .type = choice
+    njobs = 1
+      .help = "The number of cluster jobs to use"
+      .type = int(value_min=1, allow_none=True)
+    nproc = 1
+      .help = "The number of processes to use per cluster job"
+      .type = int(value_min=1, allow_none=True)
+    multiprocessing.n_subset_split = None
+      .help = "Number of subsets to split the reflection table for"
+              "integration."
+      .type = int(value_min=1, allow_none=True)
+  }
+  summation {
+    detector_gain = 1
+      .help = "Multiplier for variances after integration of still images. See"
+              "Leslie 1999."
+      .type = float(allow_none=True)
+  }
+  background
+    .help = "Extensions for background algorithms."
+  {
+    algorithm = *Auto glm gmodel null simple
+      .help = "The choice of algorithm"
+      .type = choice
+    glm
+      .help = "An extension class implementing a robust GLM background"
+              "algorithm."
+    {
+      robust {
+        tuning_constant = 1.345
+          .help = "The tuning constant for robust estimation"
+          .type = float(allow_none=True)
+      }
+      model {
+        algorithm = constant2d *constant3d loglinear2d loglinear3d
+          .help = "The background model to fit"
+          .type = choice
+      }
+      min_pixels = 10
+        .help = "The minimum number of pixels required"
+        .type = int(value_min=1, allow_none=True)
+    }
+    gmodel
+      .help = "An extension class implementing a global background algorithm."
+    {
+      robust {
+        algorithm = False
+          .help = "Use the robust algorithm"
+          .type = bool
+        tuning_constant = 1.345
+          .help = "The tuning constant for robust estimation"
+          .type = float(allow_none=True)
+      }
+      min_pixels = 10
+        .help = "The minimum number of pixels required"
+        .type = int(value_min=1, allow_none=True)
+      model = None
+        .help = "The model filename"
+        .type = str
+    }
+    simple
+      .help = "An extension class implementing simple background subtraction."
+    {
+      outlier
+        .help = "Outlier rejection prior to background fit"
+      {
+        algorithm = *null nsigma truncated normal plane tukey
+          .help = "The outlier rejection algorithm."
+          .type = choice
+        nsigma
+          .help = "Parameters for nsigma outlier rejector"
+          .expert_level = 1
+        {
+          lower = 3
+            .help = "Lower n sigma"
+            .type = float(allow_none=True)
+          upper = 3
+            .help = "Upper n sigma"
+            .type = float(allow_none=True)
+        }
+        truncated
+          .help = "Parameters for truncated outlier rejector"
+          .expert_level = 1
+        {
+          lower = 0.01
+            .help = "Lower bound"
+            .type = float(allow_none=True)
+          upper = 0.01
+            .help = "Upper bound"
+            .type = float(allow_none=True)
+        }
+        normal
+          .help = "Parameters for normal outlier rejector"
+          .expert_level = 1
+        {
+          min_pixels = 10
+            .help = "The minimum number of pixels to use in calculating the"
+                    "background intensity."
+            .type = int(allow_none=True)
+        }
+        plane
+          .help = "Parameters for mosflm-like outlier rejector. This algorithm"
+                  "is mainly used in conjunction with a linear 2d background."
+          .expert_level = 1
+        {
+          fraction = 1.0
+            .help = "The fraction of pixels to use in determining the initial"
+                    "plane used for outlier rejection."
+            .type = float(allow_none=True)
+          n_sigma = 4.0
+            .help = "The number of standard deviations above the threshold"
+                    "plane to use in rejecting outliers from background"
+                    "calculation."
+            .type = float(allow_none=True)
+        }
+        tukey
+          .help = "Parameters for tukey outlier rejector"
+          .expert_level = 1
+        {
+          lower = 1.5
+            .help = "Lower IQR multiplier"
+            .type = float(allow_none=True)
+          upper = 1.5
+            .help = "Upper IQR multiplier"
+            .type = float(allow_none=True)
+        }
+      }
+      model
+        .help = "Background model"
+      {
+        algorithm = constant2d *constant3d linear2d linear3d
+          .help = "The choice of background model"
+          .type = choice
+      }
+      min_pixels = 10
+        .help = "The minimum number of pixels to compute the background"
+        .type = int(value_min=1, allow_none=True)
+    }
+  }
+  centroid
+    .help = "Extensions for centroid algorithms."
+  {
+    algorithm = *simple
+      .help = "The choice of algorithm"
+      .type = choice
+  }
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

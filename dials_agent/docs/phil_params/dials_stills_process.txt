@@ -1,0 +1,2522 @@
+
+Warning: could not import mpi4py. Running as a single process.
+
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+input {
+  file_list = None
+    .help = "Path to a text file with a list of images"
+    .type = path
+  glob = None
+    .help = "For large, multi-file datasets, specify the paths using wildcards"
+            "(e.g. *.cbf)"
+    .type = str
+    .multiple = True
+  image_tag = None
+    .help = "Only process images with these tag(s). For single-image files"
+            "(like CBFs or SMVs), the image tag for each file is the file"
+            "name. For multi-image files like HDF5, the image tag is"
+            "filename_imagenumber (including leading zeros). Use"
+            "show_image_tags=True to see the list of image tags that will be"
+            "used for a dataset."
+    .type = str
+    .multiple = True
+  show_image_tags = False
+    .help = "Show the set of image tags that would be used during processing."
+            "To process subsets of image files, use these tags with the"
+            "image_tag parameter."
+    .type = bool
+  max_images = None
+    .help = "Limit total number of processed images to max_images"
+    .type = int(allow_none=True)
+}
+dispatch {
+  pre_import = False
+    .help = "If True, before processing import all the data. Needed only if"
+            "processing multiple multi-image files at once (not a recommended"
+            "use case)"
+    .type = bool
+    .expert_level = 2
+  process_percent = None
+    .help = "Percent of events to process"
+    .type = int(value_min=1, value_max=100, allow_none=True)
+  refine = False
+    .help = "If True, after indexing, refine the experimental models"
+    .type = bool
+    .expert_level = 2
+  squash_errors = True
+    .help = "If True, if an image fails to process, continue to the next"
+            "image. otherwise, halt processing and show the error."
+    .type = bool
+    .expert_level = 2
+  find_spots = True
+    .help = "Whether to do spotfinding. Needed for indexing/integration"
+    .type = bool
+    .expert_level = 2
+  index = True
+    .help = "Attempt to index images. find_spots also needs to be True for"
+            "this to work"
+    .type = bool
+    .expert_level = 2
+  integrate = True
+    .help = "Integrate indexed images. Ignored if index=False or"
+            "find_spots=False"
+    .type = bool
+    .expert_level = 2
+  coset = False
+    .help = "Within the integrate dispatcher, integrate a sublattice coset"
+            "intended to represent negative control spots with no Bragg"
+            "diffraction."
+    .type = bool
+    .expert_level = 2
+  hit_finder {
+    enable = True
+      .help = "Whether to do hitfinding. hit_finder=False: process all images"
+      .type = bool
+    minimum_number_of_reflections = 16
+      .help = "If the number of strong reflections on an image is less than"
+              "this, and the hitfinder is enabled, discard this image."
+      .type = int(allow_none=True)
+    maximum_number_of_reflections = None
+      .help = "If specified, ignores images with more than this many number of"
+              "reflections"
+      .type = int(allow_none=True)
+  }
+}
+output {
+  output_dir = .
+    .help = "Directory output files will be placed"
+    .type = str
+  composite_output = True
+    .help = "If True, save one set of experiment/reflection files per process,"
+            "where each is a concatenated list of all the successful events"
+            "examined by that process. If False, output a separate"
+            "experiment/reflection file per image (generates a lot of files)."
+    .type = bool
+  logging_dir = None
+    .help = "Directory output log files will be placed"
+    .type = str
+  logging_option = normal *suppressed disabled
+    .help = "and disabled removes basically all logging"
+    .type = choice
+  experiments_filename = None
+    .help = "The filename for output experiments. For example,"
+            "%s_imported.expt"
+    .type = str
+  strong_filename = None
+    .help = "The filename for strong reflections from spot finder output. For"
+            "example: %s_strong.refl"
+    .type = str
+  indexed_filename = %s_indexed.refl
+    .help = "The filename for indexed reflections."
+    .type = str
+  refined_experiments_filename = %s_refined.expt
+    .help = "The filename for saving refined experimental models"
+    .type = str
+  integrated_filename = %s_integrated.refl
+    .help = "The filename for final integrated reflections."
+    .type = str
+  integrated_experiments_filename = %s_integrated.expt
+    .help = "The filename for saving final experimental models."
+    .type = str
+  coset_filename = %s_coset%d.refl
+    .help = "The filename for final coset reflections."
+    .type = str
+  coset_experiments_filename = %s_coset%d.expt
+    .help = "The filename for saving final coset experimental models."
+    .type = str
+  profile_filename = None
+    .help = "The filename for output reflection profile parameters"
+    .type = str
+}
+mp {
+  method = *multiprocessing sge lsf pbs mpi
+    .help = "The multiprocessing method to use"
+    .type = choice
+  nproc = 1
+    .help = "The number of processes to use."
+    .type = int(value_min=1, allow_none=True)
+  composite_stride = None
+    .help = "For MPI, if using composite mode, specify how many ranks to"
+            "aggregate data from. For example, if you have 100 processes,"
+            "composite mode will output N*100 files, where N is the number of"
+            "file types (expt, refl, etc). If you specify stride = 25, then"
+            "each group of 25 process will send their results to 4 processes"
+            "and only N*4 files will be created. Ideally, match stride to the"
+            "number of processors per node."
+    .type = int(allow_none=True)
+  debug
+    .expert_level = 2
+  {
+    cProfile = False
+      .help = "Enable code profiling. Profiling file will be available in the"
+              "debug folder. Use (for example) runsnake to visualize"
+              "processing performance"
+      .type = bool
+    output_debug_logs = True
+      .help = "Whether to write debugging information for every image"
+              "processed"
+      .type = bool
+  }
+}
+input {
+  reference_geometry = None
+    .help = "Provide an models.expt file with exactly one detector model. Data"
+            "processing will use that geometry instead of the geometry found"
+            "in the image headers."
+    .type = str
+  sync_reference_geom = True
+    .help = "ensures the reference hierarchy agrees with the image format"
+    .type = bool
+}
+output {
+  shoeboxes = True
+    .help = "Save the raw pixel values inside the reflection shoeboxes during"
+            "spotfinding."
+    .type = bool
+}
+geometry
+  .help = "Allow overrides of experimental geometry"
+  .expert_level = 2
+{
+  beam
+    .short_caption = "Beam overrides"
+    .expert_level = 1
+  {
+    type = *monochromatic polychromatic
+      .help = "Override the beam type"
+      .short_caption = beam_type
+      .type = choice
+    probe = *x-ray electron neutron
+      .help = "Override the beam probe"
+      .short_caption = beam_probe
+      .type = choice
+    wavelength = None
+      .help = "Override the beam wavelength"
+      .type = float(allow_none=True)
+    direction = None
+      .help = "Override the sample to source direction"
+      .short_caption = "Sample to source direction"
+      .type = floats(size=3)
+    divergence = None
+      .help = "Override the beam divergence"
+      .type = float(allow_none=True)
+    sigma_divergence = None
+      .help = "Override the beam sigma divergence"
+      .type = float(allow_none=True)
+    polarization_normal = None
+      .help = "Override the polarization normal"
+      .short_caption = "Polarization normal"
+      .type = floats(size=3)
+    polarization_fraction = None
+      .help = "Override the polarization fraction"
+      .short_caption = "Polarization fraction"
+      .type = float(value_min=0, value_max=1, allow_none=True)
+    transmission = None
+      .help = "Override the transmission"
+      .short_caption = transmission
+      .type = float(allow_none=True)
+    flux = None
+      .help = "Override the flux"
+      .short_caption = flux
+      .type = float(allow_none=True)
+    sample_to_source_distance = None
+      .help = "Override the distance between sample and source (mm)"
+      .type = float(allow_none=True)
+    wavelength_range = None
+      .help = "Override the wavelength range for polychromatic beams (A)"
+      .type = floats(size=2)
+  }
+  detector
+    .short_caption = "Detector overrides"
+    .expert_level = 1
+  {
+    panel
+      .multiple = True
+    {
+      id = 0
+        .help = "The panel number"
+        .short_caption = "Panel ID"
+        .type = int(allow_none=True)
+      name = None
+        .help = "Override the panel name"
+        .short_caption = "Panel name"
+        .type = str
+      type = None
+        .help = "Override the panel type"
+        .short_caption = "Panel type"
+        .type = str
+      gain = None
+        .help = "The gain of the detector panel"
+        .short_caption = "Gain value"
+        .type = float(value_min=0, allow_none=True)
+      pedestal = None
+        .help = "The pedestal of the detector panel"
+        .short_caption = "Pedestal value"
+        .type = float(allow_none=True)
+      pixel_size = None
+        .help = "Override the panel pixel size"
+        .short_caption = "Panel pixel size"
+        .type = floats(size=2)
+      image_size = None
+        .help = "Override the panel image size"
+        .short_caption = "Panel image size"
+        .type = ints(size=2)
+      trusted_range = None
+        .help = "Override the panel trusted range: [min-trusted-value,"
+                "max-trusted-value]"
+        .short_caption = "Panel trusted range"
+        .type = floats(size=2)
+      thickness = None
+        .help = "Override the panel thickness"
+        .short_caption = "Panel thickness"
+        .type = float(allow_none=True)
+      material = None
+        .help = "Override the panel material"
+        .short_caption = "Panel material"
+        .type = str
+      fast_axis = None
+        .help = "Override the panel fast axis. Requires slow_axis and origin."
+        .short_caption = "Panel fast axis direction"
+        .type = floats(size=3)
+      slow_axis = None
+        .help = "Override the panel slow axis. Requires fast_axis and origin."
+        .short_caption = "Panel slow axis direction"
+        .type = floats(size=3)
+      origin = None
+        .help = "Override the panel origin. Requires fast_axis and slow_axis."
+        .short_caption = "Panel origin vector"
+        .type = floats(size=3)
+      parallax_correction = None
+        .help = "Enable parallax correction. By default in overwrite mode, the"
+                "value of None does nothing."
+        .short_caption = "Enable parallax correction"
+        .type = bool
+    }
+    hierarchy
+      .expert_level = 2
+    {
+      name = None
+        .help = "Override the group name"
+        .short_caption = "group name"
+        .type = str
+      fast_axis = None
+        .help = "Override the panel fast axis. Requires slow_axis and origin."
+        .short_caption = "Panel fast axis direction"
+        .type = floats(size=3)
+      slow_axis = None
+        .help = "Override the panel slow axis. Requires fast_axis and origin."
+        .short_caption = "Panel slow axis direction"
+        .type = floats(size=3)
+      origin = None
+        .help = "Override the panel origin. Requires fast_axis and slow_axis."
+        .short_caption = "Panel origin vector"
+        .type = floats(size=3)
+      group
+        .multiple = True
+      {
+        id = None
+          .help = "The group identifier specifying the place in the hierarchy"
+          .short_caption = "Group ID"
+          .type = ints
+        name = None
+          .help = "Override the group name"
+          .short_caption = "Group name"
+          .type = str
+        fast_axis = None
+          .help = "Override the group fast axis. Requires slow_axis and"
+                  "origin."
+          .short_caption = "Group fast axis direction"
+          .type = floats(size=3)
+        slow_axis = None
+          .help = "Override the group slow axis. Requires fast_axis and"
+                  "origin."
+          .short_caption = "Group slow axis direction"
+          .type = floats(size=3)
+        origin = None
+          .help = "Override the group origin. Requires fast_axis and"
+                  "slow_axis."
+          .short_caption = "Group origin vector"
+          .type = floats(size=3)
+        panel = None
+          .help = "The panel id"
+          .short_caption = "Panel ID"
+          .type = int(allow_none=True)
+          .multiple = True
+      }
+    }
+    mosflm_beam_centre = None
+      .help = "Override the beam centre from the image headers, following  the"
+              "mosflm convention."
+      .short_caption = "Beam centre coordinates (mm, mm) using the Mosflm"
+                       "convention"
+      .type = floats(size=2)
+    distance = None
+      .help = "The detector distance (used when mosflm_beam_centre is set)"
+      .short_caption = "Detector distance"
+      .type = float(allow_none=True)
+    fast_slow_beam_centre = None
+      .help = "Override the beam centre from the image headers. The first two"
+              "values are the fast and slow pixel coordinate. If the third is"
+              "supplied it specifies a panel number."
+      .short_caption = "Beam centre coordinates (px fast, px slow, [panel id])"
+      .type = floats(size_min=2, size_max=3)
+    slow_fast_beam_centre = None
+      .help = "Alternative to fast_slow_beam_centre in which the coordinates"
+              "are given in order (px slow, px fast, [panel id]). If"
+              "fast_slow_beam_centre is set it will take priority over any"
+              "values set here."
+      .short_caption = "Beam centre coordinates (px slow, px fast, [panel id])"
+      .type = ints(size_min=2, size_max=3)
+  }
+  goniometer
+    .short_caption = "Goniometer overrides"
+    .expert_level = 1
+  {
+    axis = None
+      .help = "Override the axis for a single axis goniometer. Equivalent to"
+              "providing a single 3D vector to 'axes'."
+      .short_caption = "Goniometer axis"
+      .type = floats(size=3)
+    axes = None
+      .help = "Override the goniometer axes. Axes must be provided in the"
+              "order crystal-to-goniometer, i.e. for a Kappa goniometer"
+              "phi,kappa,omega"
+      .short_caption = "Goniometer axes"
+      .type = floats
+    angles = None
+      .help = "Override the goniometer angles. Axes must be provided in the"
+              "order crystal-to-goniometer, i.e. for a Kappa goniometer"
+              "phi,kappa,omega"
+      .short_caption = "Goniometer angles"
+      .type = floats
+    names = None
+      .help = "The multi axis goniometer axis names"
+      .short_caption = "The axis names"
+      .type = str
+    scan_axis = None
+      .help = "The scan axis"
+      .short_caption = "The scan axis"
+      .type = int(allow_none=True)
+    fixed_rotation = None
+      .help = "Override the fixed rotation matrix"
+      .short_caption = "Fixed rotation matrix"
+      .type = floats(size=9)
+    setting_rotation = None
+      .help = "Override the setting rotation matrix"
+      .short_caption = "Setting rotation matrix"
+      .type = floats(size=9)
+    invert_rotation_axis = False
+      .help = "Invert the rotation axis"
+      .short_caption = "Invert rotation axis"
+      .type = bool
+  }
+  scan
+    .short_caption = "Scan overrides"
+    .expert_level = 1
+  {
+    image_range = None
+      .help = "Override the image range"
+      .short_caption = "Image range"
+      .type = ints(size=2)
+    extrapolate_scan = False
+      .help = "When overriding the image range, extrapolate exposure and epoch"
+              "information from existing images"
+      .short_caption = "Extrapolate scan"
+      .type = bool
+    oscillation = None
+      .help = "Override the image oscillation"
+      .short_caption = Oscillation
+      .type = floats(size=2)
+    batch_offset = None
+      .help = "Override the batch offset"
+      .short_caption = "Batch offset"
+      .type = int(value_min=0, allow_none=True)
+  }
+  convert_stills_to_sequences = False
+    .help = "When overriding the scan, convert stills into sequences"
+    .short_caption = "Convert stills into sequences"
+    .type = bool
+  convert_sequences_to_stills = False
+    .help = "When overriding the scan, convert sequences into stills"
+    .short_caption = "Convert sequences into stills"
+    .type = bool
+}
+spotfinder
+  .help = "Parameters used in the spot finding algorithm."
+{
+  lookup
+    .help = "Parameters specifying lookup file path"
+  {
+    mask = None
+      .help = "The path to the mask file."
+      .type = str
+  }
+  write_hot_mask = False
+    .help = "Write the hot mask"
+    .type = bool
+  hot_mask_prefix = 'hot_mask'
+    .help = "Prefix for the hot mask pickle file"
+    .type = str
+  force_2d = False
+    .help = "Do spot finding in 2D"
+    .type = bool
+  scan_range = None
+    .help = "The range of images to use in finding spots. The ranges are"
+            "inclusive (e.g. j0 <= j < j1). For sequences the scan range is"
+            "interpreted as the literal scan range. Whereas for imagesets the"
+            "scan range is interpreted as the image number in the imageset."
+            "Multiple ranges can be specified by repeating the scan_range="
+            "parameter."
+    .type = ints(size=2)
+    .multiple = True
+  exclude_images = None
+    .help = "Input in the format exp:start:end Exclude a range of images"
+            "(start, stop) from the dataset with experiment identifier exp "
+            "(inclusive of frames start, stop). Multiple ranges can be given"
+            "in one go, e.g. exclude_images=0:150:200,1:200:250"
+            "exclude_images='0:150:200 1:200:250'"
+    .short_caption = "Exclude images"
+    .type = strings
+    .multiple = True
+    .expert_level = 1
+  exclude_images_multiple = None
+    .help = "Exclude this single image and each multiple of this image number"
+            "in each experiment. This is provided as a convenient shorthand to"
+            "specify image exclusions for cRED data, where the scan of"
+            "diffraction images is interrupted at regular intervals by a"
+            "crystal positioning image (typically every 20th image)."
+    .type = int(value_min=2, allow_none=True)
+    .expert_level = 2
+  region_of_interest = None
+    .help = "A region of interest to look for spots. Specified as: x0,x1,y0,y1"
+            "The pixels x0 and y0 are included in the range but the pixels x1"
+            "and y1 are not. To specify an ROI covering the whole image set"
+            "region_of_interest=0,width,0,height."
+    .type = ints(size=4)
+  compute_mean_background = False
+    .help = "Compute the mean background for each image"
+    .type = bool
+  filter
+    .help = "Parameters used in the spot finding filter strategy."
+  {
+    min_spot_size = Auto
+      .help = "The minimum number of contiguous pixels for a spot to be"
+              "accepted by the filtering algorithm."
+      .type = int(value_min=1, allow_none=True)
+    max_spot_size = 1000
+      .help = "The maximum number of contiguous pixels for a spot to be"
+              "accepted by the filtering algorithm."
+      .type = int(value_min=1)
+    max_separation = 2
+      .help = "The maximum peak-to-centroid separation (in pixels) for a spot"
+              "to be accepted by the filtering algorithm."
+      .type = float(value_min=0, allow_none=True)
+      .expert_level = 1
+    max_strong_pixel_fraction = 0.25
+      .help = "If the fraction of pixels in an image marked as strong is"
+              "greater than this value, throw an exception"
+      .type = float(value_min=0, value_max=1, allow_none=True)
+    background_gradient
+      .expert_level = 2
+    {
+      filter = False
+        .type = bool
+      background_size = 2
+        .type = int(value_min=1, allow_none=True)
+      gradient_cutoff = 4
+        .type = float(value_min=0, allow_none=True)
+    }
+    spot_density
+      .expert_level = 2
+    {
+      filter = False
+        .type = bool
+    }
+    border = 0
+      .help = "The border around the edge of the image."
+      .type = int(allow_none=True)
+    d_min = None
+      .help = "The high resolution limit in Angstrom for a pixel to be"
+              "accepted by the filtering algorithm."
+      .type = float(value_min=0, allow_none=True)
+    d_max = None
+      .help = "The low resolution limit in Angstrom for a pixel to be accepted"
+              "by the filtering algorithm."
+      .type = float(value_min=0, allow_none=True)
+    disable_parallax_correction = False
+      .help = "Set to ``True`` to use a faster, but less accurate, simple"
+              "px-to-mm  mapping by disabling accounting for parallax"
+              "correction when generating  resolution masks."
+      .type = bool
+    resolution_range = None
+      .help = "an untrusted resolution range"
+      .type = floats(size=2)
+      .multiple = True
+    untrusted
+      .multiple = True
+    {
+      panel = None
+        .help = "then the whole panel is masked out"
+        .type = int(allow_none=True)
+      circle = None
+        .help = "An untrusted circle (xc, yc, r)"
+        .type = ints(size=3)
+      rectangle = None
+        .help = "An untrusted rectangle (x0, x1, y0, y1)"
+        .type = ints(size=4)
+      polygon = None
+        .help = "The pixel coordinates (fast, slow) that define the corners "
+                "of the untrusted polygon. Spots whose centroids fall within "
+                "the bounds of the untrusted polygon will be rejected."
+        .type = ints(value_min=0)
+      pixel = None
+        .help = "An untrusted pixel (y, x)"
+        .type = ints(size=2, value_min=0)
+    }
+    ice_rings {
+      filter = False
+        .type = bool
+      unit_cell = 4.498,4.498,7.338,90,90,120
+        .help = "The unit cell to generate d_spacings for powder rings."
+        .type = unit_cell
+        .expert_level = 1
+      space_group = 194
+        .help = "The space group used to generate d_spacings for powder rings."
+        .type = space_group
+        .expert_level = 1
+      width = 0.002
+        .help = "The width of an ice ring (in 1/d^2)."
+        .type = float(value_min=0, allow_none=True)
+        .expert_level = 1
+      d_min = None
+        .help = "The high resolution limit (otherwise use detector d_min)"
+        .type = float(value_min=0, allow_none=True)
+        .expert_level = 1
+    }
+  }
+  mp {
+    method = *none drmaa sge lsf pbs
+      .help = "The cluster method to use"
+      .type = choice
+    njobs = 1
+      .help = "The number of cluster jobs to use"
+      .type = int(value_min=1, allow_none=True)
+    nproc = 1
+      .help = "The number of processes to use per cluster job"
+      .type = int(value_min=1, allow_none=True)
+    chunksize = auto
+      .help = "The number of jobs to process per process"
+      .type = int(value_min=1, allow_none=True)
+    min_chunksize = 20
+      .help = "When chunksize is auto, this is the minimum chunksize"
+      .type = int(value_min=1, allow_none=True)
+  }
+  tof {
+    rs_proximity_threshold_multiplier = None
+      .help = "If not None, spots in close proximity in reciprocal space are"
+              "filtered out based on this value. The distance is calculated as"
+              "the first peak of a histrogram of distances, multiplied by the"
+              "rs_proximity_threshold_multiplier"
+      .type = float(allow_none=True)
+  }
+  laue {
+    initial_wavelength = None
+      .help = "Initial wavelength assignment for reflections from Laue data If"
+              "None, initial_wavelength will be set as the average of "
+              "beam.wavelength_range"
+      .type = float(value_min=0.1, allow_none=True)
+  }
+  threshold
+    .help = "Extensions for threshold algorithms to be used in spot finding."
+  {
+    algorithm = dispersion *dispersion_extended radial_profile
+      .help = "The choice of algorithm"
+      .type = choice
+    dispersion
+      .help = "Extensions to do dispersion threshold."
+    {
+      gain = None
+        .help = "Use a flat gain map for the entire detector to act as a"
+                "multiplier for the gain set by the format. Cannot be used in"
+                "conjunction with lookup.gain_map parameter."
+        .type = float(value_min=0, allow_none=True)
+      kernel_size = 3 3
+        .help = "The size of the local area around the spot in which to"
+                "calculate the mean and variance. The kernel is given as a box"
+                "of size (2 * nx + 1, 2 * ny + 1) centred at the pixel."
+        .type = ints(size=2)
+        .expert_level = 1
+      sigma_background = 6
+        .help = "The number of standard deviations of the index of dispersion"
+                "(variance / mean) in the local area below which the pixel"
+                "will be classified as background."
+        .type = float(allow_none=True)
+        .expert_level = 1
+      sigma_strong = 3
+        .help = "The number of standard deviations above the mean in the local"
+                "area above which the pixel will be classified as strong."
+        .type = float(allow_none=True)
+        .expert_level = 1
+      min_local = 2
+        .help = "The minimum number of pixels under the image processing"
+                "kernel that are need to do the thresholding operation."
+                "Setting the value between 2 and the total number of pixels"
+                "under the kernel will force the algorithm to use that number"
+                "as the minimum. If the value is less than or equal to zero,"
+                "then the algorithm will use all pixels under the kernel. In"
+                "effect this will add a border of pixels which are always"
+                "classed as background around the edge of the image and around"
+                "any masked out pixels."
+        .type = int(allow_none=True)
+        .expert_level = 1
+      global_threshold = 0
+        .help = "The global threshold value. Consider all pixels less than"
+                "this value to be part of the background."
+        .type = float(allow_none=True)
+    }
+    radial_profile
+      .help = "Extension to calculate a radial profile threshold. This method"
+              "calculates background value and iqr in 2θ shells, then sets a"
+              "threshold at a level n_iqr above the radial background. As"
+              "such, it is important to have the beam centre correct and to"
+              "mask out any significant shadows. The method may be"
+              "particularly useful for electron diffraction images, where"
+              "there can be considerable inelastic scatter around low"
+              "resolution spots. In addition, the algorithm is relatively"
+              "insensitive to noise properties of the detector. This helps for"
+              "the case of integrating detectors with poorly known gain and"
+              "response statistics. A similar algorithm is available in other"
+              "programs. The description of 'peakfinder 8' in"
+              "https://doi.org/10.1107/S1600576714007626 was helpful in the"
+              "development of this method."
+    {
+      n_iqr = 6
+        .help = "IQR multiplier for determining the threshold value"
+        .type = int(allow_none=True)
+      blur = narrow wide
+        .help = "Optional preprocessing of the image by a convolution with a"
+                "simple Gaussian kernel of size either 3×3 (narrow) or 5×5"
+                "(wide). This may help to reduce noise peaks and to combine"
+                "split spots."
+        .type = choice
+      n_bins = 100
+        .help = "Number of 2θ bins in which to calculate background"
+        .type = int(allow_none=True)
+    }
+  }
+}
+indexing {
+  nproc = 1
+    .help = "The number of processes to use."
+    .type = int(value_min=1, allow_none=True)
+  mm_search_scope = 4.0
+    .help = "Global radius of origin offset search."
+    .type = float(value_min=0, allow_none=True)
+    .expert_level = 1
+  wide_search_binning = 2
+    .help = "Modify the coarseness of the wide grid search for the beam"
+            "centre."
+    .type = float(value_min=0, allow_none=True)
+    .expert_level = 1
+  min_cell_volume = 25
+    .help = "Minimum unit cell volume (in Angstrom^3)."
+    .type = float(value_min=0, allow_none=True)
+    .expert_level = 1
+  min_cell = 3
+    .help = "Minimum length of candidate unit cell basis vectors (in"
+            "Angstrom)."
+    .type = float(value_min=0, allow_none=True)
+    .expert_level = 1
+  max_cell = Auto
+    .help = "Maximum length of candidate unit cell basis vectors (in"
+            "Angstrom)."
+    .type = float(value_min=0, allow_none=True)
+    .expert_level = 1
+  max_cell_estimation
+    .expert_level = 1
+  {
+    filter_ice = True
+      .help = "Filter out reflections at typical ice ring resolutions before"
+              "max_cell estimation."
+      .type = bool
+    filter_overlaps = True
+      .help = "Filter out reflections with overlapping bounding boxes before"
+              "max_cell estimation."
+      .type = bool
+    overlaps_border = 0
+      .help = "Optionally add a border around the bounding boxes before"
+              "finding overlaps."
+      .type = int(value_min=0, allow_none=True)
+    multiplier = 1.3
+      .help = "Multiply the estimated maximum basis vector length by this"
+              "value."
+      .type = float(value_min=0, allow_none=True)
+      .expert_level = 2
+    step_size = 45
+      .help = "Step size, in degrees, of the blocks used to perform the"
+              "max_cell  estimation."
+      .type = float(value_min=0, allow_none=True)
+      .expert_level = 2
+    nearest_neighbor_percentile = None
+      .help = "Percentile of NN histogram to use for max cell determination."
+      .type = float(value_min=0, value_max=1, allow_none=True)
+      .expert_level = 2
+    histogram_binning = linear *log
+      .help = "Choose between linear or logarithmic bins for nearest neighbour"
+              "histogram analysis."
+      .type = choice
+    nn_per_bin = 5
+      .help = "Target number of nearest neighbours per histogram bin."
+      .type = int(value_min=1, allow_none=True)
+    max_height_fraction = 0.25
+      .type = float(value_min=0, value_max=1, allow_none=True)
+      .expert_level = 2
+  }
+  sigma_phi_deg = None
+    .help = "Override the phi sigmas for refinement. Mainly intended for"
+            "single-shot rotation images where the phi sigma is almost"
+            "certainly incorrect."
+    .type = float(value_min=0, allow_none=True)
+    .expert_level = 2
+  known_symmetry {
+    space_group = None
+      .help = "Target space group for indexing."
+      .type = space_group
+    unit_cell = None
+      .help = "Target unit cell for indexing."
+      .type = unit_cell
+    relative_length_tolerance = 0.1
+      .help = "Relative tolerance for unit cell lengths in unit cell"
+              "comparison."
+      .type = float(allow_none=True)
+      .expert_level = 1
+    absolute_angle_tolerance = 5
+      .help = "Angular tolerance (in degrees) in unit cell comparison."
+      .type = float(allow_none=True)
+      .expert_level = 1
+    max_delta = 5
+      .help = "Maximum allowed Le Page delta used in searching for basis"
+              "vector combinations that are consistent with the given"
+              "symmetry."
+      .type = float(value_min=0, allow_none=True)
+      .expert_level = 1
+    A_matrix = None
+      .help = "A crystal setting A=UB matrix to construct a trial crystal"
+              "model for indexing."
+      .type = floats(size=9)
+      .expert_level = 1
+  }
+  index_assignment {
+    method = *simple local
+      .help = "Choose between simple 'global' index assignment and xds-style "
+              "'local' index assignment."
+      .type = choice
+      .expert_level = 1
+    simple {
+      hkl_tolerance = 0.3
+        .help = "Maximum allowable deviation from integer-ness for assigning "
+                "a miller index to a reciprocal lattice vector."
+        .type = float(value_min=0, value_max=0.5, allow_none=True)
+    }
+    local
+      .expert_level = 1
+    {
+      epsilon = 0.05
+        .help = "This corresponds to the xds parameter INDEX_ERROR="
+        .type = float(allow_none=True)
+      delta = 8
+        .help = "This corresponds to the xds parameter INDEX_MAGNITUDE="
+        .type = int(allow_none=True)
+      l_min = 0.8
+        .help = "This corresponds to the xds parameter INDEX_QUALITY="
+        .type = float(allow_none=True)
+      nearest_neighbours = 20
+        .type = int(value_min=1, allow_none=True)
+    }
+  }
+  check_misindexing {
+    grid_search_scope = 0
+      .help = "Search scope for testing misindexing on h, k, l."
+      .type = int(allow_none=True)
+  }
+  debug = False
+    .type = bool
+    .expert_level = 1
+  combine_scans = False
+    .type = bool
+    .expert_level = 1
+  refinement_protocol {
+    mode = *refine_shells repredict_only None
+      .help = "refine_shells: if using sequences indexer, refine in increasing"
+              "resolution cutoffs after indexing, if using stills indexer,"
+              "refine all data up to d_min_start resolution once only."
+              "repredict_only: do not refine after indexing, just update spot"
+              "predictions. None: do not refine and do not update spot"
+              "predictions."
+      .type = choice
+      .expert_level = 1
+    n_macro_cycles = 5
+      .help = "Maximum number of macro cycles of refinement, reindexing all"
+              "reflections using updated geometry at the beginning of each"
+              "cycle. Does not apply to stills.indexer=stills."
+      .type = int(value_min=1, allow_none=True)
+    d_min_step = Auto
+      .help = "Reduction per step in d_min for reflections to include in"
+              "refinement. Does not apply to stills.indexer=stills."
+      .type = float(value_min=0, allow_none=True)
+    d_min_start = None
+      .help = "For sequences/stills indexer, the lower limit of d-spacing of"
+              "reflections used in the first/the only round of refinement."
+      .type = float(value_min=0, allow_none=True)
+    d_min_final = None
+      .help = "Do not ever include reflections below this value in refinement."
+              "Does not apply to stills.indexer=stills."
+      .type = float(value_min=0, allow_none=True)
+    disable_unit_cell_volume_sanity_check = False
+      .help = "Disable sanity check on unrealistic increases in unit cell"
+              "volume during refinement. Does not apply to"
+              "stills.indexer=stills."
+      .type = bool
+      .expert_level = 1
+  }
+  multiple_lattice_search
+    .expert_level = 1
+  {
+    recycle_unindexed_reflections_cutoff = 0.1
+      .help = "Attempt another cycle of indexing on the unindexed reflections "
+              "if more than the fraction of input reflections are unindexed."
+      .type = float(value_min=0, value_max=1, allow_none=True)
+    minimum_angular_separation = 5
+      .help = "The minimum angular separation (in degrees) between two"
+              "lattices."
+      .type = float(value_min=0, allow_none=True)
+    max_lattices = 1
+      .type = int(allow_none=True)
+    cluster_analysis {
+      method = *dbscan hcluster
+        .type = choice
+      hcluster {
+        linkage {
+          method = *ward
+            .type = choice
+          metric = *euclidean
+            .type = choice
+        }
+        cutoff = 15
+          .type = float(value_min=0, allow_none=True)
+        cutoff_criterion = *distance inconsistent
+          .type = choice
+      }
+      dbscan {
+        eps = 0.05
+          .type = float(value_min=0, allow_none=True)
+        min_samples = 30
+          .type = int(value_min=1, allow_none=True)
+      }
+      min_cluster_size = 20
+        .type = int(value_min=0, allow_none=True)
+      intersection_union_ratio_cutoff = 0.4
+        .type = float(value_min=0, value_max=1, allow_none=True)
+    }
+  }
+  stills {
+    indexer = *Auto stills sequences
+      .help = "Use the stills or sequences indexer. Auto: choose based on the"
+              "input imagesets (stills or sequences)."
+      .type = choice
+      .expert_level = 1
+    ewald_proximity_resolution_cutoff = 2.0
+      .help = "the acceptable volume of reciprocal space for spot prediction"
+      .type = float(allow_none=True)
+    refine_all_candidates = True
+      .help = "If False, no attempt is made to refine the model from initial"
+              "basis vector selection. The indexing solution with the best"
+              "RMSD is chosen."
+      .type = bool
+    candidate_outlier_rejection = True
+      .help = "If True, while refining candidate basis solutions, also apply"
+              "Sauter/ Poon (2010) outlier rejection"
+      .type = bool
+      .expert_level = 1
+    refine_candidates_with_known_symmetry = False
+      .help = "If False, when choosing the best set of candidate basis"
+              "solutions, refine the candidates in the P1 setting. If True,"
+              "after indexing in P1, convert the candidates to the known"
+              "symmetry and apply the corresponding change of basis to the"
+              "indexed reflections."
+      .type = bool
+      .expert_level = 2
+    rmsd_min_px = 2
+      .help = "Minimum acceptable RMSD for choosing candidate basis solutions"
+              "(in pixels)"
+      .type = float(allow_none=True)
+    ewald_proximal_volume_max = 0.0025
+      .help = "Maximum acceptable ewald proximal volume when choosing"
+              "candidate basis solutions"
+      .type = float(allow_none=True)
+    isoforms
+      .help = "Constrain the unit cell to specific values during refinement"
+              "after initial indexing."
+      .multiple = True
+    {
+      name = None
+        .type = str
+      cell = None
+        .type = unit_cell
+      lookup_symbol = None
+        .help = "The sgtbx lookup symbol of the reflections pointgroup"
+        .type = str
+      rmsd_target_mm = None
+        .help = "Maximum acceptable DIALS positional rmsd, in mm"
+        .type = float(allow_none=True)
+      beam_restraint = None
+        .help = "to assure that no images are accepted where the lattice is"
+                "misindexed by a unit shift."
+        .type = floats(size=2)
+    }
+    set_domain_size_ang_value = None
+      .help = "If specified, will set the domain size ang value and override"
+              "the value determined from nave refinement"
+      .type = float(allow_none=True)
+    set_mosaic_half_deg_value = None
+      .help = "If specified, will set the mosaic half degree value and"
+              "override the value determined from nave refinement"
+      .type = float(allow_none=True)
+  }
+}
+indexing {
+  basis_vector_combinations
+    .expert_level = 1
+  {
+    max_combinations = None
+      .help = "Maximum number of basis vector combinations to test for"
+              "agreement with input symmetry."
+      .type = int(value_min=1, allow_none=True)
+    max_refine = Auto
+      .help = "Maximum number of putative crystal models to test. Default for"
+              "rotation sequences: 50, for still images: 5"
+      .type = int(value_min=1, allow_none=True)
+      .expert_level = 1
+    sys_absent_threshold = 0.9
+      .type = float(value_min=0, value_max=1, allow_none=True)
+    solution_scorer = filter *weighted
+      .type = choice
+      .expert_level = 1
+    filter
+      .expert_level = 1
+    {
+      check_doubled_cell = True
+        .type = bool
+      likelihood_cutoff = 0.8
+        .type = float(value_min=0, value_max=1, allow_none=True)
+      volume_cutoff = 1.25
+        .type = float(value_min=1, allow_none=True)
+      n_indexed_cutoff = 0.9
+        .type = float(value_min=0, value_max=1, allow_none=True)
+    }
+    weighted
+      .expert_level = 1
+    {
+      power = 1
+        .type = int(value_min=1, allow_none=True)
+      volume_weight = 1
+        .type = float(value_min=0, allow_none=True)
+      n_indexed_weight = 1
+        .type = float(value_min=0, allow_none=True)
+      rmsd_weight = 1
+        .type = float(value_min=0, allow_none=True)
+    }
+  }
+  method = *fft1d fft3d real_space_grid_search ffbidx low_res_spot_match \
+           pink_indexer
+    .type = choice
+  optimise_initial_basis_vectors = False
+    .type = bool
+    .expert_level = 2
+  fft1d
+    .help = "Search for the basis vectors of the direct lattice by performing"
+            "a series of 1D FFTs along various directions in reciprocal space."
+            "This has a lower memory requirement than a single 3D FFT (the"
+            "fft3d method). This method may also be more appropriate than a 3D"
+            "FFT if the reflections are from narrow wedges of rotation data or"
+            "from stills data."
+    .expert_level = 1
+  {
+    characteristic_grid = None
+      .help = "Sampling frequency in radians. See Steller 1997. If None,"
+              "determine a grid sampling automatically using the input"
+              "reflections, using at most 0.029 radians."
+      .type = float(value_min=0, allow_none=True)
+  }
+  fft3d
+    .help = "Search for the basis vectors of the direct lattice by performing"
+            "a 3D FFT in reciprocal space of the density of found spots. Since"
+            "this can be quite memory-intensive, the data used for indexing"
+            "may automatically be constrained to just the lower resolution"
+            "spots."
+    .expert_level = 1
+  {
+    b_iso = Auto
+      .type = float(value_min=0, allow_none=True)
+      .expert_level = 2
+    rmsd_cutoff = 15
+      .type = float(value_min=0, allow_none=True)
+      .expert_level = 1
+    peak_search = *flood_fill clean
+      .type = choice
+      .expert_level = 2
+    peak_volume_cutoff = 0.15
+      .type = float(allow_none=True)
+      .expert_level = 2
+    reciprocal_space_grid {
+      n_points = 256
+        .type = int(value_min=0, allow_none=True)
+        .expert_level = 1
+      d_min = Auto
+        .help = "The high resolution limit in Angstrom for spots to include in"
+                " the initial indexing."
+        .type = float(value_min=0, allow_none=True)
+    }
+  }
+  real_space_grid_search
+    .help = "Index the found spots by testing a known unit cell in various"
+            "orientations until the best match is found. This strategy is"
+            "often useful for difficult cases of narrow-wedge rotation data or"
+            "stills data, especially where there is diffraction from multiple"
+            "crystals."
+    .expert_level = 1
+  {
+    characteristic_grid = 0.02
+      .type = float(value_min=0, allow_none=True)
+    max_vectors = 30
+      .help = "The maximum number of unique vectors to find in the grid"
+              "search."
+      .type = int(value_min=3, allow_none=True)
+  }
+  ffbidx
+    .help = "A lattice search strategy for very fast indexing using Cuda"
+            "acceleration"
+    .expert_level = 1
+  {
+    max_output_cells = 32
+      .help = "Maximum number of output cells"
+      .type = int(value_min=1, allow_none=True)
+    max_spots = 300
+      .help = "Maximum number of reciprocal spots taken into account"
+      .type = int(value_min=8, allow_none=True)
+    num_candidate_vectors = 32
+      .help = "Number of candidate cell vectors"
+      .type = int(value_min=1, allow_none=True)
+    redundant_computations = True
+      .help = "Calculate candidates for all three cell vectors"
+      .type = bool
+    dist1 = 0.3
+      .help = "Reciprocal spots within this threshold contribute to the score"
+              "for vector sampling"
+      .type = float(value_min=0.001, value_max=0.5, allow_none=True)
+    dist3 = 0.15
+      .help = "Reciprocal spots within this threshold contribute to the score"
+              "for cell sampling"
+      .type = float(value_min=0.001, value_max=0.8, allow_none=True)
+    num_halfsphere_points = 32768
+      .help = "Number of sampling points on the half sphere"
+      .type = int(value_min=8000, allow_none=True)
+    max_dist = 0.00075
+      .help = "Maximum final distance between measured and calculated"
+              "reciprocal spot"
+      .type = float(value_min=0, allow_none=True)
+    min_spots = 8
+      .help = "Minimum number of reciprocal spots within distance max_dist"
+      .type = int(value_min=6, allow_none=True)
+    method = *ifssr ifss ifse raw
+      .help = "Refinement method (consult algorithm description)"
+      .type = choice
+    triml = 0.001
+      .help = "lower trimming value for intermediate score calculations"
+      .type = float(value_min=0, value_max=0.5, allow_none=True)
+    trimh = 0.3
+      .help = "higher trimming value for intermediate score calculations"
+      .type = float(value_min=0, value_max=0.5, allow_none=True)
+    delta = 0.1
+      .help = "log2 curve position for intermediate score calculations, lower"
+              "values will me more selective in choosing close spots"
+      .type = float(value_min=1e-06, allow_none=True)
+    simple_data_filename = None
+      .help = "Optional filename for the output of a simple data file for"
+              "debugging"
+      .type = path
+      .expert_level = 2
+  }
+  low_res_spot_match
+    .help = "A lattice search strategy that matches low resolution spots to"
+            "candidate indices based on a known unit cell and space group."
+            "Designed primarily for electron diffraction still images."
+    .expert_level = 1
+  {
+    candidate_spots {
+      limit_resolution_by = *n_spots d_min
+        .type = choice
+      d_min = 15.0
+        .type = float(value_min=0, allow_none=True)
+      n_spots = 10
+        .type = int(allow_none=True)
+      d_star_tolerance = 4.0
+        .help = "Number of sigmas from the centroid position for which to "
+                "calculate d* bands"
+        .type = float(allow_none=True)
+    }
+    use_P1_indices_as_seeds = False
+      .type = bool
+    search_depth = *triplets quads
+      .type = choice
+    bootstrap_crystal = False
+      .type = bool
+    max_pairs = 200
+      .type = int(allow_none=True)
+    max_triplets = 600
+      .type = int(allow_none=True)
+    max_quads = 600
+      .type = int(allow_none=True)
+  }
+  pink_indexer
+    .help = "A lattice search strategy that matches low resolution spots to"
+            "candidate indices based on a known unit cell and space group. It"
+            "supports mono and polychromatic beams."
+    .expert_level = 1
+  {
+    max_refls = 50
+      .help = "Maximum number of reflections to consider indexing"
+      .type = int(value_min=10, allow_none=True)
+    wavelength = None
+      .help = "The peak wavelength"
+      .type = float(value_min=0, allow_none=True)
+    percent_bandwidth = 1.
+      .help = "The percent bandwidth used to calculate the wavelength range"
+              "for indexing. The wavelength range is defined (wavelength -"
+              "wavelength*percent_bandwidth/200, wavelength +"
+              "wavelength*percent_bandwidth/200). This parameter also reflects"
+              "the uncertainty of the supplied cell constants with larger"
+              "values appropriate for less certain unit cells."
+      .type = float(value_min=0, allow_none=True)
+    rotogram_grid_points = 180
+      .help = "Number of points at which to evaluate the angle search for each"
+              "rlp-observation pair"
+      .type = int(value_min=10, value_max=1000, allow_none=True)
+    voxel_grid_points = 150
+      .help = "Controls the number of voxels onto which the rotograms are"
+              "discretized"
+      .type = int(value_min=10, value_max=1000, allow_none=True)
+    min_lattices = 1
+      .help = "The minimum number of candidate lattices to generate."
+      .type = int(value_min=1, value_max=100, allow_none=True)
+  }
+}
+refinement
+  .help = "Parameters to configure the refinement"
+{
+  mp
+    .expert_level = 2
+  {
+    nproc = 1
+      .help = "The number of processes to use. Not all choices of refinement"
+              "engine support nproc > 1. Where multiprocessing is possible, it"
+              "is helpful only in certain circumstances, so this is not"
+              "recommended for typical use."
+      .type = int(value_min=1, allow_none=True)
+  }
+  parameterisation
+    .help = "Parameters to control the parameterisation of experimental models"
+  {
+    auto_reduction
+      .help = "determine behaviour when there are too few reflections to"
+              "reasonably produce a full parameterisation of the experiment"
+              "list"
+      .expert_level = 1
+    {
+      min_nref_per_parameter = 1
+        .help = "the smallest number of reflections per parameter for a model"
+                "parameterisation below which the parameterisation will not be"
+                "made in full, but the action described below will be"
+                "triggered."
+        .type = int(value_min=1, allow_none=True)
+      action = fail *fix remove
+        .help = "action to take if there are too few reflections across the"
+                "experiments related to a particular model parameterisation."
+                "If fail, an exception will be raised and refinement will not"
+                "proceed. If fix, refinement will continue but with the"
+                "parameters relating to that model remaining fixed at their"
+                "initial values. If remove, parameters relating to that model"
+                "will be fixed, and in addition all reflections related to"
+                "that parameterisation will be removed. This will therefore"
+                "remove these reflections from other parameterisations of the"
+                "global model too. For example, if a crystal model could not"
+                "be parameterised it will be excised completely and not"
+                "contribute to the joint refinement of the detector and beam."
+                "In the fix mode, reflections emanating from that crystal will"
+                "still form residuals and will contribute to detector and beam"
+                "refinement."
+        .type = choice
+    }
+    scan_varying = False
+      .help = "Allow models that are not forced to be static to vary during"
+              "the scan, Auto will run one macrocycle with static then scan"
+              "varying refinement for the crystal"
+      .short_caption = "Scan-varying refinement"
+      .type = bool
+    interval_width_degrees = None
+      .help = "Overall default value of the width of scan between checkpoints"
+              "in degrees for scan-varying refinement. If set to None, each"
+              "model will use its own specified value."
+      .type = float(value_min=0, allow_none=True)
+    compose_model_per = image *block
+      .help = "For scan-varying parameterisations, compose a new model either"
+              "every image or within blocks of a width specified in the"
+              "reflections parameters. When this block width is larger than"
+              "the image width the result is faster, with a trade-off in"
+              "accuracy"
+      .type = choice
+      .expert_level = 1
+    block_width = 1.0
+      .help = "Width of a reflection 'block' (in degrees) determining how"
+              "fine- grained the model used for scan-varying prediction during"
+              "refinement is. Currently only has any effect if the crystal"
+              "parameterisation is set to use compose_model_per=block"
+      .type = float(value_min=0, allow_none=True)
+      .expert_level = 1
+    set_scan_varying_errors = False
+      .help = "If scan-varying refinement is done, and if the estimated"
+              "covariance of the model states have been calculated by the"
+              "minimiser, choose whether to return this to the models or not."
+              "The default is not to, in order to keep the file size of the"
+              "serialized model small. At the moment, this only has an effect"
+              "for crystal unit cell (B matrix) errors."
+      .type = bool
+    trim_scan_to_observations = True
+      .help = "For scan-varying refinement, trim scan objects to the range of"
+              "observed reflections. This avoids failures in refinement for"
+              "cases where the extremes of scans contain no data, such as when"
+              "the crystal moves out of the beam."
+      .type = bool
+      .expert_level = 1
+    debug_centroid_analysis = False
+      .help = "Set True to write out a file containing the reflections used"
+              "for centroid analysis for automatic setting of the "
+              "scan-varying interval width. This can then be analysed with"
+              "dev.dials.plot_centroid_analysis (requires dials_scratch"
+              "repository)."
+      .type = bool
+      .expert_level = 2
+    beam
+      .help = "beam parameters"
+    {
+      fix = *all in_spindle_plane out_spindle_plane wavelength
+        .help = "Whether to fix beam parameters. By default, in_spindle_plane"
+                "is selected, and one of the two parameters is fixed. If a"
+                "goniometer is present this leads to the beam orientation"
+                "being restricted to a direction in the initial spindle-beam"
+                "plane. Wavelength is also fixed by default, to allow"
+                "refinement of the unit cell volume."
+        .short_caption = "Fix beam parameters"
+        .type = choice(multi=True)
+      fix_list = None
+        .help = "Fix specified parameters by a list of 0-based indices or"
+                "partial names to match"
+        .type = strings
+        .expert_level = 1
+      constraints
+        .help = "Parameter equal shift constraints to use in refinement."
+        .multiple = True
+        .expert_level = 2
+      {
+        id = None
+          .help = "Select only the specified experiments when looking up which"
+                  "parameterisations to apply the constraint to. If an"
+                  "identified parameterisation affects multiple experiments"
+                  "then the index of any one of those experiments suffices to"
+                  "identify that parameterisation. If None (the default) then"
+                  "constraints will be applied to all parameterisations of"
+                  "this type."
+          .type = ints(value_min=0)
+        parameter = None
+          .help = "Identify which parameter of each parameterisation to"
+                  "constrain by a (partial) parameter name to match. Model"
+                  "name prefixes such as 'Detector1' will be ignored as"
+                  "parameterisations are already identified by experiment id"
+          .type = str
+      }
+      force_static = True
+        .help = "Force a static parameterisation for the beam when doing"
+                "scan-varying refinement"
+        .type = bool
+        .expert_level = 1
+      smoother
+        .help = "Options that affect scan-varying parameterisation"
+        .expert_level = 1
+      {
+        interval_width_degrees = 36.0
+          .help = "Width of scan between checkpoints in degrees. Can be set to"
+                  "Auto."
+          .type = float(value_min=0, allow_none=True)
+        absolute_num_intervals = None
+          .help = "Number of intervals between checkpoints if scan_varying"
+                  "refinement is requested. If set, this overrides"
+                  "interval_width_degrees"
+          .type = int(value_min=1, allow_none=True)
+      }
+    }
+    crystal
+      .help = "crystal parameters"
+    {
+      fix = all cell orientation
+        .help = "Fix crystal parameters"
+        .short_caption = "Fix crystal parameters"
+        .type = choice
+      unit_cell
+        .expert_level = 1
+      {
+        fix_list = None
+          .help = "Fix specified parameters by a list of 0-based indices or"
+                  "partial names to match"
+          .type = strings
+          .expert_level = 1
+        restraints
+          .help = "Least squares unit cell restraints to use in refinement."
+          .expert_level = 1
+        {
+          tie_to_target
+            .multiple = True
+          {
+            values = None
+              .help = "Target unit cell parameters for the restraint for this"
+                      "parameterisation"
+              .type = floats(size=6)
+            sigmas = None
+              .help = "The unit cell target values are associated with sigmas"
+                      "which are used to determine the weight of each"
+                      "restraint. A sigma of zero will remove the restraint at"
+                      "that position. If symmetry constrains two cell"
+                      "dimensions to be equal then only the smaller of the two"
+                      "sigmas will be kept"
+              .type = floats(size=6, value_min=0)
+            id = None
+              .help = "Select only the specified experiments when looking up"
+                      "which parameterisations to apply these restraints to."
+                      "If an identified parameterisation affects multiple"
+                      "experiments then the index of any one of those"
+                      "experiments suffices to restrain that parameterisation."
+                      "If None (the default) then the restraints will be"
+                      "applied to all experiments."
+              .type = ints(value_min=0)
+          }
+          tie_to_group
+            .multiple = True
+          {
+            target = *mean low_memory_mean median
+              .help = "Function to tie group parameter values to"
+              .type = choice
+            sigmas = None
+              .help = "The unit cell parameters are associated with sigmas"
+                      "which are used to determine the weight of each"
+                      "restraint. A sigma of zero will remove the restraint at"
+                      "that position."
+              .type = floats(size=6, value_min=0)
+            id = None
+              .help = "Select only the specified experiments when looking up"
+                      "which  parameterisations to apply these restraints to."
+                      "For every parameterisation that requires a restraint at"
+                      "least one experiment index must be supplied. If None"
+                      "(the default) the restraints will be applied to all"
+                      "experiments."
+              .type = ints(value_min=0)
+          }
+        }
+        constraints
+          .help = "Parameter equal shift constraints to use in refinement."
+          .multiple = True
+          .expert_level = 2
+        {
+          id = None
+            .help = "Select only the specified experiments when looking up"
+                    "which parameterisations to apply the constraint to. If an"
+                    "identified parameterisation affects multiple experiments"
+                    "then the index of any one of those experiments suffices"
+                    "to identify that parameterisation. If None (the default)"
+                    "then constraints will be applied to all parameterisations"
+                    "of this type."
+            .type = ints(value_min=0)
+          parameter = None
+            .help = "Identify which parameter of each parameterisation to"
+                    "constrain by a (partial) parameter name to match. Model"
+                    "name prefixes such as 'Detector1' will be ignored as"
+                    "parameterisations are already identified by experiment id"
+            .type = str
+        }
+        force_static = False
+          .help = "Force a static parameterisation for the crystal unit cell"
+                  "when doing scan-varying refinement"
+          .type = bool
+          .expert_level = 1
+        smoother
+          .help = "Options that affect scan-varying parameterisation"
+          .expert_level = 1
+        {
+          interval_width_degrees = 36.0
+            .help = "Width of scan between checkpoints in degrees. Can be set"
+                    "to Auto."
+            .type = float(value_min=0, allow_none=True)
+          absolute_num_intervals = None
+            .help = "Number of intervals between checkpoints if scan_varying"
+                    "refinement is requested. If set, this overrides"
+                    "interval_width_degrees"
+            .type = int(value_min=1, allow_none=True)
+        }
+      }
+      orientation
+        .expert_level = 1
+      {
+        fix_list = None
+          .help = "Fix specified parameters by a list of 0-based indices or"
+                  "partial names to match"
+          .type = strings
+          .expert_level = 1
+        constraints
+          .help = "Parameter equal shift constraints to use in refinement."
+          .multiple = True
+          .expert_level = 2
+        {
+          id = None
+            .help = "Select only the specified experiments when looking up"
+                    "which parameterisations to apply the constraint to. If an"
+                    "identified parameterisation affects multiple experiments"
+                    "then the index of any one of those experiments suffices"
+                    "to identify that parameterisation. If None (the default)"
+                    "then constraints will be applied to all parameterisations"
+                    "of this type."
+            .type = ints(value_min=0)
+          parameter = None
+            .help = "Identify which parameter of each parameterisation to"
+                    "constrain by a (partial) parameter name to match. Model"
+                    "name prefixes such as 'Detector1' will be ignored as"
+                    "parameterisations are already identified by experiment id"
+            .type = str
+        }
+        force_static = False
+          .help = "Force a static parameterisation for the crystal orientation"
+                  "when doing scan-varying refinement"
+          .type = bool
+          .expert_level = 1
+        smoother
+          .help = "Options that affect scan-varying parameterisation"
+          .expert_level = 1
+        {
+          interval_width_degrees = 36.0
+            .help = "Width of scan between checkpoints in degrees. Can be set"
+                    "to Auto."
+            .type = float(value_min=0, allow_none=True)
+          absolute_num_intervals = None
+            .help = "Number of intervals between checkpoints if scan_varying"
+                    "refinement is requested. If set, this overrides"
+                    "interval_width_degrees"
+            .type = int(value_min=1, allow_none=True)
+        }
+      }
+    }
+    detector
+      .help = "detector parameters"
+    {
+      panels = *automatic single multiple hierarchical
+        .help = "Select appropriate detector parameterisation. Both the single"
+                "and multiple panel detector options treat the whole detector"
+                "as a rigid body. The hierarchical parameterisation treats"
+                "groups of panels as separate rigid bodies."
+        .type = choice
+        .expert_level = 1
+      hierarchy_level = 0
+        .help = "Level of the detector hierarchy (starting from the root at 0)"
+                "at which to determine panel groups to parameterise"
+                "independently"
+        .type = int(value_min=0, allow_none=True)
+        .expert_level = 1
+      fix = *all position orientation distance
+        .help = "Fix detector parameters. The translational parameters"
+                "(position) may be set separately to the orientation."
+        .short_caption = "Fix detector parameters"
+        .type = choice
+      fix_list = None
+        .help = "Fix specified parameters by a list of 0-based indices or"
+                "partial names to match"
+        .type = strings
+        .expert_level = 1
+      constraints
+        .help = "Parameter equal shift constraints to use in refinement."
+        .multiple = True
+        .expert_level = 2
+      {
+        id = None
+          .help = "Select only the specified experiments when looking up which"
+                  "parameterisations to apply the constraint to. If an"
+                  "identified parameterisation affects multiple experiments"
+                  "then the index of any one of those experiments suffices to"
+                  "identify that parameterisation. If None (the default) then"
+                  "constraints will be applied to all parameterisations of"
+                  "this type."
+          .type = ints(value_min=0)
+        parameter = None
+          .help = "Identify which parameter of each parameterisation to"
+                  "constrain by a (partial) parameter name to match. Model"
+                  "name prefixes such as 'Detector1' will be ignored as"
+                  "parameterisations are already identified by experiment id"
+          .type = str
+      }
+      force_static = True
+        .help = "Force a static parameterisation for the detector when doing"
+                "scan-varying refinement"
+        .type = bool
+        .expert_level = 1
+      smoother
+        .help = "Options that affect scan-varying parameterisation"
+        .expert_level = 1
+      {
+        interval_width_degrees = 36.0
+          .help = "Width of scan between checkpoints in degrees. Can be set to"
+                  "Auto."
+          .type = float(value_min=0, allow_none=True)
+        absolute_num_intervals = None
+          .help = "Number of intervals between checkpoints if scan_varying"
+                  "refinement is requested. If set, this overrides"
+                  "interval_width_degrees"
+          .type = int(value_min=1, allow_none=True)
+      }
+    }
+    goniometer
+      .help = "goniometer setting matrix parameters"
+    {
+      fix = *all in_beam_plane out_beam_plane
+        .help = "Whether to fix goniometer parameters. By default, fix all."
+                "Alternatively the setting matrix can be constrained to allow"
+                "rotation only within the spindle-beam plane or to allow"
+                "rotation only around an axis that lies in that plane. Set to"
+                "None to refine the in two orthogonal directions."
+        .short_caption = "Fix goniometer parameters"
+        .type = choice(multi=True)
+      fix_list = None
+        .help = "Fix specified parameters by a list of 0-based indices or"
+                "partial names to match"
+        .type = strings
+        .expert_level = 1
+      constraints
+        .help = "Parameter equal shift constraints to use in refinement."
+        .multiple = True
+        .expert_level = 2
+      {
+        id = None
+          .help = "Select only the specified experiments when looking up which"
+                  "parameterisations to apply the constraint to. If an"
+                  "identified parameterisation affects multiple experiments"
+                  "then the index of any one of those experiments suffices to"
+                  "identify that parameterisation. If None (the default) then"
+                  "constraints will be applied to all parameterisations of"
+                  "this type."
+          .type = ints(value_min=0)
+        parameter = None
+          .help = "Identify which parameter of each parameterisation to"
+                  "constrain by a (partial) parameter name to match. Model"
+                  "name prefixes such as 'Detector1' will be ignored as"
+                  "parameterisations are already identified by experiment id"
+          .type = str
+      }
+      force_static = True
+        .help = "Force a static parameterisation for the goniometer when doing"
+                "scan-varying refinement"
+        .type = bool
+        .expert_level = 1
+      smoother
+        .help = "Options that affect scan-varying parameterisation"
+        .expert_level = 1
+      {
+        interval_width_degrees = 36.0
+          .help = "Width of scan between checkpoints in degrees. Can be set to"
+                  "Auto."
+          .type = float(value_min=0, allow_none=True)
+        absolute_num_intervals = None
+          .help = "Number of intervals between checkpoints if scan_varying"
+                  "refinement is requested. If set, this overrides"
+                  "interval_width_degrees"
+          .type = int(value_min=1, allow_none=True)
+      }
+    }
+    sparse = Auto
+      .help = "Calculate gradients using sparse data structures."
+      .type = bool
+      .expert_level = 1
+    treat_single_image_as_still = False
+      .help = "Set this to True to treat a single image scan with a non zero"
+              "oscillation width as a still"
+      .type = bool
+      .expert_level = 1
+    spherical_relp_model = False
+      .help = "For stills refinement, set true to use the spherical relp model"
+              "for prediction and gradients."
+      .type = bool
+      .expert_level = 1
+  }
+  refinery
+    .help = "Parameters to configure the refinery"
+    .expert_level = 1
+  {
+    engine = SimpleLBFGS LBFGScurvs GaussNewton *LevMar SparseLevMar
+      .help = "The minimisation engine to use"
+      .type = choice
+    max_iterations = None
+      .help = "Maximum number of iterations in refinement before termination."
+              "None implies the engine supplies its own default."
+      .type = int(value_min=1, allow_none=True)
+    log = None
+      .help = "Filename for an optional log that a minimisation engine may use"
+              "to write additional information"
+      .type = path
+    journal
+      .help = "Extra items to track in the refinement history"
+    {
+      track_step = False
+        .help = "Record parameter shifts history in the refinement journal, if"
+                "the engine supports it."
+        .type = bool
+      track_gradient = False
+        .help = "Record parameter gradients history in the refinement journal,"
+                "if the engine supports it."
+        .type = bool
+      track_parameter_correlation = False
+        .help = "Record correlation matrix between columns of the Jacobian for"
+                "each step of refinement."
+        .type = bool
+      track_jacobian_structure = False
+        .help = "Record numbers of explicit and structural zeroes in each"
+                "column of the Jacobian at each step of refinement."
+        .type = bool
+      track_condition_number = False
+        .help = "Record condition number of the Jacobian for each step of "
+                "refinement."
+        .type = bool
+      track_normal_matrix = False
+        .help = "Record the full normal matrix at each step of refinement"
+        .type = bool
+      track_out_of_sample_rmsd = False
+        .help = "Record RMSDs calculated using the refined experiments with"
+                "reflections not used in refinement at each step. Only valid"
+                "if a subset of input reflections was taken for refinement"
+        .type = bool
+    }
+  }
+  target
+    .help = "Parameters to configure the target function"
+    .expert_level = 1
+  {
+    rmsd_cutoff = *fraction_of_bin_size absolute
+      .help = "Method to choose rmsd cutoffs. This is currently either as a"
+              "fraction of the discrete units of the spot positional data,"
+              "i.e. (pixel width, pixel height, image thickness in phi), or a"
+              "tuple of absolute values to use as the cutoffs"
+      .type = choice
+    bin_size_fraction = 0.0
+      .help = "Set this to a fractional value, say 0.2, to make a cut off in"
+              "the natural discrete units of positional data, viz., (pixel"
+              "width, pixel height, image thickness in phi). This would then"
+              "determine when the RMSD target is achieved. Only used if"
+              "rmsd_cutoff = fraction_of_bin_size."
+      .type = float(value_min=0, allow_none=True)
+    absolute_cutoffs = None
+      .help = "Absolute Values for the RMSD target achieved cutoffs in X, Y"
+              "and Phi. The units are (mm, mm, rad)."
+      .type = floats(size=3, value_min=0)
+    gradient_calculation_blocksize = None
+      .help = "Maximum number of reflections to use for gradient calculation."
+              "If there are more reflections than this in the manager then the"
+              "minimiser must do the full calculation in blocks."
+      .type = int(value_min=1, allow_none=True)
+  }
+  reflections
+    .help = "Parameters used by the reflection manager"
+  {
+    reflections_per_degree = Auto
+      .help = "The number of centroids per degree of the sequence to use in"
+              "refinement. The default (Auto) uses all reflections unless the"
+              "dataset is wider than a single turn. Then the number of"
+              "reflections may be reduced until a minimum of 100 per degree of"
+              "the sequence is reached to speed up calculations. Set this to"
+              "None to force use all of suitable reflections."
+      .type = float(value_min=0, allow_none=True)
+      .expert_level = 1
+    minimum_sample_size = 1000
+      .help = "cutoff that determines whether subsetting of the input"
+              "reflection list is done"
+      .type = int(allow_none=True)
+      .expert_level = 1
+    maximum_sample_size = None
+      .help = "The maximum number of reflections to use in refinement."
+              "Overrides reflections_per_degree if that produces a larger"
+              "sample size."
+      .type = int(value_min=1, allow_none=True)
+      .expert_level = 1
+    random_seed = 42
+      .help = "Random seed to use when sampling to create a working set of"
+              "reflections. May be int or None."
+      .type = int(allow_none=True)
+      .expert_level = 1
+    close_to_spindle_cutoff = 0.02
+      .help = "The inclusion criterion currently uses the volume of the"
+              "parallelepiped formed by the spindle axis, the incident beam"
+              "and the scattered beam. If this is lower than some value then"
+              "the reflection is excluded from refinement. In detector space,"
+              "these are the reflections located close to the rotation axis."
+      .type = float(value_min=0, allow_none=True)
+      .expert_level = 1
+    scan_margin = 0.0
+      .help = "Reflections within this value in degrees from the centre of the"
+              "first or last image of the scan will be removed before"
+              "refinement, unless doing so would result in too few remaining"
+              "reflections. Reflections that are truncated at the scan edges"
+              "have poorly-determined centroids and can bias the refined model"
+              "if they are included."
+      .type = float(value_min=0, value_max=5, allow_none=True)
+      .expert_level = 1
+    weighting_strategy
+      .help = "Parameters to configure weighting strategy overrides"
+      .expert_level = 1
+    {
+      override = statistical *stills constant external_deltapsi
+        .help = "selection of a strategy to override default weighting"
+                "behaviour"
+        .type = choice
+      delpsi_constant = 1000000
+        .help = "used by the stills strategy to choose absolute weight value"
+                "for the angular distance from Ewald sphere term of the target"
+                "function, whilst the X and Y parts use statistical weights"
+        .type = float(value_min=0, allow_none=True)
+      constants = 1.0 1.0 1.0
+        .help = "constant weights for three parts of the target function,"
+                "whether the case is for stills or scans. The default gives"
+                "unit weighting."
+        .type = floats(size=3, value_min=0)
+      wavelength_weight = 1e4
+        .help = "Weight for the wavelength term in the target function for"
+                "Laue refinement"
+        .type = float(value_min=0, allow_none=True)
+    }
+    outlier
+      .help = "Outlier rejection after initial reflection prediction."
+    {
+      algorithm = null *auto mcd tukey sauter_poon
+        .help = "Outlier rejection algorithm. If auto is selected, the"
+                "algorithm is chosen automatically."
+        .short_caption = "Outlier rejection algorithm"
+        .type = choice
+      nproc = 1
+        .help = "Number of processes over which to split outlier"
+                "identification. If set to Auto, DIALS will choose"
+                "automatically."
+        .type = int(value_min=1, allow_none=True)
+        .expert_level = 1
+      minimum_number_of_reflections = 20
+        .help = "The minimum number of input observations per outlier"
+                "rejection job below which all reflections in the job will be"
+                "rejected as potential outliers."
+        .type = int(value_min=0, allow_none=True)
+        .expert_level = 1
+      separate_experiments = True
+        .help = "If true, outlier rejection will be performed on each"
+                "experiment separately. Otherwise, the data from all"
+                "experiments will be combined for outlier rejection."
+        .type = bool
+        .expert_level = 1
+      separate_panels = False
+        .help = "Perform outlier rejection separately for each panel of a"
+                "multi- panel detector model. Otherwise data from across all"
+                "panels will be combined for outlier rejection."
+        .type = bool
+        .expert_level = 1
+      separate_blocks = True
+        .help = "If true, for scans outlier rejection will be performed"
+                "separately in equal-width blocks of phi, controlled by the"
+                "parameter outlier.block_width."
+        .type = bool
+        .expert_level = 1
+      block_width = Auto
+        .help = "If separate_blocks, a scan will be divided into equal-sized"
+                "blocks with width (in degrees) close to this value for"
+                "outlier rejection. If Auto, a width of at least 18 degrees"
+                "will be determined, such that each block contains enough"
+                "reflections to perform outlier rejection."
+        .type = float(value_min=1, allow_none=True)
+        .expert_level = 1
+      separate_images = False
+        .help = "If true, every image will be treated separately for outlier"
+                "rejection. It is a special case that will override both"
+                "separate_experiments and separate_blocks, and will set these"
+                "to False if required."
+        .type = bool
+        .expert_level = 2
+      tukey
+        .help = "Options for the tukey outlier rejector"
+        .expert_level = 1
+      {
+        iqr_multiplier = 1.5
+          .help = "The IQR multiplier used to detect outliers. A value of 1.5"
+                  "gives Tukey's rule for outlier detection"
+          .type = float(value_min=0, allow_none=True)
+      }
+      mcd
+        .help = "Options for the mcd outlier rejector, which uses an algorithm"
+                "based on FAST-MCD by Rousseeuw and van Driessen. See"
+                "doi.org/10.1080/00401706.1999.10485670."
+        .expert_level = 1
+      {
+        positional_coordinates = *auto xy radial_transverse \
+                                 deltatt_transverse
+          .help = "Whether to use xy spot coordinates in image space,"
+                  "radial/transverse spot coordinates relative to the beam"
+                  "vector, or a mix of delta two theta and transverse"
+                  "coordinates."
+          .type = choice
+        rotational_coordinates = *auto null phi deltapsi delpsidstar
+          .help = "Whether to use phi rotation, delta psi angle, or deltapsi"
+                  "normalized by resolution as coordinates. Null means only"
+                  "use positional_coordinates."
+          .type = choice
+        alpha = 0.5
+          .help = "Decimal fraction controlling the size of subsets over which"
+                  "the covariance matrix determinant is minimised."
+          .type = float(value_min=0, value_max=1, allow_none=True)
+        max_n_groups = 5
+          .help = "The maximum number of groups to split the dataset into if"
+                  "the dataset is 'large' (more observations than twice the"
+                  "min_group_size)."
+          .type = int(value_min=1, allow_none=True)
+        min_group_size = 300
+          .help = "The smallest sub-dataset size when splitting the dataset"
+                  "into a number of groups, maximally max_n_groups."
+          .type = int(value_min=100, allow_none=True)
+        n_trials = 500
+          .help = "The number of samples used for initial estimates to seed"
+                  "the search within each sub-dataset."
+          .type = int(value_min=1, allow_none=True)
+        k1 = 2
+          .help = "The number of concentration steps to take after initial"
+                  "estimates."
+          .type = int(value_min=1, allow_none=True)
+        k2 = 2
+          .help = "If the dataset is 'large', the number of concentration"
+                  "steps to take after applying the best subset estimates to"
+                  "the merged group."
+          .type = int(value_min=1, allow_none=True)
+        k3 = 100
+          .help = "If the dataset is 'small', the number of concentration"
+                  "steps to take after selecting the best of the initial"
+                  "estimates, applied to the whole dataset."
+          .type = int(value_min=1, allow_none=True)
+        threshold_probability = 0.975
+          .help = "Quantile probability from the Chi-squared distribution with"
+                  "number of degrees of freedom equal to the number of"
+                  "dimensions of the data data (e.g. 3 for X, Y and Phi"
+                  "residuals). Observations whose robust Mahalanobis distances"
+                  "are larger than the obtained quantile will be flagged as"
+                  "outliers."
+          .type = float(value_min=0, value_max=1, allow_none=True)
+      }
+      sauter_poon
+        .help = "Options for the outlier rejector described in Sauter & Poon"
+                "(2010) (https://doi.org/10.1107/S0021889810010782)"
+        .expert_level = 1
+      {
+        px_sz = Auto
+          .help = "X, Y pixel size in mm. If Auto, this will be taken from the"
+                  "first panel of the first experiment."
+          .type = floats(size=2, value_min=0.001)
+        verbose = False
+          .help = "Verbose output."
+          .type = bool
+          .multiple = False
+        pdf = None
+          .help = "Output file name for making graphs of |dr| vs spot number"
+                  "and dy vs dx."
+          .type = str
+          .multiple = False
+      }
+    }
+  }
+}
+integration {
+  lookup
+    .help = "Parameters specifying lookup file path"
+  {
+    mask = None
+      .help = "The path to the mask file."
+      .type = str
+  }
+  block {
+    size = auto
+      .help = "The block size in rotation angle (degrees)."
+      .type = float(allow_none=True)
+    units = *degrees radians frames
+      .help = "The units of the block size"
+      .type = choice
+    threshold = 0.95
+      .help = "For block size auto the block size is calculated by sorting"
+              "reflections by the number of frames they cover and then"
+              "selecting the block size to be 2*nframes[threshold] such that"
+              "100*threshold % of reflections are guaranteed to be fully"
+              "contained in 1 block"
+      .type = float(value_min=0, value_max=1, allow_none=True)
+    force = False
+      .help = "If the number of processors is 1 and force is False, then the"
+              "number of blocks may be set to 1. If force is True then the"
+              "block size is always calculated."
+      .type = bool
+    max_memory_usage = 0.90
+      .help = "The maximum percentage of available memory to use for"
+              "allocating shoebox arrays."
+      .type = float(value_min=0, value_max=1, allow_none=True)
+  }
+  use_dynamic_mask = True
+    .help = "Use dynamic mask if available"
+    .type = bool
+  debug {
+    reference {
+      filename = "reference_profiles.refl"
+        .help = "The filename for the reference profiles"
+        .type = str
+      output = False
+        .help = "Save the reference profiles"
+        .type = bool
+    }
+    during = modelling *integration
+      .help = "Do debugging during modelling or integration"
+      .type = choice
+    output = False
+      .help = "Save shoeboxes after each processing task."
+      .type = bool
+    separate_files = True
+      .help = "If this is true, the shoeboxes are saved in separate files from"
+              "the output integrated.refl file. This is necessary in most"
+              "cases since the amount of memory used by the shoeboxes is"
+              "typically greater than the available system memory. If,"
+              "however, you know that memory is not an issue, you can saved"
+              "the shoeboxes in the integrated.refl file by setting this"
+              "option to False. This only works if the debug output is during"
+              "integrated and not modelling."
+      .type = bool
+    delete_shoeboxes = False
+      .help = "Delete shoeboxes immediately before saving files. This option"
+              "in combination with debug.output=True enables intermediate"
+              "processing steps to make use of shoeboxes."
+      .type = bool
+    select = None
+      .help = "A string specifying the selection. The string should be of the"
+              "form: select=${COLUMN}[<|<=|==|!=|>=|>]${VALUE}. In addition to"
+              "the items in the reflection table, the following implicit"
+              "columns are defined if the necessary data is there: "
+              "intensity.sum.i_over_sigma  intensity.prf.i_over_sigma"
+      .type = reflection_table_selector
+    split_experiments = True
+      .help = "Split shoeboxes into different files"
+      .type = bool
+  }
+  profile {
+    fitting = False
+      .help = "Use profile fitting if available"
+      .type = bool
+    valid_foreground_threshold = 0.75
+      .help = "The minimum fraction of foreground pixels that must be valid in"
+              "order for a reflection to be integrated by profile fitting."
+      .type = float(value_min=0, value_max=1, allow_none=True)
+      .expert_level = 2
+    validation {
+      number_of_partitions = 1
+        .help = "The number of subsamples to take from the reference spots. If"
+                "the value is 1, then no validation is performed."
+        .type = int(value_min=1, allow_none=True)
+      min_partition_size = 100
+        .help = "The minimum number of spots to use in each subsample."
+        .type = int(value_min=1, allow_none=True)
+    }
+  }
+  filter
+    .expert_level = 1
+  {
+    min_zeta = 0.05
+      .help = "Filter the reflections by the value of zeta. A value of less"
+              "than or equal to zero indicates that this will not be used. A"
+              "positive value is used as the minimum permissible value."
+      .type = float(value_min=0, value_max=1, allow_none=True)
+    ice_rings = False
+      .help = "Set the ice ring flags"
+      .type = bool
+  }
+  overlaps_filter {
+    foreground_foreground {
+      enable = False
+        .help = "Remove all spots in which neighbors' foreground impinges on"
+                "the spot's foreground"
+        .type = bool
+    }
+    foreground_background {
+      enable = False
+        .help = "Remove all spots in which neighbors' foreground impinges on"
+                "the spot's background"
+        .type = bool
+    }
+  }
+  mp {
+    method = *multiprocessing drmaa sge lsf pbs
+      .help = "The multiprocessing method to use"
+      .type = choice
+    njobs = 1
+      .help = "The number of cluster jobs to use"
+      .type = int(value_min=1, allow_none=True)
+    nproc = 1
+      .help = "The number of processes to use per cluster job"
+      .type = int(value_min=1, allow_none=True)
+    multiprocessing.n_subset_split = None
+      .help = "Number of subsets to split the reflection table for"
+              "integration."
+      .type = int(value_min=1, allow_none=True)
+  }
+  summation {
+    detector_gain = 1
+      .help = "Multiplier for variances after integration of still images. See"
+              "Leslie 1999."
+      .type = float(allow_none=True)
+  }
+  background
+    .help = "Extensions for background algorithms."
+  {
+    algorithm = Auto glm gmodel null *simple
+      .help = "The choice of algorithm"
+      .type = choice
+    glm
+      .help = "An extension class implementing a robust GLM background"
+              "algorithm."
+    {
+      robust {
+        tuning_constant = 1.345
+          .help = "The tuning constant for robust estimation"
+          .type = float(allow_none=True)
+      }
+      model {
+        algorithm = constant2d *constant3d loglinear2d loglinear3d
+          .help = "The background model to fit"
+          .type = choice
+      }
+      min_pixels = 10
+        .help = "The minimum number of pixels required"
+        .type = int(value_min=1, allow_none=True)
+    }
+    gmodel
+      .help = "An extension class implementing a global background algorithm."
+    {
+      robust {
+        algorithm = False
+          .help = "Use the robust algorithm"
+          .type = bool
+        tuning_constant = 1.345
+          .help = "The tuning constant for robust estimation"
+          .type = float(allow_none=True)
+      }
+      min_pixels = 10
+        .help = "The minimum number of pixels required"
+        .type = int(value_min=1, allow_none=True)
+      model = None
+        .help = "The model filename"
+        .type = str
+    }
+    simple
+      .help = "An extension class implementing simple background subtraction."
+    {
+      outlier
+        .help = "Outlier rejection prior to background fit"
+      {
+        algorithm = null nsigma truncated normal *plane tukey
+          .help = "The outlier rejection algorithm."
+          .type = choice
+        nsigma
+          .help = "Parameters for nsigma outlier rejector"
+          .expert_level = 1
+        {
+          lower = 3
+            .help = "Lower n sigma"
+            .type = float(allow_none=True)
+          upper = 3
+            .help = "Upper n sigma"
+            .type = float(allow_none=True)
+        }
+        truncated
+          .help = "Parameters for truncated outlier rejector"
+          .expert_level = 1
+        {
+          lower = 0.01
+            .help = "Lower bound"
+            .type = float(allow_none=True)
+          upper = 0.01
+            .help = "Upper bound"
+            .type = float(allow_none=True)
+        }
+        normal
+          .help = "Parameters for normal outlier rejector"
+          .expert_level = 1
+        {
+          min_pixels = 10
+            .help = "The minimum number of pixels to use in calculating the"
+                    "background intensity."
+            .type = int(allow_none=True)
+        }
+        plane
+          .help = "Parameters for mosflm-like outlier rejector. This algorithm"
+                  "is mainly used in conjunction with a linear 2d background."
+          .expert_level = 1
+        {
+          fraction = 1.0
+            .help = "The fraction of pixels to use in determining the initial"
+                    "plane used for outlier rejection."
+            .type = float(allow_none=True)
+          n_sigma = 4.0
+            .help = "The number of standard deviations above the threshold"
+                    "plane to use in rejecting outliers from background"
+                    "calculation."
+            .type = float(allow_none=True)
+        }
+        tukey
+          .help = "Parameters for tukey outlier rejector"
+          .expert_level = 1
+        {
+          lower = 1.5
+            .help = "Lower IQR multiplier"
+            .type = float(allow_none=True)
+          upper = 1.5
+            .help = "Upper IQR multiplier"
+            .type = float(allow_none=True)
+        }
+      }
+      model
+        .help = "Background model"
+      {
+        algorithm = constant2d constant3d *linear2d linear3d
+          .help = "The choice of background model"
+          .type = choice
+      }
+      min_pixels = 10
+        .help = "The minimum number of pixels to compute the background"
+        .type = int(value_min=1, allow_none=True)
+    }
+  }
+  centroid
+    .help = "Extensions for centroid algorithms."
+  {
+    algorithm = *simple
+      .help = "The choice of algorithm"
+      .type = choice
+  }
+}
+profile
+  .help = "The interface definition for a profile model."
+{
+  algorithm = ellipsoid *gaussian_rs
+    .help = "The choice of algorithm"
+    .type = choice
+  ellipsoid
+    .help = "An extension class implementing a reciprocal space multivariate"
+            "normal profile model."
+  {
+    rlp_mosaicity {
+      model = simple1 *simple6 simple1angular1 simple1angular3 \
+              simple6angular1
+        .type = choice
+    }
+    wavelength_spread {
+      model = *delta
+        .type = choice
+    }
+    unit_cell {
+      fixed = False
+        .type = bool
+    }
+    orientation {
+      fixed = False
+        .type = bool
+    }
+    indexing {
+      fail_on_bad_index = False
+        .type = bool
+    }
+    refinement {
+      max_separation = 2
+        .type = float(allow_none=True)
+      outlier_probability = 0.975
+        .type = float(allow_none=True)
+      n_macro_cycles = 3
+        .type = int(allow_none=True)
+      n_cycles = 3
+        .type = int(allow_none=True)
+      min_n_reflections = 10
+        .type = int(allow_none=True)
+      max_iter = 100
+        .help = "Max number of iterations per refinement cycle"
+        .type = int(allow_none=True)
+      LL_tolerance = 1e-3
+        .help = "Convergence tolerance for log likelihood during refinement"
+        .type = float(allow_none=True)
+      mosaicity_max_limit = 0.004
+        .help = "Mosaicity values above this limit are considered unphysical"
+                "and processing will stop for the given image. Units are"
+                "inverse angstroms"
+        .type = float(allow_none=True)
+      max_cell_volume_change_fraction = 0.2
+        .help = "Processing will be stopped for a given image if the"
+                "fractional volume change is greater than this amount during a"
+                "cycle of cell refinement."
+        .type = float(allow_none=True)
+    }
+    prediction
+      .expert_level = 1
+    {
+      d_min = None
+        .type = float(allow_none=True)
+      probability = 0.997300
+        .type = float(allow_none=True)
+    }
+  }
+  gaussian_rs
+    .help = "An extension class implementing a reciprocal space gaussian"
+            "profile model."
+  {
+    scan_varying = False
+      .help = "Calculate a scan varying model"
+      .type = bool
+    min_spots
+      .help = "if (total_reflections > overall or reflections_per_degree >"
+              "per_degree) then do the profile modelling."
+    {
+      overall = 0
+        .help = "The minimum number of spots needed to do the profile"
+                "modelling"
+        .type = int(value_min=0, allow_none=True)
+      per_degree = 20
+        .help = "The minimum number of spots needed to do the profile"
+                "modelling"
+        .type = int(value_min=0, allow_none=True)
+    }
+    sigma_m_algorithm = basic *extended
+      .help = "The algorithm to compute mosaicity"
+      .type = choice
+    centroid_definition = com *s1
+      .help = "The centroid to use as beam divergence (centre of mass or s1)"
+      .type = choice
+    parameters {
+      n_sigma = 3.0
+        .help = "Sigma multiplier for shoebox"
+        .type = float(value_min=0, allow_none=True)
+      sigma_b = None
+        .help = "Override the sigma_b value (degrees)"
+        .type = float(value_min=0, allow_none=True)
+      sigma_m = None
+        .help = "Override the sigma_m value (degrees)"
+        .type = float(value_min=0, allow_none=True)
+    }
+    filter {
+      min_zeta = 0.05
+        .help = "Filter reflections by min zeta"
+        .type = float(allow_none=True)
+    }
+    fitting {
+      scan_step = 5
+        .help = "Space between profiles in degrees"
+        .type = float(allow_none=True)
+      grid_size = 5
+        .help = "The size of the profile grid."
+        .type = int(allow_none=True)
+      threshold = 0.02
+        .help = "The threshold to use in reference profile"
+        .type = float(allow_none=True)
+      grid_method = single *regular_grid circular_grid spherical_grid
+        .help = "Select the profile grid method"
+        .type = choice
+      fit_method = *reciprocal_space detector_space
+        .help = "The fitting method"
+        .type = choice
+      detector_space {
+        deconvolution = False
+          .help = "Do deconvolution in detector space"
+          .type = bool
+      }
+    }
+  }
+}
+prediction {
+  d_min = None
+    .help = "The maximum resolution limit"
+    .type = float(allow_none=True)
+  d_max = None
+    .help = "The minimum resolution limit"
+    .type = float(allow_none=True)
+  margin = 1
+    .help = "The margin to use to scan varying prediction"
+    .type = int(allow_none=True)
+  force_static = False
+    .help = "For scan-varying prediction force scan-static prediction"
+    .type = bool
+  padding = 1.0
+    .help = "The padding in degrees"
+    .type = float(value_min=0, allow_none=True)
+}
+significance_filter
+  .expert_level = 1
+{
+  enable = False
+    .help = "If enabled, the significance filter will, for every experiment,"
+            "find the highest resolution where the I/sigI remains above a"
+            "certain point (controlled by isigi_cutoff)."
+    .type = bool
+  d_min = None
+    .help = "High resolution cutoff for binning. If None, use the highest"
+            "resolution reflection as d_min."
+    .type = float(allow_none=True)
+  n_bins = 20
+    .help = "Number of bins to use when examining resolution falloff"
+    .type = int(allow_none=True)
+  isigi_cutoff = 1.0
+    .help = "I/sigI cutoff. Reflections in and past the first bin that falls"
+            "below this cutoff will not be retained"
+    .type = float(allow_none=True)
+}
+indexing {
+  stills {
+    method_list = None
+      .help = "List of indexing methods. If indexing fails with first method,"
+              "indexing will be attempted with the next, and so forth"
+      .type = strings
+    reflection_subsampling {
+      enable = False
+        .help = "Enable random subsampling of reflections during indexing."
+                "Attempts to index will be repeated with random subsampling of"
+                "spotfinder spots, starting at step_start % of total spots,"
+                "repeating n_attempts_per_step times per step, and decreasing"
+                "by step_size % until step_stop % is reached. With the"
+                "defaults, 26 total indexing attempts will be made, randomly"
+                "subsampling from 100% to 50% by 2 % steps, one attempt per"
+                "step."
+        .type = bool
+      step_start = 100
+        .help = "What percent of reflections to start with"
+        .type = int(allow_none=True)
+      step_stop = 50
+        .help = "What percent of reflections to end with"
+        .type = int(allow_none=True)
+      step_size = 2
+        .help = "What percent of reflections to decrease by per step"
+        .type = int(allow_none=True)
+      n_attempts_per_step = 1
+        .help = "How many attempts to make at each step"
+        .type = int(allow_none=True)
+      seed = 42
+        .help = "Random seed for sub-sampling"
+        .type = int(allow_none=True)
+    }
+    known_orientations = None
+      .help = "Paths to previous processing results including crystal"
+              "orientations. If specified, images will not be re-indexed, but"
+              "instead the known orientations will be used. Provide paths to"
+              "experiment list files, using wildcards as needed."
+      .type = path
+      .multiple = True
+      .expert_level = 2
+    require_known_orientation = False
+      .help = "If known_orientations are provided, and an orientation for an"
+              "image is not found, this is whether or not to attempt to index"
+              "the image from scratch using indexing.method"
+      .type = bool
+      .expert_level = 2
+  }
+}
+integration {
+  absorption_correction
+    .multiple = True
+  {
+    apply = False
+      .help = "must be supplied as a user-defined function with a specific"
+              "interface (not documented)"
+      .type = bool
+    algorithm = fuller_kapton kapton_2019 other
+      .help = "a specific absorption correction, or implementation thereof"
+              "kapton_2019 is a more general implementation of fuller_kapton"
+              "for use on single/multi-panel detectors"
+      .type = choice
+    fuller_kapton {
+      xtal_height_above_kapton_mm {
+        value = 0.02
+          .help = "height of the beam (or the irradiated crystal) above the"
+                  "kapton tape"
+          .type = float(allow_none=True)
+        sigma = 0.01
+          .type = float(allow_none=True)
+      }
+      rotation_angle_deg {
+        value = 1.15
+          .help = "angle of the tape from vertical"
+          .type = float(allow_none=True)
+        sigma = 0.1
+          .type = float(allow_none=True)
+      }
+      kapton_half_width_mm {
+        value = 1.5875
+          .help = "forward distance from irradiated crystal to edge of tape"
+                  "nearest detector"
+          .type = float(allow_none=True)
+        sigma = 0.5
+          .type = float(allow_none=True)
+      }
+      kapton_thickness_mm {
+        value = 0.05
+          .help = "tape thickness"
+          .type = float(allow_none=True)
+        sigma = 0.005
+          .type = float(allow_none=True)
+      }
+      smart_sigmas = False
+        .help = "apply spot-specific sigma corrections using kapton param"
+                "sigmas"
+        .type = bool
+      within_spot_sigmas = True
+        .help = "turn this off to get a major speed-up"
+        .type = bool
+    }
+  }
+  coset {
+    transformation = 6
+      .help = "The index number(s) of the modulus=2 sublattice"
+              "transformation(s) used to produce distance coset results."
+              "0=Double a, 1=Double b, 2=Double c, 3=C-face centering,"
+              "4=B-face centering, 5=A-face centering, 6=Body centering See"
+              "Sauter and Zwart, Acta D (2009) 65:553"
+      .type = int(value_min=0, value_max=6, allow_none=True)
+      .multiple = False
+  }
+  integration_only_overrides {
+    trusted_range = None
+      .help = "Override the panel trusted range [min_trusted_value,"
+              "max_trusted_value] during integration."
+      .short_caption = "Panel trusted range"
+      .type = floats(size=2)
+  }
+}
+profile {
+  gaussian_rs {
+    parameters {
+      sigma_b_cutoff = 0.1
+        .help = "Maximum sigma_b before the image is rejected"
+        .type = float(allow_none=True)
+    }
+  }
+}
+

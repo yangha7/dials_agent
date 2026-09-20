@@ -1,0 +1,15 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+steps_per_angstrom = 20
+  .type = int(allow_none=True)
+iqr_ratio = 1.5
+  .type = float(allow_none=True)
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+}
+

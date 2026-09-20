@@ -1,0 +1,32 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+input {
+  reflections = None
+    .help = "Path to an integrated reflections file"
+    .type = str
+    .multiple = True
+    .expert_level = 1
+  experiments = None
+    .help = "Path to an integrated experiments file"
+    .type = str
+    .multiple = True
+    .expert_level = 1
+}
+grouping = None
+  .help = "Path to a .yml file defining grouping structure during processing"
+  .type = str
+series_repeat = None
+  .help = "This option allows the user to specify that the data is a repeated"
+          "series by providing the number of repeated measurements at each"
+          "point. i.e. it is assumed that $series_repeat measurements are"
+          "taken at each position and that these form consecutive images in"
+          "the input image files."
+  .type = int(value_min=2, allow_none=True)
+  .expert_level = 2
+nproc = Auto
+  .type = int(allow_none=True)
+output.log = dials.split_still_data.log
+  .type = str
+

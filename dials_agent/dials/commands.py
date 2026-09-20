@@ -1215,7 +1215,11 @@ DIALS_COMMANDS = {
             "mean the input cell was never reindexed toward that hypothesis. Try "
             "`dials.reindex` with the corresponding centred space group/change-of-basis operator "
             "FIRST, then re-run this command on the reindexed result; centred candidates only "
-            "appear once the input cell's own metric symmetry admits them."
+            "appear once the input cell's own metric symmetry admits them. May also fail outright "
+            "with 'DialsRefineConfigError: Cannot set statistical weights as some indexed "
+            "reflections have observed variances equal to zero' (a numerical edge case from very "
+            "weak reflections with degenerate profile-fit variance, not specific to any dataset or "
+            "tutorial) -- fix with refinement.reflections.weighting_strategy.override=constant."
         ),
         category=CommandCategory.UTILITY,
         input_files=["indexed.expt", "indexed.refl"],
@@ -1820,7 +1824,14 @@ DIALS_COMMANDS = {
     
     "dials.check_indexing_symmetry": CommandDefinition(
         name="dials.check_indexing_symmetry",
-        description="Check the indexing symmetry of indexed reflections.",
+        description=(
+            "Check the indexing symmetry of indexed reflections. Useful as a concrete "
+            "diagnostic before reaching for dials.search_beam_position on suspected bad "
+            "beam-centre geometry: a systematic index offset (e.g. delta_h=1, delta_k=1, "
+            "delta_l=1) confirms the mis-indexing is beam-centre-driven rather than "
+            "genuine multi-lattice/crystal motion, as in DIALS's 'Correcting Poor "
+            "Initial Geometry' tutorial (DPF3 part 1)."
+        ),
         category=CommandCategory.UTILITY,
         input_files=["indexed.expt", "indexed.refl"],
         output_files=[],

@@ -1,0 +1,88 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+error_model = *basic None
+  .help = "The error model to use."
+  .type = choice
+  .expert_level = 1
+basic {
+  a = None
+    .help = "Used this fixed value for the error model 'a' parameter"
+    .type = float(allow_none=True)
+    .expert_level = 2
+  b = None
+    .help = "Used this fixed value for the error model 'b' parameter"
+    .type = float(allow_none=True)
+    .expert_level = 2
+  stills {
+    min_Isigma = 2.0
+      .help = "Minimum uncorrected I/sigma for individual reflections used in"
+              "error model optimisation"
+      .type = float(allow_none=True)
+    min_multiplicity = 4
+      .help = "Only reflections with at least this multiplicity (after Isigma"
+              "filtering) are used in error model optimisation."
+      .type = int(allow_none=True)
+  }
+  min_Ih = 25.0
+    .help = "Reflections with expected intensity above this value are to. be"
+            "used in error model minimisation."
+    .type = float(allow_none=True)
+    .expert_level = 2
+  n_bins = 10
+    .help = "The number of intensity bins to use for the error model"
+            "optimisation."
+    .type = int(allow_none=True)
+    .expert_level = 2
+}
+reset_error_model = False
+  .help = "If True, the error model is reset to the default at the start of"
+          "scaling, as opposed to loading the current error model."
+  .type = bool
+grouping = individual grouped *combined
+  .help = "This options selects whether one error model is determined for all"
+          "sweeps (combined), whether one error model is determined per-sweep"
+          "(individual), or whether a custom grouping should be used. If"
+          "grouping=grouped, each group should be specified with the"
+          "error_model_group=parameter."
+  .type = choice
+  .expert_level = 2
+error_model_group = None
+  .help = "Specify a subset of sweeps which should share an error model. If no"
+          "groups are specified here, this is interpreted to mean that all"
+          "sweeps should share a common error model."
+  .type = ints
+  .multiple = True
+min_partiality = 0.4
+  .help = "Use reflections with at least this partiality in error model"
+          "optimisation."
+  .type = float(allow_none=True)
+intensity_choice = *profile sum combine
+  .help = "Use profile or summation intensities"
+  .type = choice
+combine.Imid = None
+  .help = "Midpoint value to use when combining profile/summation intensities"
+  .type = float(allow_none=True)
+output {
+  log = dials.refine_error_model.log
+    .help = "The log filename"
+    .type = str
+  html = error_model.html
+    .help = "Filename for html report of error model"
+    .type = str
+  json = None
+    .help = "Filename for json export of html report data"
+    .type = str
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

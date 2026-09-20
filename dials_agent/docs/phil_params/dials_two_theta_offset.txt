@@ -1,0 +1,20 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+offset_fast = 100.0
+  .help = "How far to move in the detector plane (fast direction)"
+  .type = float(allow_none=True)
+offset_slow = 100.0
+  .help = "How far to move in the detector plane (slow direction)"
+  .type = float(allow_none=True)
+min_distance = 10.0
+  .help = "Minimum shift in detector position"
+  .type = float(allow_none=True)
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+}
+

@@ -1,0 +1,55 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+by_detector = False
+  .help = "If True, instead of producing separate files for each experiment,"
+          "experiments are grouped by unique detector model in the input set"
+          "of experiments. For example, if there are five detector models in"
+          "the input data, five sets of files will be produced, each"
+          "containing experiments that reference a single detector model."
+  .type = bool
+by_wavelength = False
+  .help = "If True, group experiments by wavelength, from low to high (using a"
+          "relative tolerance of 1e-4 to match wavelengths)."
+  .type = bool
+output {
+  experiments_prefix = split
+    .help = "Filename prefix for the split experimental models"
+    .type = str
+  reflections_prefix = split
+    .help = "Filename prefix for the split reflections"
+    .type = str
+  template = "{prefix}_{index:0{maxindexlength:d}d}.{extension}"
+    .help = "Template python format string for output filenames. Replaced"
+            "variables are prefix (with output.{experiments_prefix,"
+            "reflections_prefix}), index (number of split experiment),"
+            "maxindexlength (number of digits of total number of split"
+            "experiments) and extension (default file extension for model and"
+            "reflection files)"
+    .type = str
+    .expert_level = 2
+  chunk_size = None
+    .help = "If not None, instead of creating many individual files, create"
+            "composite files with no more than chunk_size experiments per"
+            "file."
+    .type = int(allow_none=True)
+    .expert_level = 2
+  chunk_sizes = None
+    .help = "If not None, instead of creating many individual files, create"
+            "composite files with the number of datasets given in the"
+            "chunk_sizes list."
+    .type = ints
+    .expert_level = 2
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

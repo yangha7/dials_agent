@@ -1,0 +1,39 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+output {
+  experiments = stills.expt
+    .help = "Filename for the experimental models that have been converted to"
+            "stills"
+    .type = str
+  reflections = stills.refl
+    .help = "Filename for the reflection tables with split shoeboxes (3D to"
+            "2D)"
+    .type = str
+  domain_size_ang = None
+    .help = "Override for domain size. If None, use the crystal's domain size,"
+            "if available"
+    .type = float(allow_none=True)
+  half_mosaicity_deg = None
+    .help = "Override for mosaic angle. If None, use the crystal's mosaic"
+            "angle, if available"
+    .type = float(allow_none=True)
+  log = dials.sequence_to_stills.log
+    .type = str
+}
+max_scan_points = None
+  .help = "Limit number of scan points"
+  .type = int(allow_none=True)
+  .expert_level = 2
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

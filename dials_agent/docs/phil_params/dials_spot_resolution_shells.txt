@@ -1,0 +1,17 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+shells = 100
+  .type = int(value_min=1, allow_none=True)
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

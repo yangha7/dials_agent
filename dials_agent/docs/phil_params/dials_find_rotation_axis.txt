@@ -1,0 +1,57 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+d_max = 10.0
+  .help = "Low resolution limit to apply to the data, intended to remove noisy"
+          "regions of low angle scatter"
+  .type = float(allow_none=True)
+max_two_theta = 10.0
+  .help = "Scattering angle limit to select reflections only in the central"
+          "mostly flat region of the Ewald sphere surface"
+  .type = float(allow_none=True)
+max_sample_size = 2000
+  .help = "The maximum number of reflections to use."
+  .type = int(value_min=1, allow_none=True)
+view = False
+  .help = "View phi/theta histogram with current rotation axis (azimuth)"
+          "instead of performing an optimisation"
+  .type = bool
+global_search = True
+  .help = "Perform global search of the azimuthal angle. If False, only a"
+          "local search will be performed around the start value or the value"
+          "given by azimuth=VAL"
+  .type = bool
+azimuth = None
+  .help = "Use the given value of azimuth to plot the histogram or as the"
+          "starting point for the optimization"
+  .type = float(allow_none=True)
+opposite = False
+  .help = "Try the opposite from the initial value (or that given by"
+          "azimuth=VAL)"
+  .type = bool
+nproc = Auto
+  .help = "Number of processes over which to split the search. If set to Auto,"
+          "DIALS will choose automatically."
+  .type = int(value_min=1, allow_none=True)
+  .expert_level = 1
+output {
+  experiments = optimised.expt
+    .type = path
+  log = "dials.find_rotation_axis.log"
+    .type = str
+  plot = find_rotation_axis
+    .help = "Filename prefix for plots. Set to None for no plots"
+    .type = str
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

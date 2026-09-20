@@ -1,0 +1,22 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+min_component_size = 0
+  .help = "Only show connected regions larger than or equal to this."
+  .type = int(value_min=0, allow_none=True)
+d_min = None
+  .type = float(value_min=0, allow_none=True)
+d_max = None
+  .type = float(value_min=0, allow_none=True)
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

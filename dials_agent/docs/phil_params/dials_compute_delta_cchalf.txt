@@ -1,0 +1,61 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+input {
+  mtzfile = None
+    .help = "We can also import an MTZ file"
+    .type = str
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+mode = *dataset image_group
+  .help = "Perform analysis on whole datasets or batch groups"
+  .type = choice
+group_size = 10
+  .help = "The number of images to group together when calculating delta"
+          "cchalf in image_group mode"
+  .type = int(value_min=1, allow_none=True)
+mtz {
+  batch_offset = None
+    .help = "The batch offset between consecutive datasets in the mtz file."
+    .type = int(allow_none=True)
+}
+output {
+  experiments = "filtered.expt"
+    .help = "The filtered experiments file"
+    .type = str
+  reflections = "filtered.refl"
+    .help = "The filtered reflections file"
+    .type = str
+  table = "delta_cchalf.dat"
+    .help = "A file with delta cchalf values"
+    .type = str
+  html = "compute_delta_cchalf.html"
+    .help = "HTML filename for report of results."
+    .type = str
+}
+nbins = 10
+  .help = "The number of resolution bins to use"
+  .type = int(value_min=1, allow_none=True)
+dmin = None
+  .help = "The maximum resolution"
+  .type = float(allow_none=True)
+dmax = None
+  .help = "The minimum resolution"
+  .type = float(allow_none=True)
+stdcutoff = 4.0
+  .help = "Datasets with a ΔCC½ below (mean - stdcutoff*std) are removed"
+  .type = float(allow_none=True)
+output {
+  log = 'dials.compute_delta_cchalf.log'
+    .help = "The log filename"
+    .type = str
+}
+

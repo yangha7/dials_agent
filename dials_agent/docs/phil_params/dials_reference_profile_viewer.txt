@@ -1,0 +1,16 @@
+DIALS (2018) Acta Cryst. D74, 85-97. https://doi.org/10.1107/S2059798317017235
+usage: dials.reference_profile_viewer [options] reference_profiles.pickle
+
+options:
+  -h, --help   Show this help message and exit. Can be specified multiple
+               times to increase verbosity.
+  -v           Increase verbosity (can be specified multiple times)
+  --phil FILE  PHIL files to read. Pass '-' for STDIN. Can be specified
+               multiple times, but duplicates ignored.
+
+Visualise the reference profiles from integration.
+
+Examples:
+
+  dials.integrate refined.expt refined.refl debug.reference.output=True
+  dials.reference_profile_viewer reference_profiles.pickle

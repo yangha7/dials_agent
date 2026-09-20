@@ -1,0 +1,28 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+space_group = None
+  .type = space_group
+align {
+  mode = *main cusp
+    .type = choice
+  crystal {
+    vector = None
+      .type = str
+      .multiple = True
+    frame = *reciprocal direct
+      .type = choice
+  }
+}
+output {
+  json = align_crystal.json
+    .type = path
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+}
+

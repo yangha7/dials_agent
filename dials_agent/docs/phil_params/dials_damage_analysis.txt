@@ -1,0 +1,93 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+dose {
+  experiments {
+    dose_per_image = 1
+      .help = "The 'dose' accumulated per image. If more than one value is"
+              "given, this indicates the dose per image for each experiment,"
+              "and hence must match the number of experiments."
+      .type = ints(value_min=0)
+    starting_doses = None
+      .help = "The dose values at the start of each sweep. Must match the"
+              "number of experiments. If none given, it is assumed that each"
+              "sweep starts with zero accumulated dose."
+      .type = ints(value_min=0)
+    shared_crystal = False
+      .help = "Option to indicate that all sweeps correspond to measurements"
+              "on the same crystal. Therefore the starting doses are"
+              "automatically adjusted to account for previously accumulated"
+              "dose."
+      .type = bool
+  }
+}
+damage_series {
+  dose_group_size = 0.0
+    .help = "Dose group size to split for damage series analysis and output"
+    .type = float(value_min=0, allow_none=True)
+}
+output {
+  log = "dials.damage_analysis.log"
+    .help = "The log name"
+    .type = str
+  html = "dials.damage_analysis.html"
+    .help = "Filename for the html report."
+    .type = str
+  json = None
+    .help = "Filename for the html report data in json format."
+    .type = str
+  damage_series = False
+    .help = "If a damage series dose group size is given, this option allows"
+            "the data from each group to be saved."
+    .type = bool
+  accumulation_series = False
+    .help = "If a damage series dose group size is given, this option allows"
+            "the data from each accumulated group to be saved."
+    .type = bool
+}
+d_min = None
+  .type = float(value_min=0, allow_none=True)
+d_max = None
+  .type = float(value_min=0, allow_none=True)
+min_completeness = None
+  .help = "Minimum value of completeness in outer resolution shell used to "
+          "determine suitable resolution cutoff for analysis"
+  .type = float(value_min=0, value_max=1, allow_none=True)
+resolution_bins = 8
+  .type = int(allow_none=True)
+anomalous = False
+  .type = bool
+range {
+  width = 1
+    .type = float(value_min=0, allow_none=True)
+  min = None
+    .type = float(value_min=0, allow_none=True)
+  max = None
+    .type = float(value_min=0, allow_none=True)
+}
+dose {
+  remove_gaps = True
+    .type = bool
+  batch
+    .multiple = True
+  {
+    range = None
+      .type = ints(size=2, value_min=0)
+    dose_start = None
+      .type = float(value_min=0, allow_none=True)
+    dose_step = None
+      .type = float(value_min=0, allow_none=True)
+  }
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

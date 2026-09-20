@@ -1,0 +1,17 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+output = merged.refl
+  .help = "The output file"
+  .type = str
+method = *update extend
+  .help = "The method of merging"
+  .type = choice
+input {
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

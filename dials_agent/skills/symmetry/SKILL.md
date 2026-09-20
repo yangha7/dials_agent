@@ -40,6 +40,15 @@ description: Determining space group and resolving indexing ambiguity (dials.sym
     against itself). `dials/scripts/centring_vs_pseudocentring_check.py` already has a
     `--verify-centering` mode for exactly this (see your base instructions) — it's tested;
     a fresh script written in the moment isn't.
+  - **If `dials.refine_bravais_settings` fails outright** with `DialsRefineConfigError:
+    Cannot set statistical weights as some indexed reflections have observed variances equal
+    to zero`, this is a numerical edge case (very weak reflections with degenerate
+    profile-fit variance under the default 'statistical' weighting) unrelated to the
+    reindexing/centring question above -- fix with
+    `refinement.reflections.weighting_strategy.override=constant` and re-run. It isn't
+    documented in any specific DIALS tutorial; that doesn't mean it won't come up on real
+    data, so don't wait for a tutorial reference before applying it. See `diagnose_problem`
+    (keyword: "statistical weight" / "zero variance") for the same guidance.
 
 ### After Symmetry (Visualization)
 - **After `dials.cosym`** (multi-crystal case): since cosym can reindex individual datasets

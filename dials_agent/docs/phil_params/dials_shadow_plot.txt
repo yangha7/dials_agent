@@ -1,0 +1,27 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+oscillation_range = None
+  .type = floats(size=2)
+step_size = auto
+  .type = float(value_min=0, allow_none=True)
+y_max = None
+  .type = float(value_min=0, value_max=100, allow_none=True)
+mode = *1d 2d
+  .type = choice
+output {
+  plot = scan_shadow_plot.png
+    .type = path
+  json = None
+    .type = path
+  size_inches = None
+    .type = floats(size=2, value_min=0)
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+}
+

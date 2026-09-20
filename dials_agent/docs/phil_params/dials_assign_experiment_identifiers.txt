@@ -1,0 +1,25 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+identifiers = None
+  .help = "User specified identifiers to use, must be a list of strings equal"
+          "to the number of datasets."
+  .type = strings
+output {
+  reflections = assigned.refl
+    .type = str
+  experiments = assigned.expt
+    .type = str
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

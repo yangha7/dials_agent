@@ -193,10 +193,13 @@ def _get_reciprocal_lattice_linearity_note() -> str:
         "themselves, since you cannot render or view the image yourself — point them at "
         "`dials.reciprocal_lattice_viewer indexed.expt indexed.refl` (or the refined "
         "equivalent) and, if relevant, `dials.image_viewer` to look at the raw spots; (3) "
-        "propose the specific next command(s) to try, e.g. "
-        "`dials.search_beam_position imported.expt strong.refl` for a spiral or suspected "
-        "bad beam centre — use the `diagnose_problem` tool for the full menu of options "
-        "rather than only naming one."
+        "propose the specific next command(s) to try — for a spiral or suspected bad beam "
+        "centre, first confirm with `dials.check_indexing_symmetry indexed.expt "
+        "indexed.refl` (a systematic offset like delta_h=1, delta_k=1, delta_l=1 is the "
+        "concrete signature of a beam-centre problem, exactly as in DIALS's 'Correcting "
+        "Poor Initial Geometry' tutorial), then run `dials.search_beam_position "
+        "imported.expt strong.refl` and re-index — use the `diagnose_problem` tool for the "
+        "full menu of options rather than only naming one."
     )
 
 

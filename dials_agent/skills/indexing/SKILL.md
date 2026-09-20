@@ -9,10 +9,13 @@ description: Assigning Miller indices and determining the unit cell (dials.index
 - If < 50% indexed: check for multiple lattices, ice rings, or wrong beam centre
 - If indexing *succeeds* but reports more than one lattice (or a single crystal that
   looks split), don't assume it's genuinely multi-lattice yet — an incorrect initial
-  beam centre commonly produces this exact pattern. Try
-  `dials.search_beam_position imported.expt strong.refl` and re-index first; see the
-  `troubleshooting` skill for the full reasoning (this is the failure mode covered in
-  DIALS's "Correcting Poor Initial Geometry" tutorial).
+  beam centre commonly produces this exact pattern. Confirm first with
+  `dials.check_indexing_symmetry indexed.expt indexed.refl` — a systematic offset
+  (e.g. delta_h=1, delta_k=1, delta_l=1) is the concrete signature of a beam-centre
+  problem, matching the diagnostic DIALS's own "Correcting Poor Initial Geometry"
+  tutorial (DPF3 part 1) uses before reaching for `dials.search_beam_position
+  imported.expt strong.refl` and re-indexing; see the `troubleshooting` skill for
+  the full reasoning.
 
 ### After Indexing (Geometry Check + Visualization)
 Run the reciprocal-lattice linearity check (see the numeric check described in your base

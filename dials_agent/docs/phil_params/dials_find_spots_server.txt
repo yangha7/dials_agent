@@ -1,0 +1,9 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+nproc = Auto
+  .type = int(value_min=1, allow_none=True)
+port = 1701
+  .type = int(value_min=1, allow_none=True)
+

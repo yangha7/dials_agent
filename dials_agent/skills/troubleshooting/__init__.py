@@ -199,11 +199,15 @@ PROBLEM_SOLUTIONS = {
                     "An incorrect initial beam centre commonly produces exactly this "
                     "symptom pattern — spots that look like separate lattices, and/or "
                     "high or unstable RMSDs / large jumps during refinement — even for "
-                    "a single crystal. Run dials.search_beam_position imported.expt "
-                    "strong.refl and re-index before reaching for multi-lattice options; "
-                    "this often collapses an apparent multi-crystal case into one clean "
-                    "lattice. See the DIALS 'Correcting Poor Initial Geometry' tutorial "
-                    "for a worked example of this exact failure mode."
+                    "a single crystal. Confirm with dials.check_indexing_symmetry "
+                    "indexed.expt indexed.refl first: a systematic offset (e.g. "
+                    "delta_h=1, delta_k=1, delta_l=1) is the concrete signature of a "
+                    "beam-centre problem rather than genuine multi-lattice. Then run "
+                    "dials.search_beam_position imported.expt strong.refl and re-index "
+                    "before reaching for multi-lattice options; this often collapses an "
+                    "apparent multi-crystal case into one clean lattice. See the DIALS "
+                    "'Correcting Poor Initial Geometry' tutorial (DPF3 part 1) for a "
+                    "worked example of this exact failure mode and diagnostic sequence."
                 )
             },
             {
@@ -231,9 +235,12 @@ PROBLEM_SOLUTIONS = {
                     "Large jumps or instability in scan-varying parameters — sometimes "
                     "described as the crystal 'moving' or 'drifting' during the rotation "
                     "— is frequently caused by an incorrect starting beam centre rather "
-                    "than genuine crystal motion. Run dials.search_beam_position "
-                    "imported.expt strong.refl and re-index/re-refine before tuning "
-                    "refinement parameters further."
+                    "than genuine crystal motion. Confirm with "
+                    "dials.check_indexing_symmetry indexed.expt indexed.refl first: a "
+                    "systematic offset (e.g. delta_h=1, delta_k=1, delta_l=1) is the "
+                    "concrete signature of a beam-centre problem. Then run "
+                    "dials.search_beam_position imported.expt strong.refl and "
+                    "re-index/re-refine before tuning refinement parameters further."
                 )
             },
             {
@@ -260,6 +267,35 @@ PROBLEM_SOLUTIONS = {
                 "action": "Change outlier rejection algorithm",
                 "params": ["refinement.reflections.outlier.algorithm=tukey"],
                 "explanation": "Try tukey or mcd instead of auto for better outlier handling."
+            },
+        ]
+    },
+    "zero_variance_weights": {
+        "description": (
+            "Refinement (including dials.refine_bravais_settings, which runs "
+            "refinement internally per candidate lattice) fails with "
+            "'DialsRefineConfigError: Cannot set statistical weights as some "
+            "indexed reflections have observed variances equal to zero'"
+        ),
+        "stage": "refine",
+        "solutions": [
+            {
+                "action": "Override the weighting strategy to constant weights",
+                "params": ["refinement.reflections.weighting_strategy.override=constant"],
+                "explanation": (
+                    "The default 'statistical' weighting strategy weights each "
+                    "reflection by the inverse of its observed intensity variance — "
+                    "if any indexed reflection has a profile-fit variance of exactly "
+                    "zero (common among very weak reflections at the edge of "
+                    "detectability), that division is undefined and refinement "
+                    "refuses to start rather than silently producing nonsense. "
+                    "Setting weighting_strategy.override=constant gives every "
+                    "reflection unit weight instead, sidestepping the zero-variance "
+                    "reflections entirely. This is not a documented step in any "
+                    "specific DIALS tutorial — it's a general fix for this class of "
+                    "numerical edge case, applicable whenever it comes up, "
+                    "regardless of which tutorial or workflow triggered it."
+                )
             },
         ]
     },
@@ -512,6 +548,11 @@ _KEYWORD_MAP = {
     "refinement fail": "refinement_failed",
     "refine fail": "refinement_failed",
     "refinement diverge": "refinement_failed",
+    "statistical weight": "zero_variance_weights",
+    "variances equal to zero": "zero_variance_weights",
+    "variance equal to zero": "zero_variance_weights",
+    "zero variance": "zero_variance_weights",
+    "dialsrefineconfigerror": "zero_variance_weights",
     "integration slow": "integration_slow",
     "integrate slow": "integration_slow",
     "taking too long": "integration_slow",

@@ -189,6 +189,16 @@ def test_diagnose_problem_matches_known_keyword(registry, tmp_path):
     assert "sigma_strong" in result["diagnosis"]
 
 
+def test_diagnose_problem_finds_zero_variance_weighting_fix(registry, tmp_path):
+    result = registry.handle_tool_call(
+        "diagnose_problem",
+        {"problem": "DialsRefineConfigError: Cannot set statistical weights as some "
+                    "indexed reflections have observed variances equal to zero"},
+        make_context(tmp_path),
+    )
+    assert "weighting_strategy.override=constant" in result["diagnosis"]
+
+
 def test_diagnose_problem_unknown_problem_gives_general_advice(registry, tmp_path):
     result = registry.handle_tool_call(
         "diagnose_problem", {"problem": "the crystal exploded"}, make_context(tmp_path)
@@ -201,6 +211,32 @@ def test_lookup_phil_params_missing_command_reports_checked_paths(registry, tmp_
         "lookup_phil_params", {"command": "dials.not_a_real_command"}, make_context(tmp_path)
     )
     assert "No documentation found" in result["phil_params"]
+
+
+def test_phil_params_docs_ship_inside_the_package(registry, tmp_path):
+    """Regression test for a real deployment bug: the PHIL dumps and program
+    docs used to live in an outer docs/ directory above dials_agent/ that was
+    never committed to git and never synced to any deployed copy, so
+    lookup_phil_params silently found nothing on every live session. They
+    must live inside dials_agent/ itself so both `git clone` and
+    sync_to_remote.sh (which only syncs the dials_agent/ subtree) ship them.
+    """
+    from skills.phil_params import _PHIL_PARAMS_DIR, _PROGRAMS_DIR
+
+    package_root = Path(__file__).parent.parent
+    assert _PHIL_PARAMS_DIR.is_relative_to(package_root)
+    assert _PROGRAMS_DIR.is_relative_to(package_root)
+    assert _PHIL_PARAMS_DIR.is_dir()
+    assert len(list(_PHIL_PARAMS_DIR.glob("*.txt"))) > 50
+
+
+def test_lookup_phil_params_finds_real_command_docs(registry, tmp_path):
+    result = registry.handle_tool_call(
+        "lookup_phil_params",
+        {"command": "dials.refine_bravais_settings", "search_term": "weight"},
+        make_context(tmp_path),
+    )
+    assert "weighting_strategy" in result["phil_params"]
 
 
 def test_run_shell_command_safe_command_executes_directly(registry, tmp_path):

@@ -1,0 +1,44 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+anvil
+  .caption = "Properties of the mounted diamond anvils"
+{
+  density = 3510
+    .help = "The density of the anvil material in kg per cubic metre.   The"
+            "default is the typical density of synthetic diamond."
+    .type = float(allow_none=True)
+  thickness = 1.5925
+    .help = "The thickness in mm of each anvil in the pressure cell.   The"
+            "default is the thickness of the pressure cells in use on "
+            "beamline I19 at Diamond Light Source."
+    .type = float(allow_none=True)
+  normal = 0, 1, 0
+    .help = "A 3-vector orthogonal to the anvil surfaces in the laboratory "
+            "frame when the goniometer is at zero datum, i.e. the axes are "
+            "all at zero degrees.  The vector may be given un-normalised."
+    .type = floats(size=3)
+}
+output {
+  experiments = None
+    .help = "The output experiment list file name. If None, don't output an "
+            "experiment list file."
+    .type = path
+  reflections = corrected.refl
+    .help = "The output reflection table file."
+    .type = path
+  log = dials.anvil_correction.log
+    .type = path
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

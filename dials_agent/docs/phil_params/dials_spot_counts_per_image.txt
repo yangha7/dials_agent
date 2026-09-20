@@ -1,0 +1,27 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+resolution_analysis = True
+  .type = bool
+plot = None
+  .type = path
+json = None
+  .type = path
+split_json = False
+  .type = bool
+joint_json = True
+  .type = bool
+id = None
+  .type = int(value_min=0, allow_none=True)
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

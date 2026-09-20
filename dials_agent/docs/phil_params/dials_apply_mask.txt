@@ -1,0 +1,20 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+input {
+  mask = None
+    .help = "The mask filenames, one mask per imageset"
+    .type = str
+    .multiple = True
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+}
+output {
+  experiments = masked.expt
+    .help = "Name of output experiments file"
+    .type = str
+}
+

@@ -1,0 +1,160 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+binning = 1
+  .type = int(value_min=1, allow_none=True)
+brightness = 100
+  .type = float(value_min=0, allow_none=True)
+colour_scheme = *greyscale rainbow heatmap inverse_greyscale
+  .type = choice
+projection = lab *image
+  .type = choice
+padding = 4
+  .type = int(value_min=0, allow_none=True)
+imageset_index = None
+  .help = "The index/indices from an imageset to export. The first image of "
+          "the set is 1."
+  .type = int(allow_none=True)
+  .multiple = True
+  .expert_level = 2
+display = *image mean variance dispersion sigma_b sigma_s threshold \
+          global_threshold
+  .type = choice
+nsigma_b = 6
+  .type = float(value_min=0, allow_none=True)
+nsigma_s = 3
+  .type = float(value_min=0, allow_none=True)
+global_threshold = 0
+  .type = float(value_min=0, allow_none=True)
+kernel_size = 3,3
+  .type = ints(size=2, value_min=1)
+min_local = 2
+  .type = int(allow_none=True)
+gain = 1
+  .type = float(value_min=0, allow_none=True)
+saturation = 0
+  .type = int(allow_none=True)
+show_mask = False
+  .type = bool
+resolution_rings {
+  show = False
+    .type = bool
+  number = 5
+    .type = int(value_min=1, allow_none=True)
+  d_spacings = None
+    .type = floats(value_min=0)
+  fontsize = 30
+    .optional = True
+    .type = int(allow_none=True)
+  fill = red
+    .help = "Colour of the resolution rings and labels"
+    .type = str
+}
+ice_rings {
+  show = False
+    .type = bool
+  fontsize = None
+    .optional = True
+    .type = int(allow_none=True)
+  unit_cell = 4.498,4.498,7.338,90,90,120
+    .help = "The unit cell to generate d_spacings for powder rings."
+    .type = unit_cell
+    .expert_level = 1
+  space_group = 194
+    .help = "The space group used to generate d_spacings for powder rings."
+    .type = space_group
+    .expert_level = 1
+  fill = blue
+    .help = "Colour of the ice rings and labels"
+    .type = str
+}
+png {
+  compress_level = 1
+    .help = "ZLIB compression level, a number between 0 and 9: 1 gives best "
+            "speed, 9 gives best compression, 0 gives no compression at all."
+    .type = int(value_min=0, value_max=9, allow_none=True)
+}
+jpeg {
+  quality = 75
+    .help = "The image quality, on a scale from 1 (worst) to 95 (best)"
+    .type = int(value_min=1, value_max=95, allow_none=True)
+}
+format
+  .help = "Options to pass to the Format class"
+  .expert_level = 2
+{
+  dynamic_shadowing = auto
+    .help = "Enable dynamic shadowing"
+    .type = bool
+  multi_panel = False
+    .help = "Enable a multi-panel detector model. (Not supported by all"
+            "detector formats)"
+    .type = bool
+}
+output {
+  prefix = "image"
+    .type = str
+  directory = None
+    .type = path
+  file = None
+    .help = "Full name of the output file. Overrides 'prefix' and the default "
+            "file extension. Only makes sense if a single file is written."
+    .type = str
+  format = jpeg *png tiff
+    .type = choice
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  tolerance
+    .help = "Tolerances used to determine shared models"
+    .expert_level = 2
+  {
+    beam {
+      wavelength = 1e-6
+        .help = "The wavelength tolerance"
+        .type = float(value_min=0, allow_none=True)
+      direction = 1e-6
+        .help = "The direction tolerance"
+        .type = float(value_min=0, allow_none=True)
+      polarization_normal = 1e-6
+        .help = "The polarization normal tolerance"
+        .type = float(value_min=0, allow_none=True)
+      polarization_fraction = 1e-6
+        .help = "The polarization fraction tolerance"
+        .type = float(value_min=0, allow_none=True)
+    }
+    detector {
+      fast_axis = 1e-6
+        .help = "The fast axis tolerance"
+        .type = float(value_min=0, allow_none=True)
+      slow_axis = 1e-6
+        .help = "The slow axis tolerance"
+        .type = float(value_min=0, allow_none=True)
+      origin = 5e-2
+        .help = "The origin tolerance"
+        .type = float(value_min=0, allow_none=True)
+    }
+    goniometer {
+      rotation_axis = 1e-6
+        .help = "The rotation axis tolerance"
+        .type = float(value_min=0, allow_none=True)
+      fixed_rotation = 1e-6
+        .help = "The fixed rotation tolerance"
+        .type = float(value_min=0, allow_none=True)
+      setting_rotation = 1e-6
+        .help = "The setting rotation tolerance"
+        .type = float(value_min=0, allow_none=True)
+    }
+    scan {
+      oscillation = 0.03
+        .help = "The oscillation tolerance for the scan, as a fraction of the"
+                "image width"
+        .type = float(value_min=0, allow_none=True)
+    }
+  }
+}
+

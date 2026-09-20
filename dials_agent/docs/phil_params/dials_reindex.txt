@@ -1,0 +1,54 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+change_of_basis_op = a,b,c
+  .type = str
+hkl_offset = None
+  .type = ints(size=3)
+space_group = None
+  .help = "The space group to be applied AFTER applying the change of basis "
+          "operator."
+  .type = space_group
+reference {
+  experiments = None
+    .help = "Reference experiment for determination of change of basis"
+            "operator."
+    .type = path
+  reflections = None
+    .help = "Reference reflections to allow reindexing to consistent index"
+            "between datasets."
+    .type = path
+  file = None
+    .help = "A file containing a reference set of intensities e.g. MTZ/cif, or"
+            "a file from which a reference set of intensities can be"
+            "calculated e.g. .pdb or .cif . The space group of the reference"
+            "file will be used and if an indexing ambiguity is present, the"
+            "input data will be reindexed to be consistent with the indexing"
+            "mode of this reference file."
+    .type = path
+    .expert_level = 2
+  reference_model {
+  }
+}
+output {
+  experiments = reindexed.expt
+    .help = "The filename for reindexed experimental models"
+    .type = str
+  reflections = reindexed.refl
+    .help = "The filename for reindexed reflections"
+    .type = str
+  log = dials.reindex.log
+    .type = path
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

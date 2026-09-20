@@ -1,0 +1,29 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+hklin = None
+  .help = "MTZ file (containing observed and calculated structure  factors)"
+  .type = path
+Fo = F
+  .help = "MTZ column name for Fobs"
+  .type = str
+Fc = FC_ALL
+  .help = "MTZ column name for Fcalc (FC_ALL from Refmac includes the  bulk"
+          "solvent contribution)"
+  .type = str
+max_Fc = 300
+  .help = "Set plot limits to display data up to this value of Fc"
+  .type = float(allow_none=True)
+plot_filename = Fo_vs_Fc.pdf
+  .help = "Filename for plot"
+  .type = str
+fit_hyperbola = True
+  .help = "Calculate and show the fit of a hyperbolic function given by "
+          "|Fo|^2 = |Fc|^2 + |Fe|^2, where |Fe| describes the error term "
+          "containing information about dynamic scattering and other  effects"
+  .type = bool
+show_y_eq_x = True
+  .help = "Plot y=x as a dashed line"
+  .type = bool
+

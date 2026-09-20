@@ -9,10 +9,13 @@ description: Improving crystal and detector models (dials.refine)
 - Large jumps in scan-varying parameters, or RMSDs that stay high/unstable, often look
   like the crystal is "moving" or "drifting" during the rotation — but before treating
   this as real crystal motion (or reaching for `indexing.max_lattices` if it also looks
-  like multiple lattices), rule out an incorrect initial beam centre: run
-  `dials.search_beam_position imported.expt strong.refl` and re-index/re-refine. This
-  single fix commonly resolves both symptoms at once. See the `troubleshooting` skill's
-  "Multiple crystals / multi-lattice" and "Refinement fails or diverges" sections.
+  like multiple lattices), rule out an incorrect initial beam centre. Confirm with
+  `dials.check_indexing_symmetry indexed.expt indexed.refl` first — a systematic offset
+  (e.g. delta_h=1, delta_k=1, delta_l=1) is the concrete signature of a beam-centre
+  problem — then run `dials.search_beam_position imported.expt strong.refl` and
+  re-index/re-refine. This single fix commonly resolves both symptoms at once. See the
+  `troubleshooting` skill's "Multiple crystals / multi-lattice" and "Refinement fails or
+  diverges" sections.
 
 ### After Refinement (Geometry Check + Visualization)
 Run the reciprocal-lattice linearity check (see your base instructions) again on

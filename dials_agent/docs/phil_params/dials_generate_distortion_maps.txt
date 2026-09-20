@@ -1,0 +1,98 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+mode = *translate ellipse
+  .type = choice
+translate
+  .help = "Options for applying separate translation offsets to each panel"
+{
+  dx = 0.0
+    .help = "Translation in pixels to be applied along the fast direction. The"
+            "number of values supplied should equal the number of panels."
+    .type = floats
+  dy = 0.0
+    .help = "Translation in pixels to be applied along the slow direction. The"
+            "number of values supplied should equal the number of panels."
+    .type = floats
+}
+ellipse
+  .help = "Options for correcting for elliptical distortion of images."
+{
+  phi = 45.0
+    .help = "Acute angle of the first axis of the ellipse from the fast axis"
+            "of the first panel of the detector"
+    .type = float(allow_none=True)
+  l1 = 1.0
+    .help = "Scale factor for first axis of the ellipse"
+    .type = float(allow_none=True)
+  l2 = 0.95
+    .help = "Scale factor for second axis of the ellipse"
+    .type = float(allow_none=True)
+  centre_xy = Auto
+    .help = "Centre of the ellipse in millimetres along fast, slow of the"
+            "first panel. If Auto, this will be set to the beam centre."
+    .type = floats(size=2)
+}
+output {
+  x_map = dx.pickle
+    .type = str
+  y_map = dy.pickle
+    .type = str
+  log = dials.generate_distortion_maps.log
+    .type = str
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  tolerance
+    .help = "Tolerances used to determine shared models"
+    .expert_level = 2
+  {
+    beam {
+      wavelength = 1e-6
+        .help = "The wavelength tolerance"
+        .type = float(value_min=0, allow_none=True)
+      direction = 1e-6
+        .help = "The direction tolerance"
+        .type = float(value_min=0, allow_none=True)
+      polarization_normal = 1e-6
+        .help = "The polarization normal tolerance"
+        .type = float(value_min=0, allow_none=True)
+      polarization_fraction = 1e-6
+        .help = "The polarization fraction tolerance"
+        .type = float(value_min=0, allow_none=True)
+    }
+    detector {
+      fast_axis = 1e-6
+        .help = "The fast axis tolerance"
+        .type = float(value_min=0, allow_none=True)
+      slow_axis = 1e-6
+        .help = "The slow axis tolerance"
+        .type = float(value_min=0, allow_none=True)
+      origin = 5e-2
+        .help = "The origin tolerance"
+        .type = float(value_min=0, allow_none=True)
+    }
+    goniometer {
+      rotation_axis = 1e-6
+        .help = "The rotation axis tolerance"
+        .type = float(value_min=0, allow_none=True)
+      fixed_rotation = 1e-6
+        .help = "The fixed rotation tolerance"
+        .type = float(value_min=0, allow_none=True)
+      setting_rotation = 1e-6
+        .help = "The setting rotation tolerance"
+        .type = float(value_min=0, allow_none=True)
+    }
+    scan {
+      oscillation = 0.03
+        .help = "The oscillation tolerance for the scan, as a fraction of the"
+                "image width"
+        .type = float(value_min=0, allow_none=True)
+    }
+  }
+}
+

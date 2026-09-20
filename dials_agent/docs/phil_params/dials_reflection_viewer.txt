@@ -1,0 +1,11 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+input {
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

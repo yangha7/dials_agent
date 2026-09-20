@@ -1,0 +1,69 @@
+DIALS (2018) Acta Cryst. D74, 85-97. https://doi.org/10.1107/S2059798317017235
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+reverse_phi = False
+  .optional = True
+  .type = bool
+crystal_frame = False
+  .optional = True
+  .type = bool
+beam_centre_panel = None
+  .help = "Panel number for the beam centre"
+  .type = int(allow_none=True)
+beam_centre = None
+  .help = "Fast, slow beam centre coordinates (mm)."
+  .type = floats(size=2)
+d_min = None
+  .type = float(value_min=0, allow_none=True)
+z_min = None
+  .type = float(allow_none=True)
+z_max = None
+  .type = float(allow_none=True)
+n_min = 0
+  .help = "Minimum size of spot in pixels"
+  .type = int(allow_none=True)
+n_max = 1000000
+  .help = "Maximum size of spot in pixels"
+  .type = int(allow_none=True)
+partiality_min = None
+  .type = float(allow_none=True)
+partiality_max = None
+  .type = float(allow_none=True)
+display = *all unindexed indexed integrated
+  .type = choice
+outlier_display = outliers inliers
+  .type = choice
+experiment_ids = None
+  .type = ints(value_min=-1)
+black_background = True
+  .help = "Switch between black or white background"
+  .type = bool
+show_rotation_axis = False
+  .type = bool
+show_beam_vector = False
+  .type = bool
+show_reciprocal_cell = False
+  .type = bool
+label_nearest_point = False
+  .type = bool
+marker_size = Auto
+  .type = int(value_min=1, allow_none=True)
+autospin = False
+  .type = bool
+model_view_matrix = None
+  .type = floats(size=16)
+max_experiments = 15
+  .type = int(value_min=0, allow_none=True)
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

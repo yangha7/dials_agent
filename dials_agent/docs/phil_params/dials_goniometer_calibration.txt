@@ -1,0 +1,19 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+space_group = None
+  .type = space_group
+use_space_group_from_experiments = False
+  .type = bool
+output {
+  xoalign = None
+    .type = path
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+}
+

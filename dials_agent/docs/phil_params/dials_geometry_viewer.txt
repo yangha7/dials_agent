@@ -1,0 +1,43 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+angle = None
+  .type = float(allow_none=True)
+  .multiple = True
+detector_distance = None
+  .type = float(allow_none=True)
+z_min = None
+  .type = float(allow_none=True)
+z_max = None
+  .type = float(allow_none=True)
+marker_size = 100
+  .type = int(value_min=1, allow_none=True)
+autospin = False
+  .type = bool
+predict = False
+  .type = bool
+prediction_width = None
+  .help = "Width of prediction window (degrees)"
+  .type = float(value_min=0, allow_none=True)
+show_panel_axes = False
+  .help = "Plot the fast, slow and normal vectors for each panel."
+  .type = bool
+show_crystal_axes = True
+  .help = "Plot the crystal reciprocal cell axes"
+  .type = bool
+require_images = True
+  .help = "Flag which can be set to False to launch image viewer without
+     "
+          "checking the image format (needed for some image format classes).
+ "
+          "    Alternative to DIALS_EXPORT_DO_NOT_CHECK_FORMAT environment"
+          "variable."
+  .type = bool
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+}
+

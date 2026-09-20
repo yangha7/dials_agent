@@ -1,0 +1,19 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+scale = unit *max_cell ewald_sphere_radius
+  .help = "Choose the scale for the direction vector in orthogonal coordinates"
+          "prior to transformation into fractional coordinates [uvw]"
+  .type = choice
+plot_filename = None
+  .help = "Filename for a plot of angle between neighbouring frames (set to"
+          "None for no plot)"
+  .type = str
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+}
+

@@ -1,0 +1,140 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+partiality_threshold = 0.4
+  .help = "Use reflections with a partiality greater than the threshold."
+  .type = float(value_min=0, value_max=1, allow_none=True)
+min_reflections = 10
+  .help = "The minimum number of merged reflections per experiment required to"
+          "perform cosym analysis."
+  .type = int(value_min=0, allow_none=True)
+seed = 230
+  .type = int(value_min=0, allow_none=True)
+normalisation = kernel quasi *ml_iso ml_aniso
+  .type = choice
+d_min = Auto
+  .type = float(value_min=0, allow_none=True)
+min_i_mean_over_sigma_mean = 4
+  .short_caption = "Minimum <I>/<σ>"
+  .type = float(value_min=0, allow_none=True)
+min_cc_half = 0.6
+  .short_caption = "Minimum CC½"
+  .type = float(value_min=0, value_max=1, allow_none=True)
+dimensions = Auto
+  .short_caption = Dimensions
+  .type = int(value_min=2, allow_none=True)
+use_curvatures = True
+  .short_caption = "Use curvatures"
+  .type = bool
+weights = *count standard_error
+  .help = "If not None, a weights matrix is used in the cosym procedure."
+          "weights=count uses the number of reflections used to calculate a"
+          "pairwise correlation coefficient as its weight"
+          "weights=standard_error uses the reciprocal of the standard error as"
+          "the weight. The standard error is given by (1-CC*2)/sqrt(N), where"
+          "N=(n-2) or N=(neff-1) depending on the cc_weights option."
+  .short_caption = Weights
+  .type = choice
+cc_weights = None *sigma
+  .help = "If not None, a weighted cc-half formula is used for calculating"
+          "pairwise correlation coefficients and degrees of freedom in the"
+          "cosym procedure. weights=sigma uses the intensity uncertainties to"
+          "perform inverse variance weighting during the cc calculation."
+  .type = choice
+min_pairs = 3
+  .help = "Minimum number of pairs for inclusion of correlation coefficient in"
+          "calculation of Rij matrix."
+  .short_caption = "Minimum number of pairs"
+  .type = int(value_min=1, allow_none=True)
+minimization
+  .short_caption = Minimization
+{
+  engine = *scitbx scipy
+    .short_caption = Engine
+    .type = choice
+  max_iterations = 100
+    .short_caption = "Maximum number of iterations"
+    .type = int(value_min=0, allow_none=True)
+  max_calls = None
+    .short_caption = "Maximum number of calls"
+    .type = int(value_min=0, allow_none=True)
+}
+nproc = Auto
+  .help = "Number of processes"
+  .type = int(value_min=1, allow_none=True)
+dimensionality_assessment {
+  outlier_rejection = True
+    .help = "Use outlier rejection when determining optimal dimensions for"
+            "analysis."
+    .type = bool
+  maximum_dimensions = 50
+    .help = "Maximum number of dimensions to test for reasonable processing"
+            "time"
+    .type = int(allow_none=True)
+}
+significant_clusters {
+  min_points_buffer = 0.5
+    .help = "Buffer for minimum number of points required for a cluster in"
+            "OPTICS algorithm:"
+            "min_points=(number_of_datasets/number_of_dimensions)*buffer -"
+            "INITIAL GUESS ONLY"
+    .type = float(value_min=0, value_max=1, allow_none=True)
+  min_points = 5
+    .help = "Set minimum number of points required for a cluster in OPTICS for"
+            "custom clustering."
+    .type = int(allow_none=True)
+  xi = 0.05
+    .help = "xi parameter to determine min steepness to define cluster"
+            "boundary"
+    .type = float(value_min=0, value_max=1, allow_none=True)
+  max_distance = 0.5
+    .help = "maximum distance away from cluster centre for a data point to be"
+            "considered (max_eps)"
+    .type = float(allow_none=True)
+  optimise_input = True
+    .help = "Turn to false to use custom clustering parameters."
+    .type = bool
+  noise_penalty {
+    alpha = 1.0
+      .help = "Linear scale for noise penalty."
+      .type = float(value_max=1, allow_none=True)
+    gamma = 1.5
+      .help = "Exponential scale for noise penalty."
+      .type = float(value_min=0, allow_none=True)
+  }
+}
+hierarchical_clustering {
+  linkage_method = *ward average
+    .help = "Linkage method for constructing dendorgrams for both correlation"
+            "and cosine angle clustering methods"
+    .type = choice
+}
+output {
+  log = dials.correlation_matrix.log
+    .help = "The log name"
+    .type = str
+  html = dials.correlation_matrix.html
+    .help = "Filename for the html report"
+    .type = path
+  json = None
+    .help = "Filename for the cluster information output in json format"
+    .type = str
+}
+significant_clusters {
+  output = False
+    .help = "Toggle to output expt/refl files for significant clusters as"
+            "determined by OPTICS clustering on cosine angle coordinates"
+    .type = bool
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

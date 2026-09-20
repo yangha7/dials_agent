@@ -1,0 +1,21 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+key = 'miller_index'
+  .help = "The chosen sort key. This should be a column of  the reflection"
+          "table."
+  .type = str
+reverse = False
+  .help = "Reverse the sort direction"
+  .type = bool
+output = sorted.refl
+  .help = "The output reflection filename"
+  .type = str
+input {
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

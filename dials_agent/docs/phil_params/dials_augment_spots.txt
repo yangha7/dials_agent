@@ -1,0 +1,21 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+output {
+  reflections = stronger.refl
+    .type = path
+}
+find_max = False
+  .type = bool
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

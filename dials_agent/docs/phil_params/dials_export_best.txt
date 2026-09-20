@@ -1,0 +1,30 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+n_bins = 100
+  .help = "Number of resolution bins for background estimation"
+  .type = int(value_min=1, allow_none=True)
+min_partiality = 0.1
+  .help = "Minimum partiality of reflections to export"
+  .type = float(value_min=0, value_max=1, allow_none=True)
+output {
+  log = dials.export_best.log
+    .help = "The log filename"
+    .type = path
+  prefix = best
+    .help = "The prefix for the output file names for best (.hkl, .dat and"
+            ".par files)"
+    .type = str
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

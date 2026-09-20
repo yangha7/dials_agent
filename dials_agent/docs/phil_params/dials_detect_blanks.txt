@@ -1,0 +1,33 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+phi_step = 2
+  .help = "Width of bins in degrees."
+  .type = float(value_min=0, allow_none=True)
+counts_fractional_loss = 0.1
+  .help = "Fractional loss (relative to the bin with the most counts) after "
+          "which a bin is flagged as potentially containing blank images."
+  .type = float(value_min=0, value_max=1, allow_none=True)
+misigma_fractional_loss = 0.1
+  .help = "Fractional loss (relative to the bin with the highest misigma)"
+          "after  which a bin is flagged as potentially containing blank"
+          "images."
+  .type = float(value_min=0, value_max=1, allow_none=True)
+output {
+  json = blanks.json
+    .type = path
+  plot = False
+    .type = bool
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

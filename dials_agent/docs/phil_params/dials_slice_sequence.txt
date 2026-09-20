@@ -1,0 +1,53 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+output {
+  reflections_filename = None
+    .help = "The filename for output reflections sliced to remove those"
+            "outside the reduced image range. By default generated"
+            "automatically from the input name"
+    .type = str
+  experiments_filename = None
+    .help = "The filename for the output experiments with sliced scans.
+      "
+            "        By default generated automatically from the input name"
+    .type = str
+}
+image_range = None
+  .help = "Range in images to slice a sequence. The number of arguments must"
+          "be a factor of two. Each pair of arguments gives a range that"
+          "follows C conventions (e.g. j0 <= j < j1) when slicing the"
+          "reflections by observed centroid."
+  .type = ints(size=2)
+  .multiple = True
+block_size = None
+  .help = "Overrides image_range if present. This option splits each sequence"
+          "into the nearest integer number of equal size blocks close to"
+          "block_size degrees in width"
+  .type = float(allow_none=True)
+exclude_images_multiple = None
+  .help = "Overrides image_range and block_size if present. This option splits"
+          "each scan at the specified image and at each multiple of this image"
+          "number in each experiment. The specified images are also excluded"
+          "from the resulting scans. This is provided as an alternative method"
+          "for specifying image exclusions for cRED data, where the scan of"
+          "diffraction images is interrupted at regular intervals by a crystal"
+          "positioning image (typically every 20th image). The alternative is"
+          "using the same-named parameter in dials.integrate, where it acts as"
+          "a mask for images while keeping a single scan. Splitting the scan"
+          "may be more appropriate if the experimental geometry changes after"
+          "collecting calibration images."
+  .type = int(allow_none=True)
+  .expert_level = 2
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

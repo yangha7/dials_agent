@@ -1,0 +1,143 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+n_bins = 100
+  .type = int(allow_none=True)
+n_checkpoints = None
+  .help = "Number of evenly-spaced checkpoint images on which to perform the"
+          "analysis. Has no effect if images are also specified"
+  .type = int(value_min=1, allow_none=True)
+images = None
+  .help = "Images on which to perform the analysis (otherwise use all images)"
+  .type = ints
+corrected = False
+  .help = "Use corrected data (i.e after applying pedestal and gain) in"
+          "analysis"
+  .type = bool
+masking {
+  border = 0
+    .help = "The border around the edge of the image."
+    .type = int(allow_none=True)
+  d_min = None
+    .help = "The high resolution limit in Angstrom for a pixel to be accepted"
+            "by the filtering algorithm."
+    .type = float(value_min=0, allow_none=True)
+  d_max = None
+    .help = "The low resolution limit in Angstrom for a pixel to be accepted"
+            "by the filtering algorithm."
+    .type = float(value_min=0, allow_none=True)
+  disable_parallax_correction = False
+    .help = "Set to ``True`` to use a faster, but less accurate, simple"
+            "px-to-mm  mapping by disabling accounting for parallax correction"
+            "when generating  resolution masks."
+    .type = bool
+  resolution_range = None
+    .help = "an untrusted resolution range"
+    .type = floats(size=2)
+    .multiple = True
+  untrusted
+    .multiple = True
+  {
+    panel = None
+      .help = "then the whole panel is masked out"
+      .type = int(allow_none=True)
+    circle = None
+      .help = "An untrusted circle (xc, yc, r)"
+      .type = ints(size=3)
+    rectangle = None
+      .help = "An untrusted rectangle (x0, x1, y0, y1)"
+      .type = ints(size=4)
+    polygon = None
+      .help = "The pixel coordinates (fast, slow) that define the corners  of"
+              "the untrusted polygon. Spots whose centroids fall within  the"
+              "bounds of the untrusted polygon will be rejected."
+      .type = ints(value_min=0)
+    pixel = None
+      .help = "An untrusted pixel (y, x)"
+      .type = ints(size=2, value_min=0)
+  }
+  ice_rings {
+    filter = False
+      .type = bool
+    unit_cell = 4.498,4.498,7.338,90,90,120
+      .help = "The unit cell to generate d_spacings for powder rings."
+      .type = unit_cell
+      .expert_level = 1
+    space_group = 194
+      .help = "The space group used to generate d_spacings for powder rings."
+      .type = space_group
+      .expert_level = 1
+    width = 0.002
+      .help = "The width of an ice ring (in 1/d^2)."
+      .type = float(value_min=0, allow_none=True)
+      .expert_level = 1
+    d_min = None
+      .help = "The high resolution limit (otherwise use detector d_min)"
+      .type = float(value_min=0, allow_none=True)
+      .expert_level = 1
+  }
+}
+output {
+  plot = None
+    .help = "Save background plot to file"
+    .type = path
+  size_inches = None
+    .type = floats(size=2, value_min=0)
+  log = dials.background.log
+    .type = str
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  tolerance
+    .help = "Tolerances used to determine shared models"
+    .expert_level = 2
+  {
+    beam {
+      wavelength = 1e-6
+        .help = "The wavelength tolerance"
+        .type = float(value_min=0, allow_none=True)
+      direction = 1e-6
+        .help = "The direction tolerance"
+        .type = float(value_min=0, allow_none=True)
+      polarization_normal = 1e-6
+        .help = "The polarization normal tolerance"
+        .type = float(value_min=0, allow_none=True)
+      polarization_fraction = 1e-6
+        .help = "The polarization fraction tolerance"
+        .type = float(value_min=0, allow_none=True)
+    }
+    detector {
+      fast_axis = 1e-6
+        .help = "The fast axis tolerance"
+        .type = float(value_min=0, allow_none=True)
+      slow_axis = 1e-6
+        .help = "The slow axis tolerance"
+        .type = float(value_min=0, allow_none=True)
+      origin = 5e-2
+        .help = "The origin tolerance"
+        .type = float(value_min=0, allow_none=True)
+    }
+    goniometer {
+      rotation_axis = 1e-6
+        .help = "The rotation axis tolerance"
+        .type = float(value_min=0, allow_none=True)
+      fixed_rotation = 1e-6
+        .help = "The fixed rotation tolerance"
+        .type = float(value_min=0, allow_none=True)
+      setting_rotation = 1e-6
+        .help = "The setting rotation tolerance"
+        .type = float(value_min=0, allow_none=True)
+    }
+    scan {
+      oscillation = 0.03
+        .help = "The oscillation tolerance for the scan, as a fraction of the"
+                "image width"
+        .type = float(value_min=0, allow_none=True)
+    }
+  }
+}
+

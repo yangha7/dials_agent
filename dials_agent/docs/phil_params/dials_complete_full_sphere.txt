@@ -1,0 +1,17 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+resolution = 0.0
+  .help = "Resolution of diffraction for blind region calculation"
+  .type = float(allow_none=True)
+shadow = True
+  .help = "Consider shadowing in calculating overall completeness"
+  .type = bool
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+}
+

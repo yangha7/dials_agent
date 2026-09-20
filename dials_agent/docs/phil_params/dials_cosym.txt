@@ -1,0 +1,155 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+exclude_images = None
+  .help = "Input in the format exp:start:end Exclude a range of images (start,"
+          "stop) from the dataset with experiment identifier exp  (inclusive"
+          "of frames start, stop). Multiple ranges can be given in one go,"
+          "e.g. exclude_images=0:150:200,1:200:250 exclude_images='0:150:200"
+          "1:200:250'"
+  .short_caption = "Exclude images"
+  .type = strings
+  .multiple = True
+  .expert_level = 1
+exclude_images_multiple = None
+  .help = "Exclude this single image and each multiple of this image number in"
+          "each experiment. This is provided as a convenient shorthand to"
+          "specify image exclusions for cRED data, where the scan of"
+          "diffraction images is interrupted at regular intervals by a crystal"
+          "positioning image (typically every 20th image)."
+  .type = int(value_min=2, allow_none=True)
+  .expert_level = 2
+partiality_threshold = 0.4
+  .help = "Use reflections with a partiality above the threshold."
+  .type = float(allow_none=True)
+unit_cell_clustering {
+  threshold = 5000
+    .help = "Threshold value for the clustering"
+    .type = float(value_min=0, allow_none=True)
+  log = False
+    .help = "Display the dendrogram with a log scale"
+    .type = bool
+}
+reference = None
+  .help = "A file containing a reference set of intensities e.g. MTZ/cif, or a"
+          "file from which a reference set of intensities can be calculated"
+          "e.g. .pdb or .cif . The space group of the reference file will be"
+          "used and if an indexing ambiguity is present, the input data will"
+          "be reindexed to be consistent with the indexing mode of this"
+          "reference file."
+  .type = path
+  .expert_level = 2
+reference_model {
+}
+min_reflections = 10
+  .help = "The minimum number of merged reflections per experiment required to"
+          "perform cosym analysis."
+  .type = int(value_min=0, allow_none=True)
+seed = 230
+  .type = int(value_min=0, allow_none=True)
+normalisation = kernel quasi *ml_iso ml_aniso
+  .type = choice
+d_min = Auto
+  .type = float(value_min=0, allow_none=True)
+min_i_mean_over_sigma_mean = 4
+  .short_caption = "Minimum <I>/<σ>"
+  .type = float(value_min=0, allow_none=True)
+min_cc_half = 0.6
+  .short_caption = "Minimum CC½"
+  .type = float(value_min=0, value_max=1, allow_none=True)
+dimensions = Auto
+  .short_caption = Dimensions
+  .type = int(value_min=2, allow_none=True)
+use_curvatures = True
+  .short_caption = "Use curvatures"
+  .type = bool
+weights = *count standard_error
+  .help = "If not None, a weights matrix is used in the cosym procedure."
+          "weights=count uses the number of reflections used to calculate a"
+          "pairwise correlation coefficient as its weight"
+          "weights=standard_error uses the reciprocal of the standard error as"
+          "the weight. The standard error is given by (1-CC*2)/sqrt(N), where"
+          "N=(n-2) or N=(neff-1) depending on the cc_weights option."
+  .short_caption = Weights
+  .type = choice
+cc_weights = None sigma
+  .help = "If not None, a weighted cc-half formula is used for calculating"
+          "pairwise correlation coefficients and degrees of freedom in the"
+          "cosym procedure. weights=sigma uses the intensity uncertainties to"
+          "perform inverse variance weighting during the cc calculation."
+  .type = choice
+min_pairs = 3
+  .help = "Minimum number of pairs for inclusion of correlation coefficient in"
+          "calculation of Rij matrix."
+  .short_caption = "Minimum number of pairs"
+  .type = int(value_min=1, allow_none=True)
+minimization
+  .short_caption = Minimization
+{
+  engine = *scitbx scipy
+    .short_caption = Engine
+    .type = choice
+  max_iterations = 100
+    .short_caption = "Maximum number of iterations"
+    .type = int(value_min=0, allow_none=True)
+  max_calls = None
+    .short_caption = "Maximum number of calls"
+    .type = int(value_min=0, allow_none=True)
+}
+nproc = Auto
+  .help = "Number of processes"
+  .type = int(value_min=1, allow_none=True)
+lattice_group = None
+  .short_caption = "Lattice group"
+  .type = space_group
+space_group = None
+  .short_caption = "Space group"
+  .type = space_group
+lattice_symmetry_max_delta = 5.0
+  .short_caption = "Lattice symmetry max δ"
+  .type = float(value_min=0, allow_none=True)
+best_monoclinic_beta = True
+  .help = "If True, then for monoclinic centered cells, I2 will be preferred"
+          "over C2 if it gives a less oblique cell (i.e. smaller beta angle)."
+  .short_caption = "Best monoclinic β"
+  .type = bool
+relative_length_tolerance = 0.05
+  .type = float(value_min=0, allow_none=True)
+absolute_angle_tolerance = 2
+  .type = float(value_min=0, allow_none=True)
+exclude_inconsistent_unit_cells = True
+  .help = "Exclude datasets with unit cells that cannot be mapped to a common"
+          "minimum cell, as controlled by the absolute_angle_tolerance and"
+          "relative_length_tolerance parameters. If False, an error will be"
+          "raised instead."
+  .type = bool
+output {
+  suffix = "_reindexed"
+    .type = str
+  log = dials.cosym.log
+    .type = str
+  experiments = "symmetrized.expt"
+    .type = path
+  reflections = "symmetrized.refl"
+    .type = path
+  excluded = False
+    .type = bool
+  excluded_prefix = "excluded"
+    .type = path
+  json = dials.cosym.json
+    .type = path
+  html = dials.cosym.html
+    .type = path
+}
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+  reflections = None
+    .help = "The reflection table file path"
+    .type = reflection_table
+    .multiple = True
+}
+

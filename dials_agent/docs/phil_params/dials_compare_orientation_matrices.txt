@@ -1,0 +1,18 @@
+Showing configuration parameters with:
+  attributes_level = 2
+  expert_level = 2
+
+hkl = None
+  .type = ints(size=3)
+  .multiple = True
+comparison = *pairwise sequential
+  .type = choice
+space_group = None
+  .type = space_group
+input {
+  experiments = None
+    .help = "The experiment list file path"
+    .type = experiment_list
+    .multiple = True
+}
+
