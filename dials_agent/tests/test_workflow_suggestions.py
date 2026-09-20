@@ -26,3 +26,23 @@ def test_next_step_after_import_is_find_spots_not_image_viewer(tmp_path):
 
     assert suggestion["next_command"] == "dials.find_spots imported.expt"
     assert "dials.image_viewer imported.expt" in suggestion["optional_commands"]
+
+
+def test_next_step_after_find_spots_defaults_to_index_with_beam_position_as_optional(tmp_path):
+    """
+    dials.index is the default next step (matching the TL;DR workflow), with
+    dials.search_beam_position and dials.reciprocal_lattice_viewer offered as
+    optional branches per the SLAC-2026 workflow tutorial -- run right after
+    find_spots, before indexing, to check for a beam-centre/geometry problem
+    (reciprocal_lattice_viewer works on unindexed strong.refl directly, since
+    reflection positions come from geometry, not Miller index assignment).
+    """
+    (tmp_path / "imported.expt").touch()
+    (tmp_path / "strong.refl").touch()
+    workflow = create_workflow_manager(str(tmp_path))
+
+    suggestion = workflow.get_next_step_suggestion()
+
+    assert suggestion["next_command"] == "dials.index imported.expt strong.refl"
+    assert "dials.search_beam_position imported.expt strong.refl" in suggestion["optional_commands"]
+    assert "dials.reciprocal_lattice_viewer imported.expt strong.refl" in suggestion["optional_commands"]

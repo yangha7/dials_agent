@@ -2125,7 +2125,16 @@ DIALS_COMMANDS = {
     
     "dials.reciprocal_lattice_viewer": CommandDefinition(
         name="dials.reciprocal_lattice_viewer",
-        description="3D viewer for reciprocal space showing indexed reflections.",
+        description=(
+            "3D viewer for reciprocal space. Also works BEFORE indexing, directly on "
+            "imported.expt/strong.refl -- reflection positions in reciprocal space come "
+            "purely from pixel coordinates + experimental geometry, not from Miller index "
+            "assignment, so this is a valid straightness check right after dials.find_spots "
+            "(per DIALS's own SLAC-2026 workflow tutorial: rotate the view and check the "
+            "lines of reflections are straight; if not, the beam centre/detector distance "
+            "may be off, worth fixing with dials.search_beam_position before indexing). "
+            "After indexing, additionally shows reflections colored by assigned lattice."
+        ),
         category=CommandCategory.VISUALIZATION,
         input_files=["indexed.expt", "indexed.refl"],
         output_files=[],

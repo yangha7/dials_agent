@@ -18,7 +18,15 @@ description: Finding diffraction spots on images using threshold algorithms (dia
 
 ### After Spot Finding (Visualization)
 Report the spot count/distribution, then offer numbered options and wait (see "Step
-Transitions" in your base instructions): 1. Proceed to `dials.index` (default) 2. View the
-found spots on the images first (`dials.image_viewer imported.expt strong.refl`) 3. Something
-else. Do NOT mention `dials.reciprocal_lattice_viewer` at this stage — it requires indexed
-data to show anything meaningful; that's the next step's viewer, not this one's.
+Transitions" in your base instructions):
+1. Proceed to `dials.index` (default)
+2. Check reciprocal-lattice geometry first (`dials.reciprocal_lattice_viewer imported.expt
+   strong.refl`) — this works even before indexing (reflection positions come from pixel
+   coordinates + geometry, not Miller indices), and is exactly the check DIALS's own
+   SLAC-2026 workflow tutorial uses here: rotate the view and look for straight lines; if
+   they're crooked, the beam centre/detector distance may be off.
+3. Run `dials.search_beam_position imported.expt strong.refl` (optional, not required —
+   "for a well-calibrated beamline... it does no harm" per that tutorial). If run, use its
+   `optimised.expt` output for indexing instead of `imported.expt`.
+4. View the raw images (`dials.image_viewer imported.expt strong.refl`)
+5. Something else.
