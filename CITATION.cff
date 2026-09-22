@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "DIALS AI Agent"
+type: software
+version: 2.15.0
+date-released: "2026-09-22"
+repository-code: "https://github.com/yangha7/dials_agent"
+license: BSD-3-Clause
+authors:
+  - family-names: Ha
+    given-names: Yang
+    affiliation: "Lawrence Berkeley National Laboratory"
+    email: yangha@lbl.gov
